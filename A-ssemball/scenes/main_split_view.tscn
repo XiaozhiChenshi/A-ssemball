@@ -1,0 +1,95 @@
+[gd_scene load_steps=7 format=3 uid="uid://dt4ehhivf84pd"]
+
+[ext_resource type="Script" uid="uid://dxsbsi834w7qr" path="res://scripts/split_render_interface.gd" id="1_7338h"]
+[ext_resource type="Script" uid="uid://dgpdnfijmh76q" path="res://scripts/line_canvas_2d.gd" id="2_6pf0a"]
+
+[sub_resource type="Environment" id="Environment_black_bg"]
+background_mode = 1
+ambient_light_source = 2
+ambient_light_color = Color(0.22, 0.24, 0.28, 1)
+ambient_light_energy = 0.32
+
+[sub_resource type="SphereMesh" id="SphereMesh_c6h16"]
+radius = 1.0
+height = 2.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_marker_red"]
+albedo_color = Color(1, 0.08, 0.08, 1)
+emission_enabled = true
+emission = Color(0.9, 0, 0, 1)
+
+[sub_resource type="SphereMesh" id="SphereMesh_marker"]
+radius = 0.08
+height = 0.16
+
+[node name="MainSplitView" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_7338h")
+
+[node name="Split" type="HSplitContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Left3D" type="SubViewportContainer" parent="Split"]
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+stretch = true
+
+[node name="LeftViewport" type="SubViewport" parent="Split/Left3D"]
+handle_input_locally = false
+size = Vector2i(634, 720)
+render_target_update_mode = 4
+
+[node name="World3D" type="Node3D" parent="Split/Left3D/LeftViewport"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="Split/Left3D/LeftViewport/World3D"]
+environment = SubResource("Environment_black_bg")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Split/Left3D/LeftViewport/World3D"]
+transform = Transform3D(-0.5265298, 0.67744875, 0.5136435, -0.27470785, -0.7073374, 0.65131354, 0.80455077, 0.20183402, 0.5585348, 1.9191732, 2, 2.2687242)
+light_energy = 0.7
+light_angular_distance = 2.2
+shadow_enabled = true
+
+[node name="Camera3D" type="Camera3D" parent="Split/Left3D/LeftViewport/World3D"]
+transform = Transform3D(1, 0, 0, 0, 0.961262, 0.275637, 0, -0.275637, 0.961262, 0, 1.2, 4.5)
+current = true
+fov = 60.0
+
+[node name="Sphere" type="MeshInstance3D" parent="Split/Left3D/LeftViewport/World3D"]
+mesh = SubResource("SphereMesh_c6h16")
+
+[node name="Marker" type="MeshInstance3D" parent="Split/Left3D/LeftViewport/World3D/Sphere"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 0, 0)
+material_override = SubResource("StandardMaterial3D_marker_red")
+mesh = SubResource("SphereMesh_marker")
+
+[node name="DirectionalLight3D2" type="DirectionalLight3D" parent="Split/Left3D/LeftViewport/World3D"]
+transform = Transform3D(0.84506905, -0.35203052, 0.40240878, 0.42052916, 0.9024309, -0.09366846, -0.33017194, 0.24838094, 0.9106555, 4.198159, 1.5561981, 4.231961)
+light_color = Color(0.87, 0.91, 1, 1)
+light_energy = 0.35
+
+[node name="RightPanel" type="ColorRect" parent="Split"]
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+color = Color(0.04, 0.04, 0.05, 1)
+
+[node name="LineCanvas" type="Control" parent="Split/RightPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("2_6pf0a")
