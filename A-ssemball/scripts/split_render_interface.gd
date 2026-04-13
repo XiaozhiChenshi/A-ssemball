@@ -8,11 +8,18 @@ class_name SplitRenderInterface
 @export var rotation_input_block_sec: float = 0.2
 @export var hold_rotate_interval_sec: float = 0.3
 @export var drag_step_threshold_px: float = 40.0
+@export var vertical_swipe_threshold_px: float = 48.0
 @export var sync_right_scene_on_rotate: bool = true
+@export var enable_vertical_face_preview: bool = true
+@export var vertical_face_hold_sec: float = 3.5
+@export var vertical_face_anim_sec: float = 0.22
+@export var up_face_x_deg: float = -90.0
+@export var down_face_x_deg: float = 90.0
 
 @onready var split: HSplitContainer = $Split
 @onready var left_3d: SubViewportContainer = $Split/Left3D
-@onready var sphere: MeshInstance3D = $Split/Left3D/LeftViewport/World3D/Sphere
+@onready var model_root: Node3D = $Split/Left3D/LeftViewport/World3D/ModelRoot
+@onready var sphere: MeshInstance3D = $Split/Left3D/LeftViewport/World3D/ModelRoot/Sphere
 @onready var right_panel: ColorRect = $Split/RightPanel
 @onready var line_canvas: LineCanvas2D = $Split/RightPanel/LineCanvas
 @onready var dir_light: DirectionalLight3D = $Split/Left3D/LeftViewport/World3D/DirectionalLight3D
@@ -20,12 +27,16 @@ class_name SplitRenderInterface
 var _has_custom_line_image: bool = false
 var _is_dragging_sphere: bool = false
 var _drag_accum_x: float = 0.0
+var _drag_accum_y: float = 0.0
 var _rotation_step_count: int = 0
 var _sphere_rotate_tween: Tween
 var _rotation_input_block_until_ms: int = 0
 var _hold_rotate_dir: int = 0
 var _hold_rotate_elapsed: float = 0.0
 var _right_art_base_size: Vector2 = Vector2.ZERO
+var _vertical_preview_phase: int = 0 # 0 none, 1 holding, 2 returning
+var _vertical_preview_return_at_ms: int = 0
+var _vertical_preview_saved_rotation: Vector3 = Vector3.ZERO
 
 
 func _ready() -> void:
@@ -41,6 +52,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_update_vertical_preview_state()
 	_update_hold_rotation(delta)
 
 	if light_rotation_speed_deg == 0.0:
@@ -63,15 +75,24 @@ func _input(event: InputEvent) -> void:
 		if event.pressed:
 			_is_dragging_sphere = left_3d.get_global_rect().has_point(event.position)
 			_drag_accum_x = 0.0
+			_drag_accum_y = 0.0
 		else:
 			_is_dragging_sphere = false
 			_drag_accum_x = 0.0
+			_drag_accum_y = 0.0
 		return
 
 	if _is_dragging_sphere and event is InputEventMouseMotion:
-		if _is_rotation_input_blocked():
+		if _is_sphere_input_locked():
 			_drag_accum_x = 0.0
+			_drag_accum_y = 0.0
 			return
+		_drag_accum_y += event.relative.y
+		if _try_vertical_face_preview_from_drag():
+			_drag_accum_x = 0.0
+			_drag_accum_y = 0.0
+			return
+
 		_drag_accum_x += event.relative.x
 		var threshold := maxf(1.0, drag_step_threshold_px)
 		if absf(_drag_accum_x) >= threshold:
@@ -215,8 +236,12 @@ func _is_rotation_input_blocked() -> bool:
 	return Time.get_ticks_msec() < _rotation_input_block_until_ms
 
 
+func _is_sphere_input_locked() -> bool:
+	return _is_rotation_input_blocked() or _vertical_preview_phase != 0
+
+
 func _try_rotate_sphere_step(step_direction: int) -> void:
-	if _is_rotation_input_blocked():
+	if _is_sphere_input_locked():
 		return
 	_rotate_sphere_step(step_direction)
 
@@ -238,7 +263,7 @@ func _update_hold_rotation(delta: float) -> void:
 		_hold_rotate_elapsed = 0.0
 		return
 
-	if _is_rotation_input_blocked():
+	if _is_sphere_input_locked():
 		_hold_rotate_elapsed = 0.0
 		return
 
@@ -246,6 +271,95 @@ func _update_hold_rotation(delta: float) -> void:
 	if _hold_rotate_elapsed >= hold_rotate_interval_sec:
 		_try_rotate_sphere_step(_hold_rotate_dir)
 		_hold_rotate_elapsed = 0.0
+
+
+func _try_vertical_face_preview_from_drag() -> bool:
+	if not enable_vertical_face_preview:
+		return false
+	if _vertical_preview_phase != 0:
+		return false
+	if not _is_dragging_sphere:
+		return false
+	if _is_sphere_input_locked():
+		return false
+
+	var threshold := maxf(1.0, vertical_swipe_threshold_px)
+	if absf(_drag_accum_y) < threshold:
+		return false
+
+	var to_up := _drag_accum_y < 0.0
+	_start_vertical_face_preview(to_up)
+	get_viewport().set_input_as_handled()
+	return true
+
+
+func _start_vertical_face_preview(to_up_face: bool) -> void:
+	_vertical_preview_phase = 1
+	_vertical_preview_saved_rotation = model_root.rotation
+	_vertical_preview_return_at_ms = Time.get_ticks_msec() + int(vertical_face_hold_sec * 1000.0)
+	_rotation_input_block_until_ms = _vertical_preview_return_at_ms
+	_drag_accum_x = 0.0
+	_drag_accum_y = 0.0
+	_hold_rotate_elapsed = 0.0
+
+	var target_x := deg_to_rad(up_face_x_deg if to_up_face else down_face_x_deg)
+	_play_model_x_tween(target_x, vertical_face_anim_sec)
+	_sync_right_scene_with_vertical_face(to_up_face)
+
+
+func _update_vertical_preview_state() -> void:
+	if _vertical_preview_phase != 1:
+		return
+	if Time.get_ticks_msec() < _vertical_preview_return_at_ms:
+		return
+
+	_vertical_preview_phase = 2
+	_play_model_x_tween(_vertical_preview_saved_rotation.x, vertical_face_anim_sec, Callable(self, "_on_vertical_preview_return_finished"))
+
+
+func _on_vertical_preview_return_finished() -> void:
+	_vertical_preview_phase = 0
+	if sync_right_scene_on_rotate:
+		_sync_right_scene_with_rotation()
+	elif not _has_custom_line_image:
+		_draw_default_line_art()
+
+
+func _play_model_x_tween(target_x: float, duration: float, finished_callback: Callable = Callable()) -> void:
+	if is_instance_valid(_sphere_rotate_tween):
+		_sphere_rotate_tween.kill()
+
+	_sphere_rotate_tween = create_tween()
+	_sphere_rotate_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_sphere_rotate_tween.tween_property(model_root, "rotation:x", target_x, duration)
+	if finished_callback.is_valid():
+		_sphere_rotate_tween.finished.connect(finished_callback, CONNECT_ONE_SHOT)
+
+
+func _sync_right_scene_with_vertical_face(is_up_face: bool) -> void:
+	var w := line_canvas.size.x
+	var h := line_canvas.size.y
+	if w <= 0.0 or h <= 0.0:
+		return
+
+	var points: PackedVector2Array
+	if is_up_face:
+		points = PackedVector2Array([
+			Vector2(w * 0.22, h * 0.66),
+			Vector2(w * 0.50, h * 0.26),
+			Vector2(w * 0.78, h * 0.66),
+			Vector2(w * 0.50, h * 0.54),
+			Vector2(w * 0.22, h * 0.66)
+		])
+	else:
+		points = PackedVector2Array([
+			Vector2(w * 0.22, h * 0.34),
+			Vector2(w * 0.50, h * 0.74),
+			Vector2(w * 0.78, h * 0.34),
+			Vector2(w * 0.50, h * 0.46),
+			Vector2(w * 0.22, h * 0.34)
+		])
+	line_canvas.set_line_points(points, false, 4.0)
 
 
 func _ensure_input_actions() -> void:

@@ -66,10 +66,12 @@ transform = Transform3D(1, 0, 0, 0, 0.961262, 0.275637, 0, -0.275637, 0.961262, 
 current = true
 fov = 60.0
 
-[node name="Sphere" type="MeshInstance3D" parent="Split/Left3D/LeftViewport/World3D"]
+[node name="ModelRoot" type="Node3D" parent="Split/Left3D/LeftViewport/World3D"]
+
+[node name="Sphere" type="MeshInstance3D" parent="Split/Left3D/LeftViewport/World3D/ModelRoot"]
 mesh = SubResource("SphereMesh_c6h16")
 
-[node name="Marker" type="MeshInstance3D" parent="Split/Left3D/LeftViewport/World3D/Sphere"]
+[node name="Marker" type="MeshInstance3D" parent="Split/Left3D/LeftViewport/World3D/ModelRoot/Sphere"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 0, 0)
 material_override = SubResource("StandardMaterial3D_marker_red")
 mesh = SubResource("SphereMesh_marker")
