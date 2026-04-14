@@ -1,7 +1,8 @@
 63f7b34db8d8cdea90c76aacccf841ec
-::res://::1776171136
+::res://::1776175610
 export_presets.cfg::TextFile::-1::1776093436::0::1::::<><><>0<>0<><>::
 icon.svg::CompressedTexture2D::3214789299660626481::1775900819::1775907380::1::::<><><>0<>0<>0e18217a1b12bd39cad6ff478ec9cd87<>res://.godot/imported/icon.svg-218a8f2b3041327d8a5756f3a245f83b.ctex::
+README.md::TextFile::-1::1776175590::0::1::::<><><>0<>0<><>::
 ::res://assets/::1775915310
 ::res://assets/audio/::1775915310
 ::res://assets/materials/::1775915310
@@ -9,12 +10,12 @@ icon.svg::CompressedTexture2D::3214789299660626481::1775900819::1775907380::1:::
 ::res://assets/textures/::1775915443
 ::res://assets/ui/::1776095205
 scene1_start.png::CompressedTexture2D::7576598305608824955::1775915496::1776095204::1::::<><><>0<>0<>0346b9ff8c0a8c35eb50da5c9981101e<>res://.godot/imported/scene1_start.png-4b5b675c050db2f01569531d41249dc7.s3tc.ctex::
-::res://scenes/::1776160939
+::res://scenes/::1776173362
 intro_interactive.tscn::PackedScene::4681738858864248137::1776160939::0::1::::<><><>0<>0<><>::uid://b1c2x0s645ymu::::res://scripts/intro_interactive.gd
 main_entry.tscn::PackedScene::7929867992972785267::1775918113::0::1::::<><><>0<>0<><>::uid://dqd6a5ernj7er::::res://scripts/main_entry.gd<>uid://df7fp5aoalhrf::::res://assets/ui/scene1_start.png
-main_split_view.tscn::PackedScene::8552972784582095085::1776071769::0::1::::<><><>0<>0<><>::uid://dxsbsi834w7qr::::res://scripts/split_render_interface.gd<>uid://dgpdnfijmh76q::::res://scripts/line_canvas_2d.gd
+main_split_view.tscn::PackedScene::8552972784582095085::1776173362::0::1::::<><><>0<>0<><>::uid://dxsbsi834w7qr::::res://scripts/split_render_interface.gd<>uid://dgpdnfijmh76q::::res://scripts/line_canvas_2d.gd
 ::res://scripts/::1776158174
 intro_interactive.gd::GDScript::4217141148193261996::1776160438::0::1::::IntroInteractive<>Control<><>0<>0<><>::
 line_canvas_2d.gd::GDScript::7611566420917911238::1776141485::0::1::::LineCanvas2D<>Control<><>0<>0<><>::
 main_entry.gd::GDScript::8290360491995648465::1776141516::0::1::::<>Control<><>0<>0<><>::
-split_render_interface.gd::GDScript::8810857588087373297::1776159676::0::1::::SplitRenderInterface<>Control<><>0<>0<><>::
+split_render_interface.gd::GDScript::8810857588087373297::1776175557::0::1::::SplitRenderInterface<>Control<><>0<>0<><>::

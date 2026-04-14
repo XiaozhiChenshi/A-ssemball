@@ -29,6 +29,7 @@ var _drag_accum_x: float = 0.0
 var _drag_accum_y: float = 0.0
 var _rotation_step_count: int = 0
 var _sphere_rotate_tween: Tween
+var _model_x_tween: Tween
 var _rotation_input_block_until_ms: int = 0
 var _hold_rotate_dir: int = 0
 var _hold_rotate_elapsed: float = 0.0
@@ -39,7 +40,7 @@ var _vertical_preview_saved_rotation: Vector3 = Vector3.ZERO
 
 
 func _ready() -> void:
-	_ensure_input_actions()
+	_validate_input_actions()
 	_setup_default_sphere_material()
 	dir_light.light_energy = light_energy
 	right_panel.clip_contents = true
@@ -292,14 +293,14 @@ func _on_vertical_preview_return_finished() -> void:
 
 
 func _play_model_x_tween(target_x: float, duration: float, finished_callback: Callable = Callable()) -> void:
-	if is_instance_valid(_sphere_rotate_tween):
-		_sphere_rotate_tween.kill()
+	if is_instance_valid(_model_x_tween):
+		_model_x_tween.kill()
 
-	_sphere_rotate_tween = create_tween()
-	_sphere_rotate_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	_sphere_rotate_tween.tween_property(model_root, "rotation:x", target_x, duration)
+	_model_x_tween = create_tween()
+	_model_x_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_model_x_tween.tween_property(model_root, "rotation:x", target_x, duration)
 	if finished_callback.is_valid():
-		_sphere_rotate_tween.finished.connect(finished_callback, CONNECT_ONE_SHOT)
+		_model_x_tween.finished.connect(finished_callback, CONNECT_ONE_SHOT)
 
 
 func _sync_right_scene_with_vertical_face(is_up_face: bool) -> void:
@@ -328,24 +329,11 @@ func _sync_right_scene_with_vertical_face(is_up_face: bool) -> void:
 	line_canvas.set_line_points(points, false, 4.0)
 
 
-func _ensure_input_actions() -> void:
+func _validate_input_actions() -> void:
 	if not InputMap.has_action("rotate_sphere_left"):
-		InputMap.add_action("rotate_sphere_left")
-		var a_key := InputEventKey.new()
-		a_key.keycode = KEY_A
-		InputMap.action_add_event("rotate_sphere_left", a_key)
-		var left_key := InputEventKey.new()
-		left_key.keycode = KEY_LEFT
-		InputMap.action_add_event("rotate_sphere_left", left_key)
-
+		push_warning("Missing input action: rotate_sphere_left. Configure it in Project Settings > Input Map.")
 	if not InputMap.has_action("rotate_sphere_right"):
-		InputMap.add_action("rotate_sphere_right")
-		var d_key := InputEventKey.new()
-		d_key.keycode = KEY_D
-		InputMap.action_add_event("rotate_sphere_right", d_key)
-		var right_key := InputEventKey.new()
-		right_key.keycode = KEY_RIGHT
-		InputMap.action_add_event("rotate_sphere_right", right_key)
+		push_warning("Missing input action: rotate_sphere_right. Configure it in Project Settings > Input Map.")
 
 
 func _on_split_dragged(_offset: int) -> void:

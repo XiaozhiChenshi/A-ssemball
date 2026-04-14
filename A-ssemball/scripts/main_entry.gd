@@ -42,9 +42,7 @@ func _start_sequence() -> void:
 	if intro != null:
 		await intro.intro_finished
 
-	var to_game_black := create_tween()
-	to_game_black.tween_property(fade_layer, "color:a", 1.0, fade_to_black_sec)
-	await to_game_black.finished
+	fade_layer.color = Color(0.0, 0.0, 0.0, 1.0)
 
 	_clear_game_root()
 	_spawn_game_scene()

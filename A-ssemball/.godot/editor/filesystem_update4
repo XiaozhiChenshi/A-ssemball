@@ -1,1 +1,3 @@
-res://scenes/main_split_view.tscn
+res://scripts/intro_interactive.gd
+res://scripts/main_entry.gd
+res://scenes/intro_interactive.tscn
