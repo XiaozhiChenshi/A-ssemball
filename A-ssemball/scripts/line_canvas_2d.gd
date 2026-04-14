@@ -17,6 +17,7 @@ func set_line_points(points: PackedVector2Array, closed: bool = false, width: fl
 
 func clear_lines() -> void:
 	_points = PackedVector2Array()
+	_closed = false
 	queue_redraw()
 
 

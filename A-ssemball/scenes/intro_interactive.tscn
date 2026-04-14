@@ -1,6 +1,103 @@
-[gd_scene load_steps=2 format=3 uid="uid://b7x4s4trv8rj2"]
+[gd_scene load_steps=11 format=3 uid="uid://b7x4s4trv8rj2"]
 
-[ext_resource type="Script" path="res://scripts/intro_interactive.gd" id="1_j0pc4"]
+[ext_resource type="Script" uid="uid://b1c2x0s645ymu" path="res://scripts/intro_interactive.gd" id="1_0t6k7"]
+
+[sub_resource type="Environment" id="Environment_intro"]
+background_mode = 1
+background_color = Color(0.05, 0.06, 0.08, 1)
+adjustment_enabled = true
+adjustment_contrast = 0.86
+adjustment_saturation = 0.78
+
+[sub_resource type="Shader" id="Shader_grid_static"]
+code = "shader_type spatial;
+render_mode unshaded, cull_disabled, depth_draw_opaque;
+
+uniform vec4 color_a : source_color = vec4(0.18, 0.22, 0.26, 1.0);
+uniform vec4 color_b : source_color = vec4(0.13, 0.16, 0.20, 1.0);
+uniform vec4 line_color : source_color = vec4(0.41, 0.47, 0.55, 1.0);
+uniform float grid_repeat = 40.0;
+uniform float line_width = 0.045;
+
+void fragment() {
+	vec2 uv = UV * grid_repeat;
+	vec2 f = fract(uv);
+	float line = step(f.x, line_width) + step(1.0 - f.x, line_width) + step(f.y, line_width) + step(1.0 - f.y, line_width);
+	line = clamp(line, 0.0, 1.0);
+	float checker = mod(floor(uv.x) + floor(uv.y), 2.0);
+	vec3 fill_col = mix(color_a.rgb, color_b.rgb, checker);
+	ALBEDO = mix(fill_col, line_color.rgb, line);
+	ALPHA = 1.0;
+}
+"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_grid_static"]
+render_priority = 0
+shader = SubResource("Shader_grid_static")
+shader_parameter/color_a = Color(0.7486038, 0.7881187, 0.8410423, 1)
+shader_parameter/color_b = Color(0.7490196, 0.7882353, 0.8392157, 1)
+shader_parameter/line_color = Color(0.18, 0.22, 0.26, 1)
+shader_parameter/grid_repeat = 40.0
+shader_parameter/line_width = 0.026
+
+[sub_resource type="QuadMesh" id="QuadMesh_grid"]
+size = Vector2(310, 320)
+
+[sub_resource type="Shader" id="Shader_goal_sphere"]
+code = "shader_type spatial;
+render_mode unshaded, cull_back, depth_draw_opaque;
+
+uniform vec4 base_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+uniform float brightness = 1.15;
+uniform float pulse_speed = 0.25;
+uniform float pulse_amp = 0.08;
+
+void fragment() {
+	float pulse = 1.0 + sin(TIME * TAU * pulse_speed) * pulse_amp;
+	vec3 col = base_color.rgb * brightness * pulse;
+	ALBEDO = clamp(col, vec3(0.0), vec3(1.0));
+	ALPHA = base_color.a;
+}
+"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_goal_sphere"]
+render_priority = 10
+shader = SubResource("Shader_goal_sphere")
+shader_parameter/base_color = Color(1, 1, 1, 1)
+shader_parameter/brightness = 1.15
+shader_parameter/pulse_speed = 0.25
+shader_parameter/pulse_amp = 0.08
+
+[sub_resource type="SphereMesh" id="SphereMesh_goal_lowpoly"]
+radius = 5.0
+height = 10.0
+radial_segments = 12
+rings = 8
+
+[sub_resource type="Shader" id="Shader_vignette_overlay"]
+code = "shader_type canvas_item;
+
+uniform float radius : hint_range(0.0, 1.2) = 0.72;
+uniform float softness : hint_range(0.001, 1.0) = 0.38;
+uniform float intensity : hint_range(0.0, 1.0) = 0.62;
+uniform vec4 vignette_color : source_color = vec4(0.0, 0.0, 0.0, 1.0);
+
+void fragment() {
+	vec2 centered = UV - vec2(0.5);
+	centered.x *= SCREEN_PIXEL_SIZE.y / SCREEN_PIXEL_SIZE.x;
+	float dist = length(centered);
+	float edge = smoothstep(radius, radius + softness, dist);
+	float alpha = edge * intensity;
+	COLOR = vec4(vignette_color.rgb, alpha);
+}
+"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_vignette_overlay"]
+shader = SubResource("Shader_vignette_overlay")
+shader_parameter/radius = 0.5
+shader_parameter/softness = 0.42
+shader_parameter/intensity = 0.9
+shader_parameter/vignette_color = Color(0, 0, 0, 1)
 
 [node name="IntroInteractive" type="Control"]
 layout_mode = 3
@@ -9,41 +106,64 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_j0pc4")
+script = ExtResource("1_0t6k7")
 
-[node name="Bg" type="TextureRect" parent="."]
+[node name="ViewportContainer" type="SubViewportContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-expand_mode = 1
-stretch_mode = 6
+stretch = true
 
-[node name="Dim" type="ColorRect" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-color = Color(0, 0, 0, 0.22)
-mouse_filter = 2
+[node name="SubViewport" type="SubViewport" parent="ViewportContainer"]
+handle_input_locally = false
+size = Vector2i(1280, 720)
+render_target_update_mode = 4
+
+[node name="WorldRoot" type="Node3D" parent="ViewportContainer/SubViewport"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="ViewportContainer/SubViewport/WorldRoot"]
+environment = SubResource("Environment_intro")
+
+[node name="Camera3D" type="Camera3D" parent="ViewportContainer/SubViewport/WorldRoot"]
+transform = Transform3D(1, 0, 0, 0, 0.99961454, 0.027764622, 0, -0.027764622, 0.99961454, 0, 11, 90)
+current = true
+fov = 56.8
+near = 0.01
+far = 110.0
+
+[node name="GridPlane" type="MeshInstance3D" parent="ViewportContainer/SubViewport/WorldRoot"]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 10, 0, 0)
+material_override = SubResource("ShaderMaterial_grid_static")
+mesh = SubResource("QuadMesh_grid")
+
+[node name="GoalSphere" type="MeshInstance3D" parent="ViewportContainer/SubViewport/WorldRoot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8, -55)
+material_override = SubResource("ShaderMaterial_goal_sphere")
+mesh = SubResource("SphereMesh_goal_lowpoly")
 
 [node name="Hint" type="Label" parent="."]
 layout_mode = 1
-anchors_preset = 10
-anchor_left = 0.5
+anchors_preset = 12
 anchor_top = 1.0
-anchor_right = 0.5
+anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -240.0
-offset_top = -82.0
-offset_right = 240.0
-offset_bottom = -36.0
+offset_top = -56.0
+offset_bottom = -16.0
 grow_horizontal = 2
 grow_vertical = 0
-theme_override_font_sizes/font_size = 26
-text = "Press Space Or Click"
+theme_override_font_sizes/font_size = 24
+text = "Hold W To Move Forward"
 horizontal_alignment = 1
+
+[node name="VignetteOverlay" type="ColorRect" parent="."]
+material = SubResource("ShaderMaterial_vignette_overlay")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2

@@ -54,35 +54,35 @@ func _start_sequence() -> void:
 	await show_game.finished
 
 
-func _spawn_game_scene() -> void:
-	var game := GAME_SCENE.instantiate()
-	game_root.add_child(game)
-
-	if game is Control:
-		(game as Control).set_anchors_preset(Control.PRESET_FULL_RECT)
-		(game as Control).offset_left = 0.0
-		(game as Control).offset_top = 0.0
-		(game as Control).offset_right = 0.0
-		(game as Control).offset_bottom = 0.0
-
-	if game.has_method("_set_game_started"):
-		game.call("_set_game_started", true)
-
-
 func _spawn_intro_scene() -> IntroInteractive:
 	_clear_game_root()
 
 	var intro := INTRO_SCENE.instantiate()
 	game_root.add_child(intro)
 	if intro is Control:
-		(intro as Control).set_anchors_preset(Control.PRESET_FULL_RECT)
-		(intro as Control).offset_left = 0.0
-		(intro as Control).offset_top = 0.0
-		(intro as Control).offset_right = 0.0
-		(intro as Control).offset_bottom = 0.0
+		_fit_full_rect(intro as Control)
 	return intro as IntroInteractive
+
+
+func _spawn_game_scene() -> void:
+	var game := GAME_SCENE.instantiate()
+	game_root.add_child(game)
+
+	if game is Control:
+		_fit_full_rect(game as Control)
+
+	if game.has_method("_set_game_started"):
+		game.call("_set_game_started", true)
 
 
 func _clear_game_root() -> void:
 	for child in game_root.get_children():
 		child.queue_free()
+
+
+func _fit_full_rect(node: Control) -> void:
+	node.set_anchors_preset(Control.PRESET_FULL_RECT)
+	node.offset_left = 0.0
+	node.offset_top = 0.0
+	node.offset_right = 0.0
+	node.offset_bottom = 0.0

@@ -24,7 +24,6 @@ class_name SplitRenderInterface
 @onready var line_canvas: LineCanvas2D = $Split/RightPanel/LineCanvas
 @onready var dir_light: DirectionalLight3D = $Split/Left3D/LeftViewport/World3D/DirectionalLight3D
 
-var _has_custom_line_image: bool = false
 var _is_dragging_sphere: bool = false
 var _drag_accum_x: float = 0.0
 var _drag_accum_y: float = 0.0
@@ -101,44 +100,11 @@ func _input(event: InputEvent) -> void:
 			_drag_accum_x = 0.0
 
 
-func set_split_ratio(left_ratio: float) -> void:
-	var clamped := clampf(left_ratio, 0.1, 0.5)
-	# In SplitContainer, offset is relative to center:
-	# -0.5 * width => near far-left, 0 => center, +0.5 * width => near far-right.
-	split.split_offset = int((clamped - 0.5) * size.x)
-
-
-func set_sphere_position(position_3d: Vector3) -> void:
-	sphere.position = position_3d
-
-
-func set_sphere_scale(scale_3d: Vector3) -> void:
-	sphere.scale = scale_3d
-
-
-func set_sphere_color(color: Color) -> void:
-	var material := sphere.get_active_material(0)
-	if material == null or not (material is StandardMaterial3D):
-		material = StandardMaterial3D.new()
-		sphere.set_surface_override_material(0, material)
-	(material as StandardMaterial3D).albedo_color = color
-
-
-func set_right_line_image(points: PackedVector2Array, closed: bool = false, width: float = 3.0) -> void:
-	_has_custom_line_image = true
-	line_canvas.set_line_points(points, closed, width)
-
-
-func clear_right_line_image() -> void:
-	_has_custom_line_image = false
-	line_canvas.clear_lines()
-
-
 func _setup_default_sphere_material() -> void:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.82, 0.87, 0.96, 1.0)
-	material.roughness = 0.42
-	sphere.set_surface_override_material(0, material)
+	var sphere_material := StandardMaterial3D.new()
+	sphere_material.albedo_color = Color(0.82, 0.87, 0.96, 1.0)
+	sphere_material.roughness = 0.42
+	sphere.set_surface_override_material(0, sphere_material)
 
 
 func _draw_default_line_art() -> void:
@@ -164,7 +130,7 @@ func _on_layout_changed() -> void:
 	# Redraw default line art when the panel size changes.
 	if sync_right_scene_on_rotate:
 		_sync_right_scene_with_rotation()
-	elif not _has_custom_line_image:
+	else:
 		_draw_default_line_art()
 
 
@@ -321,7 +287,7 @@ func _on_vertical_preview_return_finished() -> void:
 	_vertical_preview_phase = 0
 	if sync_right_scene_on_rotate:
 		_sync_right_scene_with_rotation()
-	elif not _has_custom_line_image:
+	else:
 		_draw_default_line_art()
 
 
