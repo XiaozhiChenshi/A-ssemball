@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3 uid="uid://b7x4s4trv8rj2"]
+[gd_scene load_steps=13 format=3 uid="uid://b7x4s4trv8rj2"]
 
 [ext_resource type="Script" uid="uid://b1c2x0s645ymu" path="res://scripts/intro_interactive.gd" id="1_0t6k7"]
 
@@ -11,13 +11,19 @@ adjustment_saturation = 0.78
 
 [sub_resource type="Shader" id="Shader_grid_static"]
 code = "shader_type spatial;
-render_mode unshaded, cull_disabled, depth_draw_opaque;
+render_mode cull_disabled, depth_draw_opaque;
 
 uniform vec4 color_a : source_color = vec4(0.18, 0.22, 0.26, 1.0);
 uniform vec4 color_b : source_color = vec4(0.13, 0.16, 0.20, 1.0);
 uniform vec4 line_color : source_color = vec4(0.41, 0.47, 0.55, 1.0);
 uniform float grid_repeat = 40.0;
 uniform float line_width = 0.045;
+uniform float roughness = 0.92;
+uniform float specular = 0.05;
+uniform float gradient_strength = 0.4;
+uniform float gradient_front_brightness = 0.8;
+uniform float gradient_back_brightness = 1.12;
+uniform float gradient_side_darkening = 0.12;
 
 void fragment() {
 	vec2 uv = UV * grid_repeat;
@@ -26,7 +32,13 @@ void fragment() {
 	line = clamp(line, 0.0, 1.0);
 	float checker = mod(floor(uv.x) + floor(uv.y), 2.0);
 	vec3 fill_col = mix(color_a.rgb, color_b.rgb, checker);
-	ALBEDO = mix(fill_col, line_color.rgb, line);
+	vec3 base_col = mix(fill_col, line_color.rgb, line);
+	float depth_grad = mix(gradient_front_brightness, gradient_back_brightness, smoothstep(0.0, 1.0, UV.y));
+	float side_grad = 1.0 - abs(UV.x - 0.5) * 2.0 * gradient_side_darkening;
+	float grad_mix = mix(1.0, depth_grad * side_grad, clamp(gradient_strength, 0.0, 1.0));
+	ALBEDO = base_col * grad_mix;
+	ROUGHNESS = roughness;
+	SPECULAR = specular;
 	ALPHA = 1.0;
 }
 "
@@ -34,28 +46,36 @@ void fragment() {
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_grid_static"]
 render_priority = 0
 shader = SubResource("Shader_grid_static")
-shader_parameter/color_a = Color(0.7486038, 0.7881187, 0.8410423, 1)
-shader_parameter/color_b = Color(0.7490196, 0.7882353, 0.8392157, 1)
-shader_parameter/line_color = Color(0.18, 0.22, 0.26, 1)
+shader_parameter/color_a = Color(0.87058824, 0.89411765, 0.92156863, 1)
+shader_parameter/color_b = Color(0.8724744, 0.8932206, 0.92025834, 1)
+shader_parameter/line_color = Color(0.005877264, 0.008583654, 0.011902449, 1)
 shader_parameter/grid_repeat = 40.0
 shader_parameter/line_width = 0.026
+shader_parameter/roughness = 0.92
+shader_parameter/specular = 0.4
+shader_parameter/gradient_strength = 0.4
+shader_parameter/gradient_front_brightness = 2.0
+shader_parameter/gradient_back_brightness = 1.4
+shader_parameter/gradient_side_darkening = 0.12
 
 [sub_resource type="QuadMesh" id="QuadMesh_grid"]
 size = Vector2(310, 320)
 
 [sub_resource type="Shader" id="Shader_goal_sphere"]
 code = "shader_type spatial;
-render_mode unshaded, cull_back, depth_draw_opaque;
+render_mode cull_back, depth_draw_opaque;
 
 uniform vec4 base_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
-uniform float brightness = 1.15;
-uniform float pulse_speed = 0.25;
-uniform float pulse_amp = 0.08;
+uniform float roughness = 0.35;
+uniform float specular = 0.22;
+uniform float fresnel_strength = 0.07;
 
 void fragment() {
-	float pulse = 1.0 + sin(TIME * TAU * pulse_speed) * pulse_amp;
-	vec3 col = base_color.rgb * brightness * pulse;
+	float fresnel = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 2.2);
+	vec3 col = base_color.rgb + vec3(fresnel * fresnel_strength);
 	ALBEDO = clamp(col, vec3(0.0), vec3(1.0));
+	ROUGHNESS = roughness;
+	SPECULAR = specular;
 	ALPHA = base_color.a;
 }
 "
@@ -63,10 +83,10 @@ void fragment() {
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_goal_sphere"]
 render_priority = 10
 shader = SubResource("Shader_goal_sphere")
-shader_parameter/base_color = Color(1, 1, 1, 1)
-shader_parameter/brightness = 1.15
-shader_parameter/pulse_speed = 0.25
-shader_parameter/pulse_amp = 0.08
+shader_parameter/base_color = Color(0.95, 0.95, 0.96, 1)
+shader_parameter/roughness = 0.35
+shader_parameter/specular = 0.22
+shader_parameter/fresnel_strength = 0.07
 
 [sub_resource type="SphereMesh" id="SphereMesh_goal_lowpoly"]
 radius = 5.0
@@ -98,6 +118,40 @@ shader_parameter/radius = 0.5
 shader_parameter/softness = 0.42
 shader_parameter/intensity = 0.9
 shader_parameter/vignette_color = Color(0, 0, 0, 1)
+
+[sub_resource type="Shader" id="Shader_moire_noise_overlay"]
+code = "shader_type canvas_item;
+render_mode unshaded;
+
+uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linear_mipmap;
+uniform float effect_strength : hint_range(0.0, 1.0) = 0.82;
+uniform float noise_strength : hint_range(0.0, 0.6) = 0.16;
+uniform float noise_speed : hint_range(0.0, 12.0) = 2.1;
+uniform float noise_density : hint_range(120.0, 2200.0) = 1250.0;
+
+float hash(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+void fragment() {
+	vec2 uv = SCREEN_UV;
+	float t = TIME;
+	vec4 base_col = texture(screen_tex, uv);
+	vec2 noise_grid = floor(uv * vec2(noise_density, noise_density * 0.5625));
+	float noise = hash(noise_grid + vec2(t * noise_speed * 61.0, t * noise_speed * 37.0));
+	float noise_signed = (noise - 0.5) * 2.0;
+	base_col.rgb += noise_signed * noise_strength * effect_strength;
+
+	COLOR = vec4(clamp(base_col.rgb, vec3(0.0), vec3(1.0)), 1.0);
+}
+"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_moire_noise_overlay"]
+shader = SubResource("Shader_moire_noise_overlay")
+shader_parameter/effect_strength = 0.82
+shader_parameter/noise_strength = 0.16
+shader_parameter/noise_speed = 2.1
+shader_parameter/noise_density = 1250.0
 
 [node name="IntroInteractive" type="Control"]
 layout_mode = 3
@@ -134,9 +188,26 @@ fov = 56.8
 near = 0.01
 far = 110.0
 
+[node name="NaturalKeyLight" type="DirectionalLight3D" parent="ViewportContainer/SubViewport/WorldRoot"]
+transform = Transform3D(-0.27388445, 0.73739505, 0.6174431, -0.22639863, -0.673382, 0.70377576, 0.93473595, 0.052965008, 0.35137403, 17.48649, 20.606514, 10.553394)
+light_color = Color(1, 0.97, 0.93, 1)
+light_energy = 0.88
+light_angular_distance = 3.6
+shadow_enabled = true
+sky_mode = 1
+
+[node name="NaturalFillLight" type="DirectionalLight3D" parent="ViewportContainer/SubViewport/WorldRoot"]
+transform = Transform3D(0.4587992, -0.62448573, -0.6320765, 0.85871375, 0.12886511, 0.49598858, -0.22828527, -0.7703321, 0.5953777, -39.53274, 12.093018, -60.50316)
+light_color = Color(0.82, 0.89, 1, 1)
+light_energy = 0.42
+light_angular_distance = 4.4
+shadow_enabled = true
+
 [node name="GridPlane" type="MeshInstance3D" parent="ViewportContainer/SubViewport/WorldRoot"]
 transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 10, 0, 0)
 material_override = SubResource("ShaderMaterial_grid_static")
+gi_mode = 0
+gi_lightmap_texel_scale = 2.0
 mesh = SubResource("QuadMesh_grid")
 
 [node name="GoalSphere" type="MeshInstance3D" parent="ViewportContainer/SubViewport/WorldRoot"]
@@ -160,6 +231,16 @@ horizontal_alignment = 1
 
 [node name="VignetteOverlay" type="ColorRect" parent="."]
 material = SubResource("ShaderMaterial_vignette_overlay")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="MoireNoiseOverlay" type="ColorRect" parent="."]
+material = SubResource("ShaderMaterial_moire_noise_overlay")
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0

@@ -5,6 +5,8 @@ signal intro_finished
 
 @export var hold_key: Key = KEY_W
 @export var move_speed: float = 15
+@export var move_speed_randomness: float = 0.06
+@export var move_speed_randomize_hz: float = 1.2
 @export var use_explicit_end_position: bool = false
 @export var end_camera_position: Vector3 = Vector3.ZERO
 @export var forward_distance: float = 100
@@ -22,6 +24,8 @@ signal intro_finished
 @export var shake_cycles: int = 3
 @export var shake_duration_sec: float = 0.48
 @export var shake_amplitude_px: float = 28.0
+@export var shake_amplitude_randomness: float = 0.3
+@export var shake_speed_randomness: float = 0.24
 @export var blackout_duration_sec: float = 0.9
 @export var transition_line_width_px: float = 4.0
 @export var line_rise_duration_sec: float = 0.62
@@ -81,6 +85,9 @@ var _transition_layer: Control
 var _transition_black: ColorRect
 var _transition_line: ColorRect
 var _transition_line_glow: ColorRect
+var _move_speed_factor_current: float = 1.0
+var _move_speed_factor_target: float = 1.0
+var _move_speed_random_timer: float = 0.0
 
 
 func _ready() -> void:
@@ -105,9 +112,11 @@ func _process(delta: float) -> void:
 	if not _completed:
 		is_moving = Input.is_physical_key_pressed(hold_key)
 		if is_moving:
+			_update_move_speed_factor(delta, true)
 			var current_pos: Vector3 = _camera_progress_position
 			var remaining: float = current_pos.distance_to(_camera_end_position)
-			var step: float = maxf(0.0, move_speed) * delta
+			var step_speed := maxf(0.0, move_speed) * _move_speed_factor_current
+			var step: float = maxf(0.0, step_speed) * delta
 
 			if step >= remaining:
 				_camera_progress_position = _camera_end_position
@@ -119,9 +128,11 @@ func _process(delta: float) -> void:
 				_update_camera_motion(delta, true)
 				_apply_camera_position()
 		else:
+			_update_move_speed_factor(delta, false)
 			_update_camera_motion(delta, false)
 			_apply_camera_position()
 	else:
+		_update_move_speed_factor(delta, false)
 		_update_camera_motion(delta, false)
 		_apply_camera_position()
 
@@ -180,6 +191,23 @@ func _update_hint_text() -> void:
 		hint.text = "Hold W To Move Forward"
 	else:
 		hint.text = "Hold W To Move Forward (No Auto Switch)"
+
+
+func _update_move_speed_factor(delta: float, moving: bool) -> void:
+	var rand_strength := clampf(move_speed_randomness, 0.0, 0.35)
+	if not moving or rand_strength <= 0.001:
+		_move_speed_factor_target = 1.0
+		_move_speed_random_timer = 0.0
+	else:
+		_move_speed_random_timer -= delta
+		if _move_speed_random_timer <= 0.0:
+			var hz := maxf(0.2, move_speed_randomize_hz)
+			var interval := (1.0 / hz) * randf_range(0.72, 1.28)
+			_move_speed_random_timer = maxf(0.05, interval)
+			_move_speed_factor_target = randf_range(1.0 - rand_strength, 1.0 + rand_strength)
+
+	var smooth_t := clampf(4.2 * delta, 0.0, 1.0)
+	_move_speed_factor_current = lerpf(_move_speed_factor_current, _move_speed_factor_target, smooth_t)
 
 
 func _update_camera_motion(delta: float, moving: bool) -> void:
@@ -425,15 +453,25 @@ func _run_goal_transition_sequence() -> void:
 func _play_screen_shake() -> void:
 	var total_cycles := maxi(1, shake_cycles)
 	var half_steps := total_cycles * 2
-	var step_sec := maxf(0.02, shake_duration_sec / float(half_steps + 1))
+	var amplitude_rand := clampf(shake_amplitude_randomness, 0.0, 0.95)
+	var speed_rand := clampf(shake_speed_randomness, 0.0, 0.95)
+	var duration_weights: Array[float] = []
+	var total_weight := 0.0
+	for i in range(half_steps + 1):
+		var weight := randf_range(1.0 - speed_rand, 1.0 + speed_rand)
+		duration_weights.append(weight)
+		total_weight += weight
 	var tween := create_tween()
 	for i in range(half_steps):
 		var dir := -1.0 if (i % 2 == 0) else 1.0
 		var falloff := 1.0 - (float(i) / float(half_steps))
-		var x := dir * shake_amplitude_px * falloff
-		var y := randf_range(-shake_amplitude_px * 0.35, shake_amplitude_px * 0.35) * falloff
+		var step_sec := maxf(0.01, shake_duration_sec * (duration_weights[i] / maxf(0.0001, total_weight)))
+		var step_amp := shake_amplitude_px * falloff * randf_range(1.0 - amplitude_rand, 1.0 + amplitude_rand)
+		var x := dir * step_amp
+		var y := randf_range(-step_amp * 0.42, step_amp * 0.42)
 		tween.tween_property(viewport_container, "position", _viewport_base_position + Vector2(x, y), step_sec)
-	tween.tween_property(viewport_container, "position", _viewport_base_position, step_sec)
+	var settle_step_sec := maxf(0.01, shake_duration_sec * (duration_weights[half_steps] / maxf(0.0001, total_weight)))
+	tween.tween_property(viewport_container, "position", _viewport_base_position, settle_step_sec)
 	await tween.finished
 
 
