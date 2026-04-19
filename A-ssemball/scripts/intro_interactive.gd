@@ -21,6 +21,17 @@ signal intro_finished
 @export var vignette_radius_base: float = 0.58
 @export var vignette_radius_breath_delta: float = 0.06
 @export var enable_goal_click_transition: bool = true
+@export var goal_progressive_scale_enabled: bool = true
+@export var goal_scale_start: float = 0.22
+@export var goal_scale_end: float = 1.0
+@export var goal_scale_curve: float = 1.2
+@export var board_1_trigger_progress: float = 0.2
+@export var board_2_trigger_progress: float = 0.666
+@export var board_hidden_offset_y: float = 8.0
+@export var board_rise_speed: float = 7.0
+@export var board_ground_y: float = 0.0
+@export var board_ground_clearance: float = 0.4
+@export var board_target_height_offset_y: float = 0.8
 @export var shake_cycles: int = 3
 @export var shake_duration_sec: float = 0.48
 @export var shake_amplitude_px: float = 28.0
@@ -57,6 +68,8 @@ const VIGNETTE_RADIUS_SMOOTH: float = 4.0
 @onready var viewport_container: SubViewportContainer = $ViewportContainer
 @onready var camera_3d: Camera3D = $ViewportContainer/SubViewport/WorldRoot/Camera3D
 @onready var goal_sphere: MeshInstance3D = $ViewportContainer/SubViewport/WorldRoot/GoalSphere
+@onready var material_board_1: MeshInstance3D = $ViewportContainer/SubViewport/WorldRoot/MaterialBoard1
+@onready var material_board_2: MeshInstance3D = $ViewportContainer/SubViewport/WorldRoot/MaterialBoard2
 @onready var hint: Label = $Hint
 @onready var vignette_overlay: ColorRect = $VignetteOverlay
 
@@ -88,6 +101,11 @@ var _transition_line_glow: ColorRect
 var _move_speed_factor_current: float = 1.0
 var _move_speed_factor_target: float = 1.0
 var _move_speed_random_timer: float = 0.0
+var _goal_base_scale: Vector3 = Vector3.ONE
+var _board_1_target_y: float = 0.0
+var _board_2_target_y: float = 0.0
+var _board_1_triggered: bool = false
+var _board_2_triggered: bool = false
 
 
 func _ready() -> void:
@@ -96,6 +114,8 @@ func _ready() -> void:
 	_camera_end_position = _resolve_end_position()
 	_base_fov = camera_3d.fov
 	_base_camera_rotation = camera_3d.rotation
+	_goal_base_scale = goal_sphere.scale
+	_setup_material_boards()
 	_vignette_material = vignette_overlay.material as ShaderMaterial
 	_vignette_radius_current = vignette_radius_base
 	_viewport_base_position = viewport_container.position
@@ -105,6 +125,7 @@ func _ready() -> void:
 	resized.connect(_on_resized)
 	_on_resized()
 	_update_hint_text()
+	_update_goal_sphere_scale()
 
 
 func _process(delta: float) -> void:
@@ -142,6 +163,8 @@ func _process(delta: float) -> void:
 	_update_breathing_fov(delta)
 	_update_dynamic_vignette(delta)
 	_update_camera_roll(delta)
+	_update_goal_sphere_scale()
+	_update_material_boards(delta)
 
 
 func _input(event: InputEvent) -> void:
@@ -191,6 +214,72 @@ func _update_hint_text() -> void:
 		hint.text = "Hold W To Move Forward"
 	else:
 		hint.text = "Hold W To Move Forward (No Auto Switch)"
+
+
+func _update_goal_sphere_scale() -> void:
+	if goal_sphere == null:
+		return
+	if not goal_progressive_scale_enabled:
+		goal_sphere.scale = _goal_base_scale * maxf(0.001, goal_scale_end)
+		return
+
+	var total_distance := _camera_start_position.distance_to(_camera_end_position)
+	var progress := 1.0
+	if total_distance > 0.0001:
+		var traveled := _camera_start_position.distance_to(_camera_progress_position)
+		progress = clampf(traveled / total_distance, 0.0, 1.0)
+	var curve := maxf(0.05, goal_scale_curve)
+	var scaled_progress := pow(progress, curve)
+	var current_scale := lerpf(goal_scale_start, goal_scale_end, scaled_progress)
+	goal_sphere.scale = _goal_base_scale * maxf(0.001, current_scale)
+
+
+func _setup_material_boards() -> void:
+	if material_board_1 != null:
+		_board_1_target_y = material_board_1.position.y + board_target_height_offset_y
+		material_board_1.position.y = _compute_board_hidden_start_y(material_board_1, _board_1_target_y)
+	if material_board_2 != null:
+		_board_2_target_y = material_board_2.position.y + board_target_height_offset_y
+		material_board_2.position.y = _compute_board_hidden_start_y(material_board_2, _board_2_target_y)
+
+
+func _update_material_boards(delta: float) -> void:
+	var progress := _get_forward_progress()
+	if not _board_1_triggered and progress >= clampf(board_1_trigger_progress, 0.0, 1.0):
+		_board_1_triggered = true
+	if not _board_2_triggered and progress >= clampf(board_2_trigger_progress, 0.0, 1.0):
+		_board_2_triggered = true
+
+	var rise_step := maxf(0.0, board_rise_speed) * delta
+	if material_board_1 != null and _board_1_triggered:
+		material_board_1.position.y = move_toward(material_board_1.position.y, _board_1_target_y, rise_step)
+	if material_board_2 != null and _board_2_triggered:
+		material_board_2.position.y = move_toward(material_board_2.position.y, _board_2_target_y, rise_step)
+
+
+func _get_forward_progress() -> float:
+	var total_distance := _camera_start_position.distance_to(_camera_end_position)
+	if total_distance <= 0.0001:
+		return 1.0
+	var traveled := _camera_start_position.distance_to(_camera_progress_position)
+	return clampf(traveled / total_distance, 0.0, 1.0)
+
+
+func _compute_board_hidden_start_y(board: MeshInstance3D, target_y: float) -> float:
+	var half_height := _get_board_world_half_height(board)
+	var full_below_floor_y := board_ground_y - half_height - maxf(0.0, board_ground_clearance)
+	var offset_hidden_y := target_y - maxf(0.0, board_hidden_offset_y)
+	return minf(full_below_floor_y, offset_hidden_y)
+
+
+func _get_board_world_half_height(board: MeshInstance3D) -> float:
+	if board == null or board.mesh == null:
+		return 0.5
+	var aabb := board.mesh.get_aabb()
+	var local_half := maxf(0.001, aabb.size.y * 0.5)
+	var world_scale := board.global_transform.basis.get_scale()
+	var scale_y := maxf(0.001, absf(world_scale.y))
+	return local_half * scale_y
 
 
 func _update_move_speed_factor(delta: float, moving: bool) -> void:

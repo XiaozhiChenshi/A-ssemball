@@ -1,5 +1,5 @@
 extends Control
-class_name SplitRenderInterface
+class_name Chapter1
 
 @export var light_rotation_speed_deg: float = 0.0
 @export var light_energy: float = 0.85
@@ -16,13 +16,13 @@ class_name SplitRenderInterface
 @export var up_face_x_deg: float = -90.0
 @export var down_face_x_deg: float = 90.0
 
-@onready var split: HSplitContainer = $Split
-@onready var left_3d: SubViewportContainer = $Split/Left3D
-@onready var model_root: Node3D = $Split/Left3D/LeftViewport/World3D/ModelRoot
-@onready var sphere: MeshInstance3D = $Split/Left3D/LeftViewport/World3D/ModelRoot/Sphere
-@onready var right_panel: ColorRect = $Split/RightPanel
-@onready var line_canvas: LineCanvas2D = $Split/RightPanel/LineCanvas
-@onready var dir_light: DirectionalLight3D = $Split/Left3D/LeftViewport/World3D/DirectionalLight3D
+@onready var chapter_1_split: HSplitContainer = $Chapter1Split
+@onready var left_3d: SubViewportContainer = $Chapter1Split/Left3D
+@onready var model_root: Node3D = $Chapter1Split/Left3D/LeftViewport/World3D/ModelRoot
+@onready var sphere: MeshInstance3D = $Chapter1Split/Left3D/LeftViewport/World3D/ModelRoot/Sphere
+@onready var right_panel: ColorRect = $Chapter1Split/RightPanel
+@onready var line_canvas: LineCanvas2D = $Chapter1Split/RightPanel/LineCanvas
+@onready var dir_light: DirectionalLight3D = $Chapter1Split/Left3D/LeftViewport/World3D/DirectionalLight3D
 
 var _is_dragging_sphere: bool = false
 var _drag_accum_x: float = 0.0
@@ -46,7 +46,7 @@ func _ready() -> void:
 	right_panel.clip_contents = true
 	resized.connect(_on_layout_changed)
 	left_3d.resized.connect(_on_layout_changed)
-	split.dragged.connect(_on_split_dragged)
+	chapter_1_split.dragged.connect(_on_chapter_1_split_dragged)
 	_on_layout_changed()
 	call_deferred("_sync_right_scene_with_rotation")
 
@@ -125,7 +125,7 @@ func _draw_default_line_art() -> void:
 
 
 func _on_layout_changed() -> void:
-	_enforce_split_constraints()
+	_enforce_chapter_1_constraints()
 	_setup_fixed_right_canvas()
 
 	# Redraw default line art when the panel size changes.
@@ -336,16 +336,16 @@ func _validate_input_actions() -> void:
 		push_warning("Missing input action: rotate_sphere_right. Configure it in Project Settings > Input Map.")
 
 
-func _on_split_dragged(_offset: int) -> void:
-	_enforce_split_constraints()
+func _on_chapter_1_split_dragged(_offset: int) -> void:
+	_enforce_chapter_1_constraints()
 
 
-func _enforce_split_constraints() -> void:
+func _enforce_chapter_1_constraints() -> void:
 	# Keep right side at least 50% of total width.
 	var min_right_width := maxf(1.0, size.x * 0.5)
 	right_panel.custom_minimum_size.x = min_right_width
-	if split.split_offset > 0:
-		split.split_offset = 0
+	if chapter_1_split.split_offset > 0:
+		chapter_1_split.split_offset = 0
 
 
 func _setup_fixed_right_canvas() -> void:

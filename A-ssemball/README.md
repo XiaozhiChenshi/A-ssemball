@@ -16,7 +16,7 @@ Godot 4.5 项目，包含一个开场交互场景与主交互场景：
 - 开场场景：
   - 按住 `W`：向前移动。
   - 到达终点后：鼠标左键点击白色球体，触发过场（震屏三次 -> 黑屏覆盖 -> 中线升起并短暂发光）后切换到主场景。
-- 主场景（`SplitRenderInterface`）：
+- 主场景（`Chapter1`）：
   - `A` / `Left`：向左旋转球体
   - `D` / `Right`：向右旋转球体
   - 鼠标左键在左侧 3D 视图拖拽：
@@ -27,11 +27,11 @@ Godot 4.5 项目，包含一个开场交互场景与主交互场景：
 - `scenes/`
   - `main_entry.tscn`：入口场景（菜单 + 淡入淡出 + 场景切换）
   - `intro_interactive.tscn`：开场交互场景
-  - `main_split_view.tscn`：主联动场景
+  - `chapter_1.tscn`：主联动场景
 - `scripts/`
   - `main_entry.gd`：流程控制与场景切换
   - `intro_interactive.gd`：开场相机运动与视觉效果
-  - `split_render_interface.gd`：3D/2D 联动交互逻辑
+  - `chapter_1.gd`：3D/2D 联动交互逻辑
   - `line_canvas_2d.gd`：2D 线条绘制
 - `assets/ui/`：界面图片资源
 

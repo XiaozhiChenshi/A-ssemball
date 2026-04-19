@@ -1,6 +1,6 @@
 extends Control
 
-const GAME_SCENE: PackedScene = preload("res://scenes/main_split_view.tscn")
+const GAME_SCENE: PackedScene = preload("res://scenes/chapter_1.tscn")
 const INTRO_SCENE: PackedScene = preload("res://scenes/intro_interactive.tscn")
 
 @export var fade_to_black_sec: float = 0.45
