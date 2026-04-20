@@ -531,6 +531,19 @@ func _start_goal_transition_sequence() -> void:
 	await _run_goal_transition_sequence()
 
 
+func start_post_goal_effect_from_menu() -> void:
+	if _transition_started:
+		return
+	_completed = true
+	_awaiting_goal_click = false
+	_transition_started = true
+	hint.visible = false
+	_update_move_speed_factor(0.0, false)
+	_update_camera_motion(0.0, false)
+	_apply_camera_position()
+	await _run_goal_transition_sequence()
+
+
 func _run_goal_transition_sequence() -> void:
 	await _play_screen_shake()
 	vignette_dynamic_enabled = false

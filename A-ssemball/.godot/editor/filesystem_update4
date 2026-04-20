@@ -1,2 +1,5 @@
+res://scripts/chapter_1.gd
 res://scripts/intro_interactive.gd
+res://scripts/main_entry.gd
+res://scenes/chapter_1.tscn
 res://scenes/intro_interactive.tscn

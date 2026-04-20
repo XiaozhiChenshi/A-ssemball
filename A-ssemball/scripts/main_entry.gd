@@ -21,13 +21,20 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _is_starting:
 		return
 
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_SPACE:
-		_is_starting = true
-		get_viewport().set_input_as_handled()
-		_start_sequence()
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_SPACE:
+			_is_starting = true
+			get_viewport().set_input_as_handled()
+			_start_sequence(false)
+			return
+		if event.keycode == KEY_1 or event.keycode == KEY_KP_1:
+			_is_starting = true
+			get_viewport().set_input_as_handled()
+			_start_sequence(true)
+			return
 
 
-func _start_sequence() -> void:
+func _start_sequence(skip_intro_to_post_click_effect: bool) -> void:
 	var fade_out := create_tween()
 	fade_out.tween_property(fade_layer, "color:a", 1.0, fade_to_black_sec)
 	await fade_out.finished
@@ -40,6 +47,8 @@ func _start_sequence() -> void:
 	await show_intro.finished
 
 	if intro != null:
+		if skip_intro_to_post_click_effect and intro.has_method("start_post_goal_effect_from_menu"):
+			intro.call("start_post_goal_effect_from_menu")
 		await intro.intro_finished
 
 	fade_layer.color = Color(0.0, 0.0, 0.0, 1.0)
