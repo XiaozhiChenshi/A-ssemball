@@ -1,0 +1,143 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - poly_kscope - polyhedral kaleidoscope</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/to_nfold.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->poly_kscope - polyhedral kaleidoscope<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: poly_kscope [options] [input_file]
+
+A polyhedral kaleidoscope. Read a file in OFF format and repeat it
+in a symmetric arrangement like a kaleidoscope. If input_file is
+not given the program reads from standard input.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -s &lt;sym&gt;  (required) symmetry type for kaleidoscope, up to three comma
+            separated parts: main symmetry (Schoenflies notation) or file name,
+            subgroup (Schoenflies notation), and conjugation type (integer)
+  -y &lt;arg&gt;  make a compound by aligning the component to match a subsymmetry
+            with the kaleidoscope. Argument is either 'list' (to print the
+            list of the compounds to standard output) or a number from the
+            list optionally followed by a comma and realignment (colon
+            separated list of an integer then decimal numbers)
+  -c &lt;elms&gt; color elements with a different index number for each part. The
+            element string can include v, e and f to color, respectively,
+            vertices, edges and faces
+  -m &lt;maps&gt; a comma separated list of colour maps used to transform colour
+            indexes (default: rand), a part consisting of letters from
+            v, e, f, selects the element types to apply the map list to
+            (default 'vef'). The 'compound' map should give useful results.
+  -I        ignore shared symmetries, full kaleidoscopic repetition of
+            component
+  -Q        print information about compound
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+See also,
+<a href="http://www.antiprism.com/examples/200_programs/640_poly_kscope/imagelist.html">poly_kscope examples with images</a>.
+<p>
+Icosahedral arrangement of 60 cubes
+<br /><pre class="cmds">
+poly_kscope -s I -o tmp.off cube.off
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+<i>off_trans</i> can be used to position the polyhedron before
+passing it to <i>poly_kscope</i>
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/to_nfold.html">to_nfold - change the rotational symmetry of a polyhedron</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

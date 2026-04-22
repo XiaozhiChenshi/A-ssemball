@@ -1,0 +1,272 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - n_icons - sphericon like polyhedra </title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/waterman.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->n_icons - sphericon like polyhedra <!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: n_icons [options]
+
+Creates Sphericon like Polyhedra. Also known as Streptohedra
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -I        information on current n-icon  
+  -l &lt;lim&gt;  minimum distance for unique vertex locations as negative exponent
+               (default: 12 giving 1e-12)
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+Program Options
+  -n &lt;n/d&gt;  n-icon of order n. n must be 3 or greater (default: 4)
+               use d to make star n-icon. d may not equal n
+  -t &lt;twst&gt; number of twists. Can be negative, positive or 0 (default: 1)
+  -s        side-cut of even order n-icon (default is point-cut)
+  -H        hybrid of even order n-icon
+  -a        angle (-z 3 only)
+  -r &lt;num&gt;  override inner radius (-z 2 only)
+  -R &lt;num&gt;  override outer radius (-z 2 only)
+  -b        don't split bowtie faces for twisting (-z 3, -t 0 only)
+  -z &lt;mthd&gt; construction method
+               1 - n/d must be co-prime. bow-ties can occur (default for d=1)
+               2 - n/d compounds allowed. shell model (default for d&gt;1)
+               3 - n/d compounds allowed. No bow-ties (default if angle not 0)
+
+Scene Options
+  -M &lt;m,m2&gt; longitudes of model of m sides with optional m2 of m sides showing
+               m may be odd, 3 or greater if twist is 0 (default: 36,36)
+  -g        make m2 longitudes invisible instead of deletion (no -c)
+  -A        place a north and south pole in top and bottom if they exist
+               (twist 0 or n/2, causes indentation of caps with side cut)
+  -c &lt;clse&gt; close open model if m2&lt;m. Valid values h or v (-z 1,2)
+               h = horizontal closure, v = vertical closure   
+  -x &lt;elms&gt; v, e and f to remove OFF faces with one vertex (vertices),
+               two-vertices (edges) and three or more vertices (faces)
+               E - if face is invisible, associated edge is made invisible
+  -Y        for n/d shells, when showing edges, show indented edges
+  -W        add symmetry polygon (-f s,c or -e s)
+
+Coloring Options (run 'off_util -H color' for help on color formats)
+keyword: none - sets no color or methods. use: map_'color name'% for one color
+  -F &lt;mthd&gt; mthd is face coloring method. The coloring is done before twist
+               s - color by symmetry polygon (default)
+               f - color circuits with flood fill (-z 2,3 any n/d)
+               c - color by compound
+               k - color by compound with flood fill (-z 2,3 any n/d)
+               note: the following color options may look better at twist 0
+               l - color latitudinally
+               m - color longitudinally
+               b - checkerboard with first two colors in the color map
+               n - use each color in map in succession
+               x - first two colors based on sign of x
+               y - first two colors based on sign of y
+               z - first two colors based on sign of z (z is the twist plane)
+               o - use first eight colors per xyz octants
+  -E &lt;mthd&gt; mthd is edge coloring method. The coloring is done before twist
+               keyword: Q - defer coloring all edges to option Q  (default)
+                  or use the same letter options specified in -f, except c,k
+               F - color edges with average adjoining face color
+  -T &lt;t,e&gt;  transparency. from 0 (invisible) to 255 (opaque). element is any
+            or all of e - edges, f - faces, a - all (default: f)
+  -m &lt;maps&gt; color maps to be tried in turn. (default: colorful, circuits -C)
+               optionally followed by elements from e or f (default: ef)
+               use map name of 'index' to output index numbers
+               colorful:  red,darkorange1,yellow,darkgreen,cyan,blue,magenta,
+                          white,gray50,black
+               circuits:  white,gray50 (continuous, discontinuous no wrapping)
+  -S        color circuits symmetrically for coloring method s,f (even n)
+  -C        color continuous and discontinuous circuits with first two colors
+              in the color list (-I required, s,f coloring, no -S, no -z 2)
+  -O &lt;strg&gt; face transparency pattern string. valid values
+               0 -T n,f value suppressed, 1 -T n,f value applied (default: '1')
+  -P &lt;strg&gt; edge transparency pattern string. valid values
+               0 -T n,e value suppressed, 1 -T n,e value applied (default: '1')
+  -Q &lt;col&gt;  color given to uncolored edges and vertices (default: invisible)
+  -G &lt;c,e&gt;  default color c for uncolored elements e (default: darkgray,ef)
+               elements e can include e or f
+  -X &lt;int&gt;  flood fill stop. used with circuit or compound coloring (-f f,k)
+               use 0 (default) to flood fill entire model. if -X is not 0 then
+               return 1 from program if entire model has been colored
+
+Surface (or Compound) Count Reporting (options above ignored)
+  -L &lt;type&gt; types of n-icons to list. Valid values for type
+               p = point cut even order n_icons
+               s = side cut even order n-icons
+               o = odd order n_icons
+               h = hybrids (all)
+               i = hybrids (where N/2 is even)
+               j = hybrids (where N/2 is odd)
+               k = hybrids (where N/4 is even)
+               l = hybrids (where N/4 is odd)
+  -N &lt;n,n2&gt; range of n-icons to list. n &gt; 2
+  -D &lt;int&gt;  set d of n/d for the report (default: 1)
+  -K &lt;k,k2&gt; range of surfaces (or compounds) to list. k &gt; 0 (default: 2,1000)
+  -J        long form report
+  -Z        filter out case 2 types (surfaces only)
+  -B        list compounds instead of circuits
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+The Sphericon
+<br /><pre class="cmds">
+n_icons | antiview
+</pre><br /><br />
+
+The Dual of the Spherican
+<br /><pre class="cmds">
+n_icons -s | antiview
+</pre><br /><br />
+
+A Hybrid of the Sphericon and its Dual
+<br /><pre class="cmds">
+n_icons -H | antiview
+</pre><br /><br />
+
+The N-icon of 20 twisted 5 increments. The five surfaces are 
+colored with the default colors. No edges or vertices are shown.
+<br /><pre class="cmds">
+n_icons -n 20 -t 5 -F s | antiview
+</pre><br /><br />
+
+Same as above but only using colors red, orange, and yellow.
+<br /><pre class="cmds">
+n_icons -n 20 -t 5 -F s -m map_red:orange:yellow% | antiview
+</pre><br /><br />
+
+Same as above but 50 percent transparent.
+<br /><pre class="cmds">
+n_icons -n 20 -t 5 -F s -m map_red:orange:yellow% -T 128 | antiview
+</pre><br /><br />
+
+The N-icon of 30 twisted 5 increments. The faces are colored 
+white and the edges are the default colors.
+<br /><pre class="cmds">
+n_icons -n 30 -t 5 -F n -m map_white%,f -E s | antiview -e 0.1 -v 0.1
+</pre><br /><br />
+
+The N-icon of 12/4 twisted 2 increments colored by compound.
+<br /><pre class="cmds">
+n_icons -n 12/4 -t 2 -F c | antiview
+</pre><br /><br />
+
+The N-icon of 12/4 twisted 4 increments colored by compound. Shell model is created and 3/4 open to view interior.
+<br /><pre class="cmds">
+n_icons -n 12/4 -t 2 -F c -z 2 -M 36,27 | antiview
+</pre><br /><br />
+
+The N-icon of 12/4 twisted 4 increments colored by compound. Star polygon model is created and 3/4 open to view interior.
+<br /><pre class="cmds">
+n_icons -n 12/4 -t 2 -F c -z 3 -M 36,27 | antiview
+</pre><br /><br />
+
+The reporting subsystem is used. A list of even order N-icons with 
+n between 3 and 30 and more than one surface are listed.
+<br /><pre class="cmds">
+n_icons -L p -N 3,30 -J
+</pre><br /><br />
+
+The reporting subsystem is used. A list of hybrid N-icons with 
+n between 3 and 30, d (of n/d) is 3, and two or more compound parts.
+<br /><pre class="cmds">
+n_icons -L h -N 3,30 -K 2,100 -D 3 -J -B
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+<i>n_icons</i> was written by
+<a href="http://www.interocitors.com/polyhedra/">Roger Kaufman</a>.
+For more details on the construction see Roger's
+<a href="http://www.interocitors.com/polyhedra/n_icons/index.html">
+N-icon study</a>.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/waterman.html">waterman - Waterman polyhedra</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

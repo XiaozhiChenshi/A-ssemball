@@ -1,0 +1,151 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - EXTRA: string_art - string figures</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/resources.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->EXTRA: string_art - string figures<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: string_art [options]
+
+Create a string art in OFF fomat. Each pin arrangement shape is
+modified by any immediately following transformation options.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -c &lt;num&gt;  a unit circle arrangement of num pins
+  -l &lt;num&gt;  a 2 unit line arrangement of num pins
+  -p &lt;crds&gt; line end points coordinates, six numbers separated by commas
+  -T &lt;tran&gt; translate, three numbers separated by commas which are
+            used as the x, y and z displacements
+  -R &lt;rot&gt;  rotate about an axis, three, four or six numbers separated by
+            commas. If three numbers these are angles (degrees) to rotate
+            about the x, y and z axes. If four numbers, the first three
+            are a direction vector for the axis, the last number is the
+            angle (degrees) to rotate. If six numbers, these are two
+            vectors and rotate to carry the first to the second
+  -M &lt;norm&gt; reflect in a plane, three numbers separated by commas which
+            give a vector normal to the plane of reflection.
+  -S &lt;scal&gt; scale, one, three or four numbers separated by commas. If one
+            number then scale by this factor in all directions. If three
+            numbers these are the factors to scale along the x, y and
+            z axes. If four numbers, the first three are a direction
+            vector for the scaling, the last number is the factor to scale
+  -I        invert
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+Nephroid
+<br /><pre class="cmds">
+string_art -c 180 -c 60 -o nephroid.off
+</pre><br /><br />
+
+Astroid
+<br /><pre class="cmds">
+string_art -c 120 -S 1,0,0 -c 120 -S 0,1,0 -o astroid.off
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+The elements can be placed anywhere in space. Attractive figures
+can be made by running strings between the edges of a polyhedron.
+The <i>poly_kscope</i> program can help with this. Example
+stella octangula
+
+<br /><pre class="cmds">
+string_art -l 20 -T 1,0,1.414 -R 0,0,45 -l 20 -T -1,0,-1.414 -R 0,0,-45 | poly_kscope -s O > st_oct.off
+</pre><br /><br />
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/resources.html">Antiprism Resource Files</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

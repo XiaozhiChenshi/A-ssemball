@@ -1,0 +1,153 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - EXTRA: poly_weave - weave based on a polyhedron</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/spidron.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->EXTRA: poly_weave - weave based on a polyhedron<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: poly_weave [options] [input_file]
+
+Read a file in OFF format and make a weave following a specified pattern.
+The polyhedron faces are divided by a 'meta' operation into triangles
+each having vertices which are a vertex V, edge centre E and face centre F.
+A start point is positioned on one of these triangles, the next point is
+found by using the pattern to step between triangles, leading to a circuit.
+Intermediate points may be added along the steps to help with the weave.
+If input_file is not given the program reads from standard input.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -p &lt;pat&gt;  weave pattern (default 'FEV'), a series of one or more paths.
+            A path is:
+               C,L - path of intermediate points is curve (default),line
+                     (affects following paths, set as first char of pattern)
+               Barycentric coords V,E,F of initial point (default 0,1,0)
+               Optional intermediate points on the path - ':' followed
+                  by 0 to 3 coordinates for 'up' (def: 0), 'side' (def: 0),
+                  'along' (def: equal spacing)
+               Series of characters to step between triangles
+                  -     - stay on the same triangle
+                  V,E,F - step two triangles rotating about V,E,F
+                  R     - R reverse direction of following rotations
+                  v,e,f - step over side opposite V,E,F
+               t followed by l,r,b (def: tl), start circuits from 'left',
+                  'right', both triangles
+  -a        add the 'meta'-transformed base
+  -f &lt;ht&gt;   lift the face centres by this height
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+See also,
+<a href="http://www.antiprism.com/examples/200_programs/700_poly_weave/imagelist.html">poly_weave examples with images</a>.
+<p>
+An interwoven set of six pentagons
+<br /><pre class="cmds">
+poly_weave -o woven_pents.off icosahedron
+</pre><br /><br />
+
+An interwoven set of six pentagons. To show the circuits of the
+weave, colour the edges by face colour and hide the faces
+<br /><pre class="cmds">
+poly_weave icosahedron | off_color -f U -e F | antiview -v 0.1 -x f
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+The <i>poly_weave</i> program was a starting point for creating the
+<a href="wythoff.html">wythoff</a>
+tiling program.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/spidron.html">EXTRA: spidron - spidronise a polyhedron</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,178 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - waterman - Waterman polyhedra</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/sph_rings.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->waterman - Waterman polyhedra<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: waterman [options] lattice
+
+Use sphere-ray intersection for producing Waterman Polyhedra. Lattice can be
+SC, FCC, or BCC
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -v        verbose output (on computational errors)
+  -l &lt;lim&gt;  minimum distance for unique vertex locations as negative exponent
+              (default: 12 giving 1e-12)
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+Program Options
+  -r &lt;r,n&gt;  clip radius. r is radius taken to optional root n. n = 2 is sqrt
+  -q &lt;cent&gt; center of lattice, three comma separated coordinates
+              0 for origin  (default: origin)
+  -M &lt;mthd&gt; 1 - sphere-ray intersection  2 - z guess (default: 1)
+  -f        fill interior points (not for -C c)
+  -t        defeat computational error testing for sphere-ray method
+
+Scene Options
+  -C &lt;opt&gt;  c - convex hull only, i - keep interior, s - suppress (default: c)
+
+Coloring Options (run 'off_util -H color' for help on color formats)
+keyword: none - sets no color
+  -F &lt;col&gt;  color the faces according to: (default: n)
+              a color value - apply to all faces
+              n - color by number of sides
+              s - symmetric coloring [,sub_group,conj_type]
+              special coloring: calculates color from normals, not maps
+              y - color by symmetry using face normals
+              z - color by symmetry using face normals (chiral)
+  -E &lt;col&gt;  color the edges according to: (default: lightgray)
+              s - symmetric coloring [,sub_group,conj_type]
+  -V &lt;col&gt;  color the vertices according to: (default: gold)
+              a color value - apply to all vertices
+              s - symmetric coloring [,sub_group,conj_type]
+  -T &lt;t,e&gt;  transparency. from 0 (invisible) to 255 (opaque). element is any
+            or all of, v - vertices, e - edges, f - faces, a - all (default: f)
+  -m &lt;maps&gt; a comma separated list of color maps used to transform color
+            indexes (default: colorful), a part consisting of letters from
+            v, e, f, selects the element types to apply the map list to
+            (default 'vef'). use map name of 'index' to output index numbers
+              colorful:   red,darkorange1,yellow,darkgreen,cyan,blue,magenta,
+                          white,gray50,black
+  -Z &lt;col&gt;  fill vertex color (default: model vertex color)
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+Make a Root 10 Waterman polyhedron
+<br /><pre class="cmds">
+waterman -r rt20 fcc | antiview
+</pre><br /><br />
+
+Make a Root 50 Waterman polyhedron, with symmetrically coloured faces
+<br /><pre class="cmds">
+waterman -r rt100 fcc -F y | antiview
+</pre><br /><br />
+
+Make a Root 50 Waterman polyhedron centred on an octahedron centre, with
+symmetrically coloured faces
+<br /><pre class="cmds">
+waterman -q 0.5,0.5,0.5 -r rt100 fcc -F y | antiview
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+<i>waterman</i> was written by
+<a href="http://www.interocitors.com/polyhedra/">Roger Kaufman</a>
+(with contributions from Adrian Rossiter.)
+<p>
+For more details about these polyhedra see 
+<a href="http://www.watermanpolyhedron.com/watermanpolyhedra1.html">
+Waterman Polyhedra</a>
+on Steve Waterman's site.
+<p>
+The program uses an efficient algorithm that makes it suitable for
+calculating Waterman polyhedra up to root 1,000,000 and more.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/sph_rings.html">sph_rings - rings of points on a sphere</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

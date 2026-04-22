@@ -1,4 +1,4 @@
-extends Control
+﻿extends Control
 class_name Chapter2
 
 @export var light_rotation_speed_deg: float = 0.0

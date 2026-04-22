@@ -1,0 +1,133 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - kcycle - kaleidocycle rings of polyhedron</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/leonardo.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->kcycle - kaleidocycle rings of polyhedron<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: kcycle [options] hinge_vertex_idxs
+
+Make a kaleidocyle from a polyhedron. hinge_vertex_idxs is four integers
+separated by commas (e.g. 0,1,2,3). These are the index numbers of the
+vertices for the two eges that will be hinges in the cycle.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -a &lt;ang&gt;  angle in degrees to rotate the first hinge from
+            horizontal (default: 0.0)
+  -n &lt;num&gt;  number of pairs of polyhedra in cycle (default: 6)
+  -i &lt;file&gt; input file in OFF format. If '-' then read file from stdin.
+            (default: a tetrahedron with hinge_vertex_idxs 0,1,2,3)  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+Tetrahedron kaleidocycle rotated 40 degrees from horizontal
+<br /><pre class="cmds">
+kcycle -a 40 > kc_tet_90.off
+</pre><br /><br />
+
+Ring of 16 icosahedra, each given a proper coloring, rotated 90 degrees,
+and displayed in antiview
+<br /><pre class="cmds">
+off_color -f P icosahedron | kcycle -i - -n 8 -a -90 4,9,10,11 | antiview -v 0.1
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+The ring has coinciding vertices. To display the vertices or edges
+in <i>antiview</i> or <i>off2pov</i> their size must be set manually
+using options <i>-v</i> or <i>-e</i>
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/leonardo.html">leonardo - Leonardo da Vinci style models</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

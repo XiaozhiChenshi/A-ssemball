@@ -1,0 +1,165 @@
+
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - OFF format description</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->OFF format description<!-- TITLE_END --></h1>
+
+
+This text is based on the
+<a href="http://www.geomview.org/docs/html/OFF.html">OFF format description</a> in the
+<a href="http://www.geomview.org/docs/">Geomview Documentation</a> and
+has been edited to describe the features supported by the Antiprism programs.
+See also -
+<a href="http://www.geomview.org/docs/oogltour.html">Geomview OOGL Tutorial</a>.
+
+
+<h2>OFF Files in Antiprism</h2>
+
+
+The conventional suffix for OFF files is <i>'.off'</i>.
+
+<p>
+Syntax:
+
+
+<pre>
+OFF                        # Header keyword
+<var>NVertices</var>  <var>NFaces</var>  <var>NEdges</var>  # NEdges not used or checked
+
+<var>x</var>[0]  <var>y</var>[0]  <var>z</var>[0]           # Vertices, any extra data is ignored
+...
+<var>x</var>[<var>NVertices</var>-1]  <var>y</var>[<var>NVertices</var>-1]  <var>z</var>[<var>NVertices</var>-1]
+
+                           # Faces
+                           # <var>Nv</var> = # vertices on this face
+                           # <var>v</var>[0] ... <var>v</var>[<var>Nv</var>-1]: vertex indices
+                           #    in range 0..<var>NVertices</var>-1
+<var>Nv</var>  <var>v</var>[0] <var>v</var>[1] ... <var>v</var>[<var>Nv</var>-1]  <var>colorspec</var>
+...
+                           # <var>colorspec</var> continues past <var>v</var>[<var>Nv</var>-1]
+                           # to end-of-line; may be 0 to 4 numbers
+                           # nothing: default
+                           # integer: colormap index
+                           # 3 or 4 integers: RGB[A] values 0..255
+                           # 3 or 4 floats: RGB[A] values 0..1
+</pre>
+
+<p>
+OFF files (name for "object file format") represent collections of
+planar polygons with possibly shared vertices, a convenient way to
+describe polyhedra.  The polygons may be concave but there's no
+provision for polygons containing holes.
+<p>
+An OFF file must begin with a header line that includes the keyword
+<i>OFF</i>;
+<p>
+Three ASCII integers follow: <var>NVertices</var>, <var>NFaces</var>, and
+<var>NEdges</var>.  Thse are the number of vertices, faces, and edges,
+respectively.  Current software does not use nor check <var>NEdges</var>.
+<p>
+The vertex coordinates follow: 3 floating-point values.  They are
+implicitly numbered 0 through <var>NVertices</var>-1.
+<p>
+Following these are the face descriptions, typically written
+with one line per face.  Each has the form
+
+<pre>
+<var>N</var>  <var>Vert1</var> <var>Vert2</var> ... <var>VertN</var>  [<var>color</var>]
+</pre>
+
+<p>
+Here <var>N</var> is the number of vertices on this face,
+and <var>Vert1</var> through <var>VertN</var> are indices into the list of
+vertices (in the range 0..<var>NVertices</var>-1).
+
+
+<p>
+The optional <var>color</var> may take several forms.  Line breaks are
+significant here: the <var>color</var> description begins after <var>VertN</var>
+and ends with the end of the line (or the next # comment).  A
+<var>color</var> may be:
+
+
+<dl compact>
+<dt>nothing
+<dd>the default color
+<dt>one integer
+<dd>index into a colormap, the index numbers can be converted to color
+    values using the <a href="off_color.html">off_color</a> program.
+<dt>three or four integers
+<dd>RGB and possibly alpha values in the range 0..255
+<dt>three or four floating-point numbers
+<dd>RGB and possibly alpha values in the range 0..1
+</dl>
+
+For display purposes a two-vertex face may be used to hold
+an edge color, and a one-vertex face may be used to hold a vertex
+color.
+<p>
+Antiprism treats the colour (0.0, 0.0, 0.0, 0.0), completely
+transparent black, as a non-display color.
+<p>
+A value of '1' is valid in both the integer and floating point
+ranges, which allows more than one interpretation of some colors.
+The color '1 0 0' may be a near-black written for the integer range,
+or red written for the floating point range.
+<p>
+When reading a file an integer interpretation is prefered over a
+floating point interpretation. However, if all the integer color
+values in the file are either 1 or 0 then they are all converted
+to 0.0 and 1.0 in the floating point range.
+<p>
+To avoid ambiguities color values are written in the floating
+point range and always with a decimal point.
+
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

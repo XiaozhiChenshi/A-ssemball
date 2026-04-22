@@ -1,0 +1,267 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - EXTRA: rotegrity - make rotegrity and nexorede models</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/sweep_edges.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->EXTRA: rotegrity - make rotegrity and nexorede models<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: rotegrity [options] [input_file]
+
+Read a file in OFF format containing a roughly spherical polyhedron, or
+previously twisted model, and try to convert into a rotegrity or nexorade.
+Units keep original edge colours. If input_file is not given the program
+reads from standard input.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -a &lt;type&gt; model type: rotegrity, nexorade, for nexorade followed
+            by an optional comma and strut length
+  -f &lt;frac&gt; fraction of length for end sections (default: 1/3)
+  -t        input model is already twisted (produced by -O f)
+  -M &lt;mthd&gt; method of conversion from base model - twist, double, joined,
+            or X (default: t)
+  -O &lt;type&gt; output type for units: full (face), rotegrity (3 short struts),
+            nexorade (long strut), Nexorade (long strut, direction vertices)
+            (default: full). Only 'full' output can be used as input with
+            option -t
+  -m &lt;maps&gt; a comma separated list of colour maps used to transform colour
+            indexes (default: rand), a part consisting of letters from
+            v, e, f, selects the element types to apply the map list to
+            (default 'vef')
+  -c &lt;type&gt; colouring type: edge (base model edges), symmetry, unit
+            (according to shape), none (default: edge)
+  -s &lt;perc&gt; percentage to adjust corrections on iteration (default: 98)
+  -n &lt;itrs&gt; maximum number of iterations, -1 for unlimited (default: 10000)
+  -l &lt;lim&gt;  minimum change of distance/width_of_model to terminate, as 
+               negative exponent (default: 15 giving 1e-15)
+  -z &lt;nums&gt; number of iterations between status reports (implies termination
+            check) (0 for final report only, -1 for no report), optionally
+            followed by a comma and the number of iterations between
+            termination checks (0 for report checks only) (default: 1000,1)
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+
+<h3>Rotegrity Examples</h3>
+See also,
+<a href="http://www.antiprism.com/examples/200_programs/705_rotegrity/imagelist.html">rotegrity examples with images</a>.
+<p>
+Convert a geodesic sphere into a nexorade and colour by symmetry
+<br /><pre class="cmds">
+rotegrity -c s -O r geo_3_1 | antiview -v 0.01
+</pre><br /><br />
+
+Make a rotegrity with double units. It has alternate winding around base
+faces and base vertices.
+<br /><pre class="cmds">
+rotegrity -c s -O r -M 2 geo_2_1 | antiview -v 0.01
+</pre><br /><br />
+
+Make a rotegrity with triple units. It has alternate winding around base
+faces and base vertices.
+<br /><pre class="cmds">
+rotegrity -f 0.2 -c s -O r -M 3 geo_2 | antiview -v 0.01
+</pre><br /><br />
+
+Add a central white sphere to make models easier to view
+<br /><pre class="cmds">
+off_color -v invisible -e invisible -f white geo_10 -o sph.off
+rotegrity -c s -O r -M 2 geo_3_1 | antiview -v 0.01 - sph.off
+</pre><br /><br />
+
+Class I and II geodesic spheres have edges related by mirror symmetry,
+and these appear to become rotegrity units of the same length (there are
+ten shorter edge lengths, and ten edge orbits in this example). The
+colours of the rotegrity here are taken from the edge colours of the
+base model
+<br /><pre class="cmds">
+off_color -e S geo_3_3 | rotegrity | antiview -v 0.01
+rotegrity geo_3_3 | off_report -C E
+off_report -C O geo_3_3
+</pre><br /><br />
+
+The convex hull of a random collection of points will generally
+jam during solution. 
+<br /><pre class="cmds">
+repel -N 83 -n 100000 | conv_hull | rotegrity -O r | antiview
+</pre><br /><br />
+
+A previously processsed model can be processed again by specifying by
+using full face outout with <i>rotegrity -O f</i> and rereading with
+<i>rotegrity -t</i>
+<br /><pre class="cmds">
+zono -P 10  | rotegrity -c s -s 1 -n 100 -O f | rotegrity -t -O r | antiview -v 0.02
+</pre><br /><br />
+
+<h3>Nexorade Examples</h3>
+
+Convert a geodesic sphere into a nexorade and colour by symmetry
+<br /><pre class="cmds">
+rotegrity -a n -c s -O n geo_3_1 | antiview -v 0.01
+</pre><br /><br />
+
+Having seen the report written to the screen by the previous command,
+recreate the model with the given radius (<i>antiview -e 0.0078889</i>)
+and a strut length slightly longer than the minimum
+(<i>rotegrity -a n,0.45</i>)
+<br /><pre class="cmds">
+rotegrity -a n,0.45 -c s -O n geo_3_1 | antiview -v 0.0078889 -e 0.0078889
+</pre><br /><br />
+
+Make a nexorade  with double struts.
+<br /><pre class="cmds">
+rotegrity -a n,0.45 -c s -O n -M 2 geo_2_1 | antiview -v 0.0079 -e 0.0079
+</pre><br /><br />
+
+A previously processsed model can be processed again by specifying by
+using full face outout with <i>rotegrity -O f</i> and rereading with
+<i>rotegrity -t</i>
+<br /><pre class="cmds">
+zono -P 10  | rotegrity -a n -c s -s 1 -n 100 -O f | rotegrity -a n -t -O n | antiview -v 0.02
+</pre><br /><br />
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+There are some relevant threads on the
+<a href="https://groups.google.com/forum/#!forum/geodesichelp">GeodesicHelp</a> group:
+<a href="https://groups.google.com/forum/#!topic/geodesichelp/fnl2SIdzrF4/discussion">Tensegrities, nexorades & rotegrities</a>,
+<a href="https://groups.google.com/d/topic/geodesichelp/XiSQaDRKhKc/discussion">Nexorades/Rotegrities - Frequencies 1 through 3</a> and
+<a href="https://groups.google.com/d/topic/geodesichelp/RFBZ6uFmsjU/discussion">New Nexorade/Rotegrity project</a>.
+<p>
+The program will not solve all base models, and even models which appear
+reasonable may scramble, jam or contract to a point.
+Try reducing <i>option -s</i> if a model scrambles or contracts (e.g. 
+<i>-s 0.1</i>), and use a low number of iterations to see how the model
+transforms before failing.
+<p>
+<i>Option -M</i> selects different model types, and makes arrangements
+of units that replace an original unit. Although, <i>-M d</i> produces
+attractive models it, along with <i>-M X</i>, does not produce especially
+unique models. <i>-M d</i> is like applying the Conway <i>join</i> operator,
+then forming a basic rotegrity, then reversing the openings corresponding
+to original face centres.  <i>-M X</i> is like applying the Conway <i>ortho</i>
+operator, then forming a basic rotegrity, then reversing the openings
+corresponding to original face centres. Reviewing a number of other unit
+replacement schemes revealed they were all like applying a Conway
+operator, applying <i>-M t</i> or <i>-M j</i>, then reversing openings
+corresponding to particular "centre" types in the Conway operator pattern.
+<p>
+To produce attractive raytraced images of rotegrity models
+with the elements represented by straps, use the off2pov include
+file <tt>share/pov_inc/rotegrity.inc</tt> included in
+the Antiprism package. Control the strap width with
+<i>off2pov -v</i> and the starp thickness 
+. Example command (must use <i>rotegrity -O f</i>
+to include faces data and <i>off2pov -t no_tri</i> to ensure that
+the faces are not triangulated)
+<br /><pre class="cmds">
+off_color -e S geo_3_1 | rotegrity -O f | off2pov -t no_tri -v 0.02 -i rotegrity.inc -o rot_geo_3_1.pov
+povray +a +p +H600 +W800 rot_geo_3_1.pov
+</pre><br /><br />
+
+To produce attractive raytraced images of nexorade models
+with the elements represented by rods, use the off2pov include
+file <tt>share/pov_inc/nexorade.inc</tt> included in the Antiprism
+package. Check the solution report to choose an edge radius
+and strut length. Example command, (must use <i>rotegrity -O f</i>
+to include faces data and <i>off2pov -t no_tri</i> to ensure that
+the faces are not triangulated).
+<br /><pre class="cmds">
+off_color -e S geo_3_1 | rotegrity -a n -O f -o nex_geo_3_1.off
+off2pov -t no_tri -v 0.00789 -e 0.45 -i nexorade.inc -o nex_geo_3_1.pov nex_geo_3_1.off
+povray +a +p +H600 +W800 nex_geo_3_1.pov
+</pre><br /><br />
+
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/sweep_edges.html">EXTRA: sweep_edges - sweep edges to make a surface</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

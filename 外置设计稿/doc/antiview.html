@@ -1,0 +1,253 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - antiview - interactive OFF file viewer</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/off2pov.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->antiview - interactive OFF file viewer<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: antiview [options] input_file
+
+View a file in OFF format. If input file isn't given read from
+standard input
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -v &lt;rad&gt;  radius of vertex spheres, or 'b' to have radius of balls
+            of the maximum size without overlap (default: ball_rad/15)
+  -e &lt;rad&gt;  radius of edge cylinders (default: vertex_rad/1.5)
+  -V &lt;col&gt;  default vertex colour, in form 'R,G,B,A' (3 or 4 values
+            0.0-1.0, or 0-255) or hex 'xFFFFFF' (default: 1.0,0.5,0.0)
+  -E &lt;col&gt;  default edge colour, in form 'R,G,B,A' (3 or 4 values
+            0.0-1.0, or 0-255) or hex 'xFFFFFF', 'x' to hide implicit edges
+            (default: 0.8,0.6,0.8)
+  -F &lt;col&gt;  default face colour, in form 'R,G,B,A' (3 or 4 values
+            0.0-1.0, or 0-255) or hex 'xFFFFFF' (default: 0.8,0.9,0.9)
+  -x &lt;elms&gt; hide elements. The element string can include v, e and f
+            to hide vertices, edges and faces
+  -n &lt;elms&gt; show element index number labels. The element string can
+            include v, e and f to label vertices, edges and faces
+  -s &lt;syms&gt; show symmetry elements. The element string can include
+               x - rotation axes
+               m - mirror planes
+               r - rotation-reflection planes
+               a - all elements (same as xmr)
+  -m &lt;maps&gt; a comma separated list of colour maps used to transform colour
+            indexes, a part consisting of letters from v, e, f, selects 
+            the element types to apply the map list to (default 'vef').
+  -t &lt;disp&gt; select face parts to display according to winding number from:
+            odd, nonzero (default), positive, negative, no_triangulation
+            (use native polygon display)
+
+  -w &lt;wdth&gt; width of sphere containing points (default: calculated)
+  -I &lt;dist&gt; maximum distance from origin for viewable points
+            (default: ignored)
+  Scene options
+  -D &lt;dist&gt; distance to camera
+  -C &lt;cent&gt; centre of points, in form 'X,Y,Z'
+  -L &lt;look&gt; point to look at, in form 'X,Y,Z'
+            (default, points centre)
+  -R &lt;rot&gt;  rotate about axes through centre of points, in
+            form 'X-ang,Y-ang,Z-ang' (degrees)
+  -B &lt;col&gt;  background colour, in form 'R,G,B,A' (3 or 4 values
+            0.0-1.0, or 0-255) or hex 'xFFFFFF'
+
+
+Viewing
+There are five main viewing control modes - rotation (default), drag,
+zoom, spin, slice. Select a mode with the following keys, or right-click
+on the window and select from the menu.
+
+Click and drag on the window with the mouse to move the model, or use the
+arrow keys. The zoom and slice are controlled by forward and backward
+dragging, or the up and down arrow keys.
+
+Menu Items
+   r - rotate, turn the model about its centre
+   d - drag, drag the model around the screen
+   z - zoom, Zoom in or out
+   s - spin control (when selected will first stop any spin, and add the
+       current spin rotation to the current static rotation usually set
+       with r)
+   S - slice, slice into the model.
+   P - projection, toggle display between perspective and orthogonal
+   v - show/hide vertices, toggle display of vertex spheres
+   e - show/hide edges, toggle display of edge rods
+   f - show/hide faces, toggle display of faces
+   n - show/hide vertex numbers, toggle display of vertex number labels
+   N - show/hide face numbers, toggle display of face number labels
+   m - show/hide edge numbers, toggle display of edge number labels
+   M - toggle alternative number labels (planar face labels)
+   t - rotate through display of face transparency: model, 50%, none
+   y - rotate through display of symmetry elements: axes; axes and
+       mirrors; axes, mirrors and rot-reflection planes; none
+   O - show/hide orientation, toggle colouring of the front side of 
+       faces white and the back side black
+   R - reset, reset to the initial viewing options 
+   Q - Quit
+
+Other Keys
+   J/j - increase/decrease vertex and edge size
+   K/k - increase/decrease vertex size
+   L/l - increase/decrease edge size
+   U/u - increase/decrease label text size
+   c - toggle label colours between light and dark
+   C - Invert label colours
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+Display some polyhedra in OFF files
+<br /><pre class="cmds">
+antiview cube oct ant4
+</pre><br /><br />
+
+Colour a polyhedron by polygon type and display it
+<br /><pre class="cmds">
+off_color -f N tr_cuboctahedron | antiview
+</pre><br /><br />
+
+Draw an icosahedron without its faces
+<br /><pre class="cmds">
+antiview -x f icosahedron
+</pre><br /><br />
+
+Display a proper coloured icosahedron without its vertex or edge elements
+<br /><pre class="cmds">
+off_color -f P icosahedron | antiview -x ve 
+</pre><br /><br />
+
+Display vertices like a ball pack (hiding face and edge elements)
+<br /><pre class="cmds">
+geodesic -f 3 -M p ico | antiview -x fe -v b
+</pre><br /><br />
+
+Display an icosahedron with thin vertex and edge elements
+<br /><pre class="cmds">
+antiview -v 0.01 -e 0.008 icosahedron
+</pre><br /><br />
+
+Display an icosahedron-based weave, excluding faces, and showing the
+edges in the face colour
+<br /><pre class="cmds">
+poly_weave icosahedron | off_color -f U -e F | antiview -v 0.1 -x f
+</pre><br /><br />
+
+A colour cycling animation can be made by providing
+a rate specifier in Herz with a colour map, e.g. 5hz, which
+then shifts the colour index numbers in the map at that rate
+<br /><pre class="cmds">
+unitile2d -s t | off_color -f u | antiview -R 60,0,0 -m rng10_H0:1%,5hz
+</pre><br /><br />
+
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+Use <i>-v b</i> to draw ball packs.
+<p>
+There is a slicing plane just in front of the screen. When in slicing
+mode this plane can be moved forward and backwards. It may take a
+couple of forward drags with the mouse (or hold down the the up-arrow
+key for a few seconds) until this plane reaches the model and starts
+slicing into it.
+<p>
+When a model is spinning, press the <i>s</i> key to stop the spinning. Note
+that this will set the viewing control mode to <i>spin</i>. If you wish
+to switch to a different mode then press the key for that mode, e.g. press
+the <i>r</i> key to switch to rotation mode.
+<p>
+Antiview supports a colour map cycling animation by adding a rate
+specifier with the map specifiers, e.g. <i>rng10_H0:1%,5hz</i>
+will cycle the colours in the map rng10_H0:1% at 5 Hz.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/off2pov.html">off2pov - convert OFF files to POV format</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

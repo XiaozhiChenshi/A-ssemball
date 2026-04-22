@@ -1,0 +1,251 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - EXTRA: sweep_edges - sweep edges to make a surface</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/mmop_origami.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->EXTRA: sweep_edges - sweep edges to make a surface<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: sweep [options] input
+
+Read input model in OFF format and transform it multiple times to produce
+a polygonal surface made of the quadrilaterals swept by the edges. At
+each step the input model is transformed according to the specified
+transformations, which can be defined using sweep progress variables FRAC
+and ANG. FRAC runs from 0.0 at at step 0 to 1.0 on the final step.
+  FRAC = current_step / total_steps
+  ANG = 360.0 * FRAC
+Colours are taken from the input model if the begining of the sweep does
+not coincide with the end, or if option -O is set, otherwise sweep circuits
+are found and the colours are set from the colour map (option -m). Vertex
+colours are used for final vertices and swept vertex edges, edge colours
+are used for swept edge faces.
+If input is not given the program reads from standard input.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -n &lt;int&gt;  number of steps (default: 12)
+  -T &lt;tran&gt; translate, three numbers separated by commas which are
+            used as the x, y and z displacements
+  -R &lt;rot&gt;  rotate about an axis, three, four or six numbers separated by
+            commas. If three numbers these are angles (degrees) to rotate
+            about the x, y and z axes. If four numbers, the first three
+            are a direction vector for the axis, the last number is the
+            angle (degrees) to rotate. If six numbers, these are two
+            vectors (from,to) and rotate to carry the first to the second.
+            If twelve numbers these are four vectors (from1,from2,to1,to2)
+            and rotate to carry the first onto the third then rotate around
+            the third to carry the second onto the fourth
+  -M &lt;norm&gt; reflect in a plane, three numbers separated by commas which
+            give a vector normal to the plane of reflection.
+  -S &lt;scal&gt; scale, one, three or four numbers separated by commas. If one
+            number then scale by this factor in all directions. If three
+            numbers these are the factors to scale along the x, y and
+            z axes. If four numbers, the first three are a direction
+            vector for the scaling, the last number is the factor to scale
+  -I        inversion
+  -A &lt;crds&gt; transformation that will align two sets of three points
+            (18 numbers coordinates of from1,from2,from3,to1,to2,to3)
+  -a &lt;angs&gt; transformation that makes particular angles between the
+            mapped axes, angles in degrees in form yz_ang,zx_ang,xy_ang
+            (corresponding to the angles opposite the x-, y- and z-axis)
+  -X &lt;mtrx&gt; transformation matrix of 9 or 12 values, given left-to-right
+            top-to-bottom, used to premultipy each coordinate
+  -i        replace the current combined transformation by its inverse
+  -t        triangulate
+  -O        do not join coincident sweep ends
+  -l &lt;lim&gt;  maximum distance between vertices that should be coincident, lim
+            is an integer represeting the negative exponent of the distance
+            (default: 8 giving 1e-08)
+  -m &lt;maps&gt; a comma separated list of colour maps used to transform colour
+            indexes (default: rand), a part consisting of letters from
+            v, e, f, selects the element types to apply the map list to
+            (default 'vef'). The 'compound' map should give useful results.
+  -o &lt;file&gt; write output to file (default: write to standard output)
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+See also,
+<a href="http://www.antiprism.com/examples/200_programs/730_sweep_edges/imagelist.html">sweep_edges examples with images</a>.
+<p>
+Torus sweep. Using the hexagon model (with coordinates in the xy-plane),
+   translate it 2 units along the x-axis (-T 2,0,0),
+   progressively rotate it 1 turn around the y-axis (-R 0,ANG,0)
+<br /><pre class="cmds">
+sweep_edges pol6 -T 2,0,0 -R 0,ANG,0 | antiview
+</pre><br /><br />
+
+Twisted torus sweep. Using the hexagon model,
+   progressively rotate it two edges around the z-axis (-R 0,0,ANG*2/6),
+   translate it 2 units along the x-axis (-T 2,0,0),
+   progressively rotate it 1 turn around the y-axis (-R 0,ANG,0).
+Sweep using 30 steps. Displaying the model with <i>antiview -t no_tri -x ev</i>
+produces a smoother look to the surface and hides vertices and eges.
+<br /><pre class="cmds">
+sweep_edges pol6 -n 30 -R 0,0,ANG*2/6 -T 2,0,0 -R 0,ANG,0 | antiview -t no_tri -x ev
+</pre><br /><br />
+
+Twisted torus sweep. As before, but turn a nonagon 6 edges while sweeping,
+and sweep at a larger radius. Setting the vertex and edge colours from a
+different colour map and then displaying the models with <i>antiview -t no_tri -v 0.05 -e 0.05 -E invisible</i> makes a smoother surface and shows the paths of the original vertices.
+<br /><pre class="cmds">
+sweep_edges pol9 -n 30 -R 0,0,ANG*6/9 -T 4,0,0 -R 0,ANG,0 -m spread+3,ve | antiview -t no_tri -v 0.1 -e 0.1 -E invisible
+</pre><br /><br />
+
+Twisted double wound torus sweep.
+Using the triangle model,
+   translate it 0.5 units on the x-axis (-T 0.5,0,0),
+   progressively rotate it one turn around the z-axis (-R 0,0,ANG),
+   translate it 2 units along the x-axis (-T 2,0,0),
+   progressively rotate it 2 turns around the y-axis (-R 0,2*ANG,0).
+<br /><pre class="cmds">
+sweep_edges -n 200 -T 0.5,0,0 -R 0,0,ANG -T 2,0,0 -R 0,2*ANG,0 pol3 | antiview -t no_tri -x ev
+</pre><br /><br />
+
+Tapered helix sweep. Colour the edges of a triangle model,
+   scale it by 0.5 (-S 0.5),
+   progressively translate it 2 to 1 units on the x-axis (-T "2*(1-FRAC),0,0"),
+   progressively translate it 5 to 0 units on the y-axis (-T 0,5*FRAC,0),
+   progressively rotate it 10 turns around the y-axis (-R 0,10*ANG,0).
+Note that maths expressions using special characters lie '(' may need the
+option argument to be surrounded by quotes, or escaped in some other way.
+<br /><pre class="cmds">
+off_color -e U pol3 | sweep_edges -n 200 -S 0.5  -T "2*(1-FRAC),0,0" -T 0,5*FRAC,0 -R 0,10*ANG,0 | antiview -t no_tri -x ev
+</pre><br /><br />
+
+Incomplete dipyramid sweep, which is the repeated symmetrically.
+Make a couple of coloured edges with vertices on the y-axis. Sweep 3/4 of a turn
+around the y-axis in 12 steps (to make a 16-gon dipyramid with a 1/4 missing).
+In the second command remake the model and repeat it symmetrically to be
+aligned with the edges of a cube.
+<br /><pre class="cmds">
+off_util null -Av0,1,0 -Av1,0,0 -Av0,-1,0 -Ae0,1:red -Ae1,2:green | sweep_edges -n 12 -R 0,3*ANG/4,0 | antiview -t no_tri
+off_util null -Av0,1,0 -Av1,0,0 -Av0,-1,0 -Ae0,1:red -Ae1,2:green | sweep_edges -n 12 -R 0,3*ANG/4,0 | off_trans -T -1,0,-1 | poly_kscope -s T | antiview -t no_tri -x ev
+</pre><br /><br />
+
+Klein bottle
+<br /><pre class="cmds">
+sweep_edges pol4 -R 0,ANG/2,0 -T "sin(ANG/2),0,0" -R 0,ANG,0 -n 200 | off_util -M a | antiview -t no_tri -x ev
+</pre><br /><br />
+
+Making a twisted surface with "sides" made from sweeping multiple edges may
+benefit from a specified colouring. The following commands show <ul>
+  <li>a twisted square torus</li>
+  <li>a similar model but the sides are made from several edges</li>
+  <li>an open tube model is made with <i>-O</i>, that preserves the original colours, and colours mismatch</li>
+  <li>an open tube model is made with <i>-O</i>, and the original colour indices are mapped so they match </li>
+</ul>
+<br /><pre class="cmds">
+sweep_edges -n 64 -R 0,0,2*ANG/4 -T 3,0,0 -R 0,ANG,0 -m map_red:green pol4 | antiview -t no_tri -x ev
+off_util -g -s pol24 -Dv7- | off_trans -T -3.830648787770195,3.830648787770195,0 | poly_kscope -s C4 -c e | off_util -M a | sweep_edges -n 64 -R 0,0,2*ANG/4 -T 10,0,0 -R 0,ANG,0 | antiview  -t no_tri -x ev
+off_util -g -s pol24 -Dv7- | off_trans -T -3.830648787770195,3.830648787770195,0 | poly_kscope -s C4 -c e | off_util -M a | sweep_edges -n 64 -R 0,0,2*ANG/4 -T 10,0,0 -R 0,ANG,0 -O | antiview  -t no_tri -x ev
+off_util -g -s pol24 -Dv7- | off_trans -T -3.830648787770195,3.830648787770195,0 | poly_kscope -s C4 -c e | off_util -M a | sweep_edges -n 64 -R 0,0,2*ANG/4 -T 10,0,0 -R 0,ANG,0 -O -m map_red:green:green:red | antiview  -t no_tri -x ev
+</pre><br /><br />
+
+Plane tiling with progressing scaling
+<br /><pre class="cmds">
+off_util null -Av2,0,0 -Av3,0,0 -Ae0,1 | sweep_edges -n 80 -R 0,0,5*ANG -S "((2/3)^(5*FRAC))"| off_util -l 10 -M a  | wythoff -c j | off_color -f P -m map_green:brown| antiview
+</pre><br /><br />
+
+<!-- EXAMPLES_END -->
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+
+Swept surfaces are sometimmes used in sculpture, for example
+<a href="https://www.google.com/search?q=sebastian+escultura&tbm=isch">Enrique Carbajal (Sebastian)</a> and
+<a href="https://www.google.com/search?q=Helaman+Ferguson+sculpture&tbm=isch">Helaman Ferguson</a>.
+
+The <a href="n_icons.html">n_icons</a> program sweeps half a polygon twice,
+as a progressive half turn, a twist, then another progressive half turn.
+
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/mmop_origami.html">EXTRA: mmop_origami - multimodular polyhedron origami</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

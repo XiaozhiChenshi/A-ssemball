@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://cfo0bdj36f6qp"]
+﻿[gd_scene load_steps=7 format=3 uid="uid://cfo0bdj36f6qp"]
 
 [ext_resource type="Script" uid="uid://dxsbsi834w7qr" path="res://scripts/chapter_2.gd" id="1_7338h"]
 [ext_resource type="Script" uid="uid://dgpdnfijmh76q" path="res://scripts/line_canvas_2d.gd" id="2_6pf0a"]
@@ -22,7 +22,7 @@ emission = Color(0.9, 0, 0, 1)
 radius = 0.08
 height = 0.16
 
-[node name="Chapter1" type="Control"]
+[node name="Chapter2" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0

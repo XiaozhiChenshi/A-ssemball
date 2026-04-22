@@ -1,0 +1,153 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - EXTRA: lat_grid - lattices and grids with integer coordinates</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/string_art.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->EXTRA: lat_grid - lattices and grids with integer coordinates<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: lat_grid [options] [lat_type [outer_width [inner_width]]]
+
+Make a lattice or grid with integer coordinates. Lattice types (default: sc)
+are followed by name and then and valid strut arguments (squares of length,
+first is square of the radius of balls packed at the vertex positions)
+  sc                 - Simple Cubic                         (1, 2, 3)
+  fcc                - Face Centred Cubic                   (2, 4, 6, 12)
+  bcc                - Body Centred Cubic                   (3, 4, 8)
+  hcp                - Hexagonal Close Packing              (18)
+  rh_dodec           - Rhombic Dodecahedra                  (3, 8)  cubo_oct           - Cuboctahedron / Octahedron           (2)
+  tr_oct             - Truncated Octahedron                 (2)
+  tr_tet_tet         - Truncated Tetrahedron / Tetrahedron  (2)
+  tr_tet_tr_oct_cubo - Truncated Tetrahedron / 
+                       Truncated Octahedron / Cuboctahedron (4)
+  diamond            - Diamond                              (3)
+  hcp_diamond        - HCP Diamond                          (27)
+  k_4                - K_4 Crystal                          (2)
+
+Inner and outer widths are the sizes of the inner and outer containers.
+For cubes, these are the length of a side, for spheres these are the
+squares of the radii.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -C &lt;cent&gt; centre of lattice, in form \"x_val,y_val,z_val\"
+  -c &lt;type&gt; container, c - cube (default), s - sphere
+  -s &lt;len2&gt; create struts, the value is the square of the strut length
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+View a cubic section of Close Cubic Packing
+<br /><pre class="cmds">
+lat_grid fcc 6 | antiview -v b
+</pre><br /><br />
+
+Make a spherical section of a diamond grid
+<br /><pre class="cmds">
+lat_grid -c s -s 3 diamond 16 | antiview
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+Spherical container suggested by
+<a href="http://www.watermanpolyhedron.com/">Steve Waterman</a>,
+who has made a collection of
+<a href="http://www.watermanpolyhedron.com/APmain.html">
+hulls of spherically contained lattices</a>.
+<p>
+The grids of shortest strut length represent the edges of a
+packing of polyhedra, with the exception of diamond, HCP diamond
+and K_4.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/string_art.html">EXTRA: string_art - string figures</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

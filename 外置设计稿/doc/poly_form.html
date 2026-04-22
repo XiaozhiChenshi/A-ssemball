@@ -1,0 +1,217 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - poly_form - make face-regular and unscramble models</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/col_util.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->poly_form - make face-regular and unscramble models<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: poly_form [options] [input_file]
+
+Read a file in OFF format containing a graph of a polyhedron, with or
+without vertex coordinates, and try to create a spherical or ellipsoidal
+tesselation where the maximum edge is a minimum length, or try to make
+into a regular-faced polyhedron. Option adjustment factors expressed as
+a percentage are approximate. If input_file is not given the program reads
+from standard input.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -a &lt;alg&gt;  model forming algorithm
+            r - make faces into unit-edged regular polygons (default)
+            u - unscramble: place a small polygon on one side of a
+                sphere or ellipsoid and the rest of the vertices at a
+                point on the other side, then equalise shortest and
+                longest edges attached to a vertex
+            U - equalise shortest and longest edges attached to a vertex
+                  on sphere or ellipsoid (use to continue unscrambling)
+            e - equalise edges on sphere or ellipsoid (default)
+            p - planarise
+  -n &lt;itrs&gt; maximum number of iterations, -1 for unlimited (default: 10000)
+  -s &lt;perc&gt; percentage to shorten longest edges on iteration (default: 1)
+  -k &lt;perc&gt; -a r - percentage to reduce polygon radius on iteration
+                   (default: value of -s)
+            -a e - percentage to reduce minimum target length on iteration
+                   (default: 1e-6), will oscillate at certain precision,
+                   process output with smaller value to improve solution
+  -f &lt;perc&gt; percentage to reduce distance of vertex from face plane (-a rp)
+            on iteration (default: value of -s)
+  -y        maintain symmetry of the base model (with -a e/r/p)
+  -E &lt;prms&gt; use ellipsoid, three numbers separated by commas are the
+            axis lengths (for a superellipsoid an optional fourth number
+            gives the power)
+  -l &lt;lim&gt;  minimum change of distance/width_of_model to terminate, as 
+               negative exponent (default: 14 giving 1e-14)
+  -z &lt;nums&gt; number of iterations between status reports (implies termination
+            check) (0 for final report only, -1 for no report), optionally
+            followed by a comma and the number of iterations between
+            termination checks (0 for report checks only) (default: 1000,100)
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+Turn an icosahedron 3-fold axis into a six-fold axis, and make the
+resulting faces regular
+<br /><pre class="cmds">
+off_trans -y D3v ico | to_nfold 6 | poly_form -s 15 | antiview
+</pre><br /><br />
+
+Make the faces of a (3,5) icosahedral geodesic sphere into regular
+triangles, while ensuring that the icosahedral symmetry is maintained,
+set -n and -l higher for a better solution
+<br /><pre class="cmds">
+poly_form -n 100000 -s 15 -l 14 -y geo_5_3 | antiview
+</pre><br /><br />
+
+
+Make a geometric representation of a polyhedron having only face data,
+in this case a geodesic sphere has all its coordinates set to the origin
+and is then laid out again on a sphere
+<br /><pre class="cmds">
+off_trans geo_3 -S 0 &gt; scrambled.off
+poly_form -a u scrambled.off &gt; unscrambled.off
+</pre><br /><br />
+
+Run for a bit longer if necessary, don't use <i>-a u</i> this time
+as this includes an initial placement, instead use just the unscrambling
+algorithm <i>-a U</i>
+<br /><pre class="cmds">
+poly_form -n 100000 -a U unscrambled.off &gt; unscrambled2.off
+</pre><br /><br />
+
+Make an equal edge tiling on a sphere, and use -y to constrain
+to the original symmetry, which may also be faster
+<br /><pre class="cmds">
+poly_form -n 100000 -a e -s 100 geo_3_3_d | antiview
+poly_form -n 100000 -a e -s 100 -y geo_3_3_d | antiview
+</pre><br /><br />
+
+An equal-edge tiling on a sphere may not be solvable, but the result
+might still be symmetric, which could then be used to speed up
+a regular-faced solution
+<br /><pre class="cmds">
+poly_form -a u geo_3_3 | poly_form -a e -s 100 | antiview -s a
+poly_form -a u geo_3_3 | poly_form -a e -s 100 | poly_form -n -1 -y | antiview
+</pre><br /><br />
+
+
+Solve an equal-edge model on an ellipsoid
+<br /><pre class="cmds">
+poly_form -n 100000 -a e -E 1,1.2,1.5 -y -s 50 geo_3_3_d | antiview
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+Doesn't always succeed. Experiment with option <i>-s</i>,
+<i>-k</i> and <i>-f</i> to improve convergence, but setting them too
+high may cause the model to scramble. Run the program for longer by
+increasing option <i>-n</i>. The program shows the progress every
+1000 iterations (change with option <i>-z</i>) by printing the
+longest and shortest edge lengths and/or the maximum
+distance a vertex moved.
+<p>
+Option <i>-y</i> constrains the symmetry of a model, and
+will also complete quicker for models with good symmetry and a
+large number of elements.
+<p>
+The program was previously called <i>minmax</i>, but includes various
+changes. Option <i>-p</i> is gone, for <i>-p u</i> use <i>-a u</i>. Option
+<i>-a</i> parameters are renamed: <i>-a u</i> is now <i>-a r</i> (and is the
+default), <i>-a v -p u</i> is <i>-a u</i>, and <i>-a v</i> is <i>-a U</i>
+for unscrambling and <i>-a e</i> for equalising edges.
+Option <i>-L</i> is gone, and option <i>-l</i>
+is now used to specify precision (an option for lengthening edges  
+is no longer needed). The default for -n is raised to 10000
+
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/col_util.html">col_util - colour utilities including plots and blends</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

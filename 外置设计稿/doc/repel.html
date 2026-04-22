@@ -1,0 +1,143 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - repel - equilibrium of points repelling on a sphere</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/bravais.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->repel - equilibrium of points repelling on a sphere<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: repel [options] [input_file]
+
+An equilibrium position is found for a set of points which repel each
+other. The initial coordinates are read from input_file if given (or
+from standard input), otherwise use -N to generate a random set.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -N &lt;num&gt;  initialise with a number of randomly placed points
+  -n &lt;itrs&gt; maximum number of iterations, -1 for unlimited (default: -1)
+  -s &lt;perc&gt; percentage to shorten the travel distance (default: adaptive)
+  -r &lt;exp&gt;  repelling formula, 1/distance^exp (default: 2)
+  -l &lt;lim&gt;  minimum change of distance/width_of_model to terminate, as 
+               negative exponent (default: 12 giving 1e-12)
+  -z &lt;nums&gt; number of iterations between status reports (implies termination
+            check) (0 for final report only, -1 for no report), optionally
+            followed by a comma and the number of iterations between
+            termination checks (0 for report checks only) (default: 1000,1)
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+Make a snub cube
+<br /><pre class="cmds">
+repel -N 24 -l 15 | conv_hull | antiview
+</pre><br /><br />
+
+Make a snub cube in fewer iterations by not using adaptive shortening
+<br /><pre class="cmds">
+repel -N 24 -s 1 -l 15 | conv_hull | antiview
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+The default adaptive shortening of travel will not always be quickest.
+It is worth experimenting with specific values using option <i>-s</i>.
+However, in the snub cube examples above the adaptive shortening gives
+better results, producing more accurate squares.
+<p>
+The progress report includes the number of iterations, the greatest
+distance moved by a point, the shortening factor, and the sum of all
+the forces.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/bravais.html">bravais - Bravais lattices</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

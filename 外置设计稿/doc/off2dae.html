@@ -1,0 +1,179 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - off2dae - convert an OFF file to Collada (DAE) format</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/off2obj.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->off2dae - convert an OFF file to Collada (DAE) format<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: off2dae [options] [input_file]
+
+Convert an OFF file to Collada DAE file format
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -v &lt;rad&gt;  radius of vertex spheres, or 'b' to have radius of balls
+            of the maximum size without overlap (default: ball_rad/15)
+  -e &lt;rad&gt;  radius of edge cylinders (default: vertex_rad/1.5)
+  -V &lt;col&gt;  default vertex colour, in form 'R,G,B,A' (3 or 4 values
+            0.0-1.0, or 0-255) or hex 'xFFFFFF' (default: 1.0,0.5,0.0)
+  -E &lt;col&gt;  default edge colour, in form 'R,G,B,A' (3 or 4 values
+            0.0-1.0, or 0-255) or hex 'xFFFFFF', 'x' to hide implicit edges
+            (default: 0.8,0.6,0.8)
+  -F &lt;col&gt;  default face colour, in form 'R,G,B,A' (3 or 4 values
+            0.0-1.0, or 0-255) or hex 'xFFFFFF' (default: 0.8,0.9,0.9)
+  -x &lt;elms&gt; hide elements. The element string can include v, e and f
+            to hide vertices, edges and faces
+  -t &lt;disp&gt; select face parts to display according to winding number from:
+            odd, nonzero (default), positive, negative, no_triangulation
+            (use native polygon display)
+  -m &lt;maps&gt; a comma separated list of colour maps used to transform colour
+            indexes, a part consisting of letters from v, e, f, selects 
+            the element types to apply the map list to (default 'vef').
+  -K &lt;lvl&gt;  a positive integer to specify the level of smoothing (using more
+            polygons) of the vertex spheres and edge cylinders (default: 3)
+  -d &lt;dgts&gt; number of significant digits (default 16) or if negative
+            then the number of digits after the decimal point
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+Display icosahedron vertices as a ball pack
+<br /><pre class="cmds">
+off2dae -x ef -v b ico &gt; ico_pack.dae
+</pre><br /><br />
+
+Display an icosahedron without its faces
+<br /><pre class="cmds">
+off2dae -x f ico &gt; ico_frame.dae
+</pre><br /><br />
+
+Display an icosahedron without its vertex or edge elements
+<br /><pre class="cmds">
+off2dae -x ve ico &gt; ico_faces.dae
+</pre><br /><br />
+
+Display an icosahedron with thin vertex and edge elements
+<br /><pre class="cmds">
+off2dae -v 0.01 -e 0.008 ico &gt; ico_thin_elems.dae
+</pre><br /><br />
+
+Set default vertex colour, for uncoloured vertices, to red
+<br /><pre class="cmds">
+off2dae -V red std_ico &gt; ico_red_verts.dae
+</pre><br /><br />
+
+Increase smooth level to 5. This will make vertex and edge elements have
+more polygons and so look smoother.
+<br /><pre class="cmds">
+off2dae -K 5 ico &gt; ico_smoother_elems.dae
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+The Collada format is large in scope, and programs that import it generally
+only support a subset of its features. For an input file to be imported
+correctly into a program it must therefore use a specific subset. The
+off2dae output has been designed to be compatible with Sketchup
+and Blender.
+<p>
+Sketchup will not import the surface smoothing that is applied to
+vertex spheres and edge cylinders. If the elements of am model look
+too "polyhedral" in Sketchup there are two solutions: use option
+<i>-K 5</i> (or higher) so the element models have more polygons;
+import the vertex and edge elements together with option <i>-x f</i>
+and use edge smoothing in Sketchup, then import the faces with option
+<i>-x ev</i>.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/off2obj.html">off2obj - convert an OFF file to Wavefront OBJ format</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

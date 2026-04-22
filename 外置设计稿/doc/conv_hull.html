@@ -1,0 +1,146 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - conv_hull - convex hulls (using Qhull)</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/pol_recip.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->conv_hull - convex hulls (using Qhull)<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: conv_hull [options] [input_file]
+
+Read a file in OFF format and make a convex hull (using Qhull). If
+input_file is not given the program reads from standard input.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -a        append the convex hull to the input file
+  -Q &lt;args&gt; additional arguments to pass to qhull (unsupported, may not
+            work, check output)
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+<i>cube.txt</i> is a file containg eight cube vertices &plusmn;1, ,&plusmn;1, &plusmn;1. Make the edges with
+<br /><pre class="cmds">
+conv_hull -o cube.off cube.txt
+</pre><br /><br />
+
+Triangulate the output, so each square also has a diagonal edge
+<br /><pre class="cmds">
+conv_hull -Q QJ -o cube.off cube.txt
+</pre><br /><br />
+See
+<a href="#notes">Notes</a>
+below.
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+The <i>conv_hull</i> program is a thin wrapper around
+<a href="http://www.qhull.org/">Qhull</a>.
+<p>
+The Antiprism programs
+will read three dimensional Qhull OFF output, so it is also
+convenient to use the Qhull programs directly. This is
+recommended if you want to use additional options. Notice that
+<br /><pre class="cmds">
+conv_hull -Q Qt -o cube.off cube.txt
+conv_hull -a -Q QJ -o cube.off cube.txt
+</pre><br /><br />
+Do not give the expected results.
+<p>
+Antiprism includes Qhull source code. The original code can be obtained from
+<a href="http://www.qhull.org/">http://www.qhull.org/</a>.
+<p>
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/pol_recip.html">pol_recip - polar reciprocals (duals)</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

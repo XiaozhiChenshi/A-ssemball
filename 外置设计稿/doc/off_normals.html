@@ -1,0 +1,168 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - off_normals - utility for working with normals</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/conv_hull.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->off_normals - utility for working with normals<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: off_normals [options] [input_file]
+
+Display normals of faces, implicit edges, and vertices
+If input_file is not given the program reads from standard input.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -l &lt;lim&gt;  minimum distance for unique vertex locations as negative exponent
+               (default: 12 giving 1e-12)
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+Scene Options
+  -t        normal position. n - natural, a - add element centers (default: n)
+  -u        unit normals
+  -e        connect to element centroid (for reference)
+  -p &lt;opt&gt;  force polarity. o - outward, i - inward
+               r - reverse both inward and outward
+  -i &lt;elms&gt; include normals. The element string can include o, i and h
+               to show outward, inward and hemispherical
+               note: exclusion occurs before -p (default: oih)
+  -s &lt;elms&gt; include elements. The element string can include v, e and f
+               to show vertices, edges and faces (default: f)
+  -d &lt;opt&gt;  delete elements. f - delete faces of excluded normals
+               a - delete all of original model
+  -c &lt;opts&gt; average pattern string for edge and vertex normals. Done before -p
+               r - raw, o - outward, i - inward, u - unit (default: r)
+  -a        alternate calculation for vertex normals
+  -x &lt;opt&gt;  face normals: n - Newell's, t - triangles, q - quads (default: n)
+  -C &lt;xyz&gt;  center of model for normals, three comma separated coordinates
+               0 for origin  (default: centroid)
+
+Coloring Options (run 'off_util -H color' for help on color formats)
+  -O &lt;col&gt;  outward normal vertex color
+  -I &lt;col&gt;  inward normal vertex color
+               default: vertex color is negative of outward col
+  -H &lt;col&gt;  hemispherical normal vertex color  (default: gray50)
+  -E &lt;col&gt;  normal vector color. connected to element centroid
+               default: color of normal vertex
+               keyword: r take random color
+  -B &lt;col&gt;  normal vector base color. color at element centroid
+               keyword: b take color of element (default)
+               keyword: n take color of normal vertex
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+Show the normals of a dodecahedron. Outward normals will be colored white
+<br /><pre class="cmds">
+off_normals dod -O white | antiview -v 0.075
+</pre><br /><br />
+
+Show the normals of a rhombic triacontahedron which has been oriented
+for negative volume so normals are reversed. Normals are joined to face
+centres with an edge of random colour, making it easier to see which
+normal belongs to which face
+<br /><pre class="cmds">
+off_util -O n rt | off_normals -e -E r | antiview -v 0.075 -x f
+</pre><br /><br />
+
+Show the edge normals of an icosidodecahedron
+<br /><pre class="cmds">
+off_normals icosidodecahedron -s e -O white -e | off_color -r A0.3,f | antiview -v 0.02
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+<i>off_normals</i> was written by
+<a href="http://www.interocitors.com/polyhedra/">Roger Kaufman</a>.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/conv_hull.html">conv_hull - convex hulls (using Qhull)</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

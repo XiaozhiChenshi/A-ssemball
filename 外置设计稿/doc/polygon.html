@@ -1,0 +1,200 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - polygon - polygon based polyhedra</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/miller.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->polygon - polygon based polyhedra<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: polygon [options] type num_sides
+
+Make polyhedra based on polygons. The polyhedron type and subtype may be
+given by (partial) name or number
+   1. prism (angle: polygons twist, forming an antiprism)
+        subtypes: 1. antiprism, from triangulating side faces
+                  2. trapezohedron, with this antiprism-ised belt
+                  3. crown (-A integer to specify a second polygon step)
+   2. antiprism (angle: polygons twist)
+        subtypes: 1. trapezohedron, with this antiprism belt
+                  2. antihermaphrodite, with this antiprism base
+                  3. scalenohedron (-L for apex height)
+                  4. subdivided_scalenohedron (-L for apex height)
+                  5. crown (-A integer to specify a second polygon step)
+   3. pyramid (angle: base separates, polygons twist to antihermaphrodite)
+        subtypes: 1. antihermaphrodite, with this antiprism base
+                  2. elongated (-L for prism height)
+                  3. gyroelongated (-L for antiprism height)
+   4. dipyramid (angle: base separates, polygons twist to trapezohedron)
+        subtypes: 1. trapezohedron, with this pyramid apex
+                  2. elongated (-L for prism height)
+                  3. gyroelongated (-L for antiprism height)
+                  4. dipyramid_scalenohedron (-R for alternate vertex radius)
+   5. cupola
+        subtypes: 1. elongated (-L for prism height)
+                  2. gyroelongated (-L for antiprism height)
+                  3. cupoloid
+   6. orthobicupola
+        subtypes: 1. elongated (-L for prism height)
+                  2. gyroelongated (-L for antiprism height)
+   7. gyrobicupola
+        subtypes: 1. elongated (-L for prism height)
+                  2. gyroelongated (-L for antiprism height)
+   8. snub-antiprism
+        subtypes: 1. inverted, triangle band inverted
+   9. dihedron
+        subtypes: 1. polygon
+  10. crown polyhedron (either -A integer to specify a second polygon step,
+                            or -a angle to specify a twist
+
+num_sides is a number (N) optionally followed by / and a second
+number (N/D). N is the number of vertices spaced equally on a
+circle, and each vertex is joined to the Dth (default: 1) vertex
+moving around the circle.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -s &lt;subt&gt; a number or name (see type list above) indicting a subtype
+            or modification of a polyhedron
+  -e &lt;len&gt;  length of polygon edges (default: 1)
+  -E &lt;len&gt;  length of non-polygon edges (default: calculate from -l)
+  -r &lt;rad&gt;  circumradius of polygon (default: calculate from -e)
+  -R &lt;rad&gt;  a second radius value
+  -l &lt;hgt&gt;  height of upper vertices above base polygon
+            (default: circumradius of polygon)
+  -L &lt;hgt&gt;  a second height or length value
+  -a &lt;ang&gt;  twist angle (degrees)
+  -A &lt;ang&gt;  a second twist angle (degrees)
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+A cube with edges of 2 units
+<br /><pre class="cmds">
+polygon -e 2 -l 2 pri 4 | antiview
+</pre><br /><br />
+
+A hexagonal based pyramid
+<br /><pre class="cmds">
+polygon pyr 6 | antiview
+</pre><br /><br />
+
+A uniform pentagrammic antiprism
+<br /><pre class="cmds">
+polygon -e 1 -E 1 ant 5/2 | antiview
+</pre><br /><br />
+
+A uniform pentagrammic crossed antiprism
+<br /><pre class="cmds">
+polygon -e 1 -E 1 ant 5/3 | antiview
+</pre><br /><br />
+
+A uniform crossed gyroelongated pentagrammic dipyramid
+<br /><pre class="cmds">
+polygon -e 1 -E 1 -s gyro dip 5/3 | antiview
+</pre><br /><br />
+
+A hexagonal trapezohedron
+<br /><pre class="cmds">
+polygon -s trap dip 6  | antiview
+</pre><br /><br />
+
+A twisted hexagonal trapezohedron
+<br /><pre class="cmds">
+polygon -s trap -a 45 dip 6  | antiview
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/miller.html">miller - Miller's stellations of the icosahedron</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

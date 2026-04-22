@@ -1,0 +1,272 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - pol_recip - polar reciprocals (duals)</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/canonical.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->pol_recip - polar reciprocals (duals)<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: pol_recip [options] [input_file]
+
+Read a file in OFF format and make a polar reciprocal from the face
+planes. If input_file is not given the program reads from standard input.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -c &lt;cent&gt; reciprocation centre (default: C)
+              X,Y,Z - centre with these coordinates, 0 for origin
+              C - vertex centroid,    M - mid-sphere (approximate)
+              R - circumcentre (avg)
+              e - edge balanced,      E - edge balanced with inversion
+              v - vert/face balanced, V - vert/face balanced with inversion
+              a - v/f/e balanced      A - v/f/e balanced with inversion
+  -C &lt;init&gt; initial value for a centre calculation, in form 'X,Y,Z', 0 for
+            origin, C to use centroid (default), M to calculate approximate
+            mid-sphere
+  -r &lt;rad&gt;  reciprocation radius (default: calculated)
+              radius value - use this value as the radius
+              v - nearest vertex distance, V - furthest vertex distance
+              e - nearest edge distance,   E - furthest edge distance
+              f - nearest face distance,   F - furthest face distance
+            or a comma separated list of vertex indices (starting from 0)
+            and the distance is to the space containing those vertices
+  -R &lt;rad&gt;  initial value for a radius calculation (default: calculated)
+  -i        transform dual by reflecting in centre point
+  -I &lt;dist&gt; maximum distance to project any normal or infinite dual vertex
+            (default: 1e+15), if 0 then use actual distances and delete
+            infinite points
+  -x        exclude extra elements added to duals with ideal vertices
+  -n &lt;itrs&gt; maximum number of iterations (default: 10000)
+  -l &lt;lim&gt;  minimum distance change to terminate, as negative exponent
+               (default: 12 giving 1e-12)
+  -a        append dual to original polyhedron
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+See also,
+<a href="http://www.antiprism.com/examples/200_programs/635_pol_recip/imagelist.html">pol_recip examples with images</a>.
+<p>
+Make the dual of an octahedron, a cube.
+<br /><pre class="cmds">
+pol_recip oct | antiview
+</pre><br /><br />
+
+Make the dual pair of an octahedron and a cube.
+<br /><pre class="cmds">
+pol_recip -a oct | antiview
+</pre><br /><br />
+
+Make the dual pair of a cuboctahedron and rhombic dodecahedron,
+with the reciprocation radius touching the nearest faces (first
+command) and farthest faces (second command) causing a dual vertex
+to lie on faces at this distance
+<br /><pre class="cmds">
+pol_recip -a -r f cubo | off_color -r A0.4,f | antiview
+pol_recip -a -r F cubo | off_color -r A0.4,f | antiview
+</pre><br /><br />
+
+Specify a face plane of a polyhedron by three of its index numbers, make
+a dual with a vertex that lies on this face plane, no matter where the
+reciprocation centre is
+<br /><pre class="cmds">
+pol_recip -a -c 0,0,0.2  -r 2,3,5 pyr5 | off_color -r A0.4,f | antiview
+pol_recip -a -c 0,0,-0.4 -r 2,3,5 pyr5 | off_color -r A0.4,f | antiview
+</pre><br /><br />
+
+A canonical antihemaphrodite is self-dual, but not in the centroid
+(first command). The correct centre can be found as a midsphere centre
+(second command)
+<br /><pre class="cmds">
+polygon ant -s antih 4 | canonical | pol_recip -a | antiview
+polygon ant -s antih 4 | canonical | pol_recip -a -c M -n 10000 | antiview
+</pre><br /><br />
+
+Pyramids have a number interesting reciprocation centres, e.g. a
+default "mid-centre" (first command), an external "mid-center" (second
+command), a self-dual "edge-balanced" centre (third command)
+<br /><pre class="cmds">
+polygon -l 1.5 pyr 7 | off_color -f blue | pol_recip -c M -n 50000 -a | antiview
+polygon -l 1.5 pyr 7 | off_color -f blue | pol_recip -C 0,0,-1 -c M -n 50000 -a | antiview
+polygon -l 1.5 pyr 7 | off_color -f blue | pol_recip -c e -n 50000 -a | antiview
+</pre><br /><br />
+
+
+When a polyhedron has a face plane passing through the reciprocation
+centre, this is dualised into a an ideal vertex at infinity. To maintain
+the visual symmetry of the dual, and emphasise that the vertex can be
+reached in two opposite directions, the vertex is placed far away (control
+distance with <i>-I</i>, and suppress this with <i>-x</i>). The first two
+commands show the dual as the reciprocation centre is above and below
+the base face of the triangular pyramid. Then on the plane (command 3),
+and again, but with the duplicated vertices surpressed (command 4)
+
+<br /><pre class="cmds">
+pol_recip -c 0,0,0.05   -r 0,1 -a pyr3 | antiview -R -90,0,0
+pol_recip -c 0,0,-0.05  -r 0,1 -a pyr3 | antiview -R -90,0,0
+pol_recip -c 0,0,0.00   -r 0,1 -a pyr3 | antiview -R -90,0,0
+pol_recip -c 0,0,0.00  -x -r 0,1 -a pyr3 | antiview -R -90,0,0
+</pre><br /><br />
+
+
+<!-- EXAMPLES_END -->
+
+
+
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+A dual of a convex polyhedron is normally made with the centre of
+reciprocation at the polyhedron centre and the radius to just touch
+the edges.
+<p>
+Some polyhedra have faces passing through their natural centre. This
+causes a problem when making a dual because the vertex which is dual
+to this face should be infinitely far away. <i>pol_recip</i> allows these
+vertices to be included by placing them at a specified (probably very large)
+distance normal to the face. Any programs dealing with these distant vertices
+(e.g. povray) can interpret these distant vertices accordingly.
+<p>
+The default reciprocation centre and radius are found by the following
+algorithm. It aims to find a reciprocation sphere that is <i>balanced</i>,
+in the sense that the polyhedron and its dual have the same relationship
+with the sphere.
+
+<pre>
+   centre = centroid of vertices of base polyhedron
+   radius = average distance from centre to edges
+   LOOP:
+      dual = polar reciprocal of base, using centre and radius
+      
+      invert dual in centre point
+
+      edge_centroid    = centroid of the nearest points to the centre
+                         on the base's edges and duals edges
+      radius_sum_base  = sum of distances from the centre to the nearest
+                         point to the centre on the base's edges
+      radius_sum_dual  = sum of distances from the centre to the nearest
+                         point to the centre on the dual's edges
+
+      if loop count is even:
+         centre = 0.9*centre + 0.1*edge_centroid
+      if loop count is odd:
+         radius = radius * sqrt(rad_sum_g/rad_sum_d)
+
+      finish loop if change in centre and radius are small enough
+
+</pre>
+<p>
+The aim is that this will be a <i>similar reciprocation</i> method.
+That is to say
+<ul>
+<li>It will be <i>reciprocal</i> - it will always reciprocate a polyhedron
+    into the same polyhedron dual, and it will always reciprocate the dual
+    into the original polyhedron
+<li>It will <i>respect similarity</i> - similar polyhedra will have similar
+    dual-pairs and similar duals
+</ul>
+<p>
+The default method above tends to reciprocate in the midsphere, if
+it exists.
+<p>
+The other available balanced reciprocation methods use the centroid
+of combined face near-points and vertex offsets, or the centroid
+of the near-points of all three elements combined. For all three
+cases the dual may be inverted in the reciprocation centre before
+the centroid calculation.
+<p>
+<i>-r e</i> may select a sphere suitable for self-duality.
+<p>
+<i>-r v</i> and <i>-r V</i> may always give the same results.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/canonical.html">canonical - canonicalize a polyhedon</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

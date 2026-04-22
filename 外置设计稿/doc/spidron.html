@@ -1,0 +1,148 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - EXTRA: spidron - spidronise a polyhedron</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/dome_layer.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->EXTRA: spidron - spidronise a polyhedron<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: spidron [options] [input_file]
+
+Read a file in OFF format and convert to model built from spidron units.
+If input_file is not given the program reads from standard input.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -l &lt;len&gt;  unit length, half the number of triangles from edge to centre
+  -t &lt;type&gt; folding type, 1 - spidronmyd (default)
+  -a &lt;ang&gt;  angle of first triangle (default: 30)
+  -b &lt;ang&gt;  angle of second triangle (default: two times angle of option -a)
+  -p &lt;pat&gt;  folding pattern, a series of 0's and 1's, to old in or out
+            (default: 01)
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+Default, an in out pattern
+<br /><pre class="cmds">
+spidron dod | antiview -v 0.01
+</pre><br /><br />
+
+Out only, to points
+<br /><pre class="cmds">
+spidron dod -a 60 -b 72 -p 1 | antiview -v 0.01
+</pre><br /><br />
+
+Out only, flaring out
+<br /><pre class="cmds">
+spidron dod -a 72 -b 60 -p 1 | antiview -v 0.1
+</pre><br /><br />
+
+Colour is taken from the base model edges
+<br /><pre class="cmds">
+off_color dod -e P -m map_red:orange:white | spidron -a 60 -b 72 -p 1 | antiview
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+The <i>spidron</i> program makes spidron pyramid-style models based on
+D&aacute;niel Erd&eacute;ly's
+<a href="http://www.spidron.hu/main.html">Spidron</a>.
+<p>
+The program does not include the spidron-nest construction.
+<p>
+Spidron units are coloured according to the colours of the corresponding
+edges on the base polyhedron.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/dome_layer.html">EXTRA: dome_layer - dome strut arrangements</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

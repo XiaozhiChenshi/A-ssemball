@@ -1,0 +1,534 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - conway - Conway Notation transformations</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/wythoff.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->conway - Conway Notation transformations<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: conway [options] [Conway Notation string] [input_file]
+
+Conway Notation uses algorithms by George W. Hart (http://www.georgehart.com)
+http://www.georgehart.com/virtual-polyhedra/conway_notation.html
+
+Antiprism Extensions: Further operations added. See
+http://en.wikipedia.org/wiki/Conway_polyhedron_notation
+and
+http://antitile.readthedocs.io/en/latest/conway.html
+
+Read a polyhedron from a file in OFF format.
+If input_file is not given and no seed polyhedron is given in the notation
+string then the program reads from standard input.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -H        Conway Notation detailed help. seeds and operator descriptions
+  -v        verbose output
+  -z &lt;nums&gt; number of iterations between status reports (implies termination
+            check) (0 for final report only, -1 for no report), optionally
+            followed by a comma and the number of iterations between
+            termination checks (0 for report checks only) (default: -1,1)
+  -l &lt;lim&gt;  minimum distance change to terminate planarization, as negative
+              exponent (default: 12 giving 1e-12)
+            WARNING: high values can cause non-terminal behaviour. Use -i
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+Conway Notation Options
+  -s        apply Conway Notation string substitutions
+  -g        use George Hart algorithms (sets -s)
+  -c &lt;op=s&gt; user defined operation strings in the form of op,string
+              op can be any operation letter not currently in use
+              two character operations can be as alpha# e.g z#
+              string can be any operations. More than one &lt;op=s&gt; can be used
+              Examples: -c x=kt,y=tk,a#=dwd or -c x=kt -c y=tk -c a#=dwd
+  -t        tile mode. when input is a 2D tiling. unsets -g
+              set if seed of Z is detected
+  -r        execute operations in reverse order (left to right)
+  -u        make final product be of averge unit edge length
+  -p &lt;opt&gt;  planarize method (default: c, forced to x for open geometry)
+              b - base/dual (reciprocate on face centroids magnitude squared)
+              c - canonicalize
+              x - none
+  -i &lt;itrs&gt; maximum planarize iterations. -1 for unlimited (default: 1000)
+            WARNING: unstable models may not finish unless -i is set
+
+Coloring Options (run 'off_util -H color' for help on color formats)
+keyword: none - sets no color
+  -F &lt;col&gt;  color the faces according to: (default: n)
+              a color value - apply to all faces
+              n - color by number of sides
+              u - unique color
+              v - color with average adjacent vertex color
+              s - symmetric coloring [,sub_group,conj_type]
+              b - color faces by convexity using all dihedral angles
+              o - newly created faces by operation
+              w - use wythoff colors (overrides -V and -E)
+  -E &lt;col&gt;  color the edges according to: (default: lightgray)
+              a color value - apply to all edges
+              s - symmetric coloring [,sub_group,conj_type]
+              b - color edges by convexity of dihedral angle
+  -V &lt;col&gt;  color the vertices according to: (default: gold)
+              a color value - apply to all vertices
+              n - color by order of vertex
+              u - unique color
+              s - symmetric coloring [,sub_group,conj_type]
+  -C &lt;mthd&gt; tile colouring method, optionally followed by ':' and
+            point colouring method.
+               Tile colouring methods
+                 none - do not colour tiles
+                 index - use the path index, and apply colormap (default)
+                 association - colour tiles using corresponding base element
+                   colour, optionally followed by a comma and a letter from V,
+                   E, F, or a colour, to use for all local tiles (default: F)
+               Point colouring methods (default: use tile coloring method)
+                 none - do not colour points
+                 index - use the point index, and apply colormap
+                 association - colour points using corresponding base element
+                   colour, optionally followed by a comma and a letter from V,
+                   E, F, or a colour, to use for all local points (default: F)
+                 component - colour by non-zero components, V=1, E=2, F=4,
+                   V&amp;E=3, E&amp;F=6, V&amp;F=5, V&amp;E&amp;F=7, and apply colormap
+                 weight - colour using barycentric coordinates as RGB
+  -T &lt;t,e&gt;  transparency. from 0 (invisible) to 255 (opaque). element is any
+            or all of, v - vertices, e - edges, f - faces, a - all (default: f)
+  -m &lt;maps&gt; a comma separated list of color maps used to transform color
+            indexes (default: colorful), a part consisting of letters from
+            v, e, f, selects the element types to apply the map list to
+            (default 'vef'). use map name of 'index' to output index numbers
+              colorful:   red,darkorange1,yellow,darkgreen,cyan,blue,magenta,
+                          white,gray50,black
+              ghart:      red,blue,green,yellow,brown,magenta,purple,grue,
+                          gray,orange (from George Hart's original applet)
+              convexity:  white,gray50,gray25 (for -F b, -E b)
+              (maps are shifted '+-3' when -F n)
+              (no effect when using -F w which uses internal wythoff maps)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+Make truncated cuboctahedron and pass to poly_form to make unit edges
+<br /><pre class="cmds">
+conway dmO | poly_form -a r | antiview
+</pre><br /><br />
+
+A truncated octahedron passed to canonical
+<br /><pre class="cmds">
+conway tk4Y4 | canonical | antiview
+</pre><br /><br />
+
+A nice spiral pattern in Hart mode using operation substitutions
+<br /><pre class="cmds">
+conway eesD -g | antiview -v 0.01
+</pre><br /><br />
+
+A snub pentagrammic antiprism
+<br /><pre class="cmds">
+conway s ant5/2 | antiview
+</pre><br /><br />
+
+A snub geodesic sphere
+<br /><pre class="cmds">
+conway s geo_3 | antiview
+</pre><br /><br />
+
+opposite_lace operation on the dual of a geodesic sphere
+<br /><pre class="cmds">
+conway Gd geo_3 | antiview
+</pre><br /><br />
+
+whirl operation repeated twice on a dodecahedron seed and colored radially
+(the operator string is quoted for OSs that treat ^ as a special
+character)
+<br /><pre class="cmds">
+conway "w^2D" -i 5000 | off_color_radial | antiview -x ve
+</pre><br /><br />
+
+The lace operation subscript 2 applied to triangular faces of a cuboctahedron
+<br /><pre class="cmds">
+conway L_2:3aC | antiview -v 0.01
+</pre><br /><br />
+
+An interesting result with what looks like star polygons
+<br /><pre class="cmds">
+conway L_2gC -F w | antiview -v 0.01
+</pre><br /><br />
+
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+<i>conway</i> was written by
+<a href="http://www.interocitors.com/polyhedra/">Roger Kaufman</a>.
+It uses algorithms by George W. Hart,
+<a href="http://www.georgehart.com/">http://www.georgehart.com/</a>.
+<p>
+The Conway Notation algorithms were adapted from the
+Javascript on George Hart's
+<a href="http://www.georgehart.com/virtual-polyhedra/conway_notation.html">
+Conway Notation</a> page.
+<p>
+Antiprism Extensions: Further operations added. See
+<a href="https://en.wikipedia.org/wiki/Conway_polyhedron_notation">Conway
+polyhedron notation (Wikipedia)</a>
+and
+<a href="https://antitile.readthedocs.io/en/latest/conway.html">Conway
+operations (Antitile)</a>
+<p>
+Canonicalization and planarization may not always converge on
+a convex polyhedron.
+<p>
+The following extended help for the program may be displayed with
+<i>conway -H</i>
+<pre class="prog_help">
+
+
+Conway Notation was described by Mathematician John Conway to George Hart in
+the late 1990's for a book they planned to coauthor. Due to an illness the book
+never came to fruition and John Conway did not think there was enough a for a
+separate publication. Conway gave George Hart permission to present it in
+"Sculpture Based on Propellerized Polyhedra in the Proceedings of MOSAIC 2000"
+The paper can be viewed here: http://www.georgehart.com/propello/propello.html
+The project was expected to encourage more operations to be developed which has
+happened in various places including here at Antiprism. (www.antiprism.com)
+
+The following is a description of Conway Notation edited from the Conway
+Notation web page by George W. Hart (http://www.georgehart.com)
+
+More detailed information and examples can be found at
+http://www.georgehart.com/virtual-polyhedra/conway_notation.html
+and at
+http://en.wikipedia.org/wiki/Conway_polyhedron_notation
+and at
+http://antitile.readthedocs.io/en/latest/conway.html
+
+Basics: In this notation, one specifies a "seed" polyhedron with a capital
+letter. Operations to perform on any polyhedron are specified with lower-case
+letters preceding it. This program contains a small set of seeds and operators
+from which an infinite number of derived polyhedra can be generated.
+
+Note: This C++ port of Conway Notation can also operate on OFF files from
+standard input if the seed polyhedron is not specified. (Antiprism Extension)
+
+Seeds: The platonic solids are denoted T, O, C, I, and D, according to their
+first letter. Other polyhedra which are implemented here include prisms, Pn,
+antiprisms, An, and pyramids, Yn, where n is a number (3 or greater) which you
+specify to indicate the size of the base you want, e.g., Y3=T, P4=C, and A3=O.
+
+(Antiprism Extension: note that more seeds have since been defined)
+
+Operations: Currently, abdegjkmoprst are defined. They are motivated by the
+operations needed to create the Archimedean solids and their duals from the
+platonic solids.  Try each on a cube:
+
+(Antiprism Extension: note that more operations have since been defined)
+
+a = ambo   The ambo operation can be thought of as truncating to the edge
+midpoints.  It produces a polyhedron, aX, with one vertex for each edge of X.
+There is one face for each face of X and one face for each vertex of X.
+Notice that for any X, the vertices of aX are all 4-fold, and that aX=adX.
+If two mutually dual polyhedra are in "dual position", with all edges tangent
+to a common sphere, the ambo of either is their intersection.  For example
+aC=aO is the cuboctahedron.
+Note: ambo is also known as "rectifying" the polyhedron, or rectification
+
+b = bevel  The bevel operation can be defined by bX=taX.  bC is the truncated
+cuboctahedron.  (Antiprism Extension: or "bn" where n is 1 or greater)
+Note: bevel is also known as "omnitruncating" the polyhedron, or omnitruncation
+
+d = dual   The dual of a polyhedron has a vertex for each face, and a face for
+each vertex, of the original polyhedron, e.g., dC=O.  Duality is an operation
+of order two, meaning for any polyhedron X, ddX=X, e.g., ddC=dO=C. 
+
+e = expand This is Mrs. Stott's expansion operation.  Each face of X is
+separated from all its neighbors and reconnected with a new 4-sided face,
+corresponding to an edge of X.  An n-gon is then added to connect the 4-sided
+faces at each n-fold vertex.  For example, eC is the rhombicuboctahedron.  It
+turns out that eX=aaX and so eX=edX (Antiprism Extension: One subscript as "en"
+or "e_n" where n is 0 or greater. Two subscripts as "en_m" or "e_n_m" where
+n and m are 0 or greater)
+Note: expand is also known as "cantellating" the polyhedron, or cantellation
+
+g = gyro   The dual operation to s is g. gX=dsdX=dsX, with all 5-sided faces.
+The gyrocube, gC=gO="pentagonal icositetrahedron", is dual to the snub cube.
+g is like k but with the new edges connecting the face centers to the 1/3
+points on the edges rather than the vertices. (Antiprism Extension: or "gn"
+where n is 1 or greater)
+
+j = join   The join operator is dual to ambo, so jX=dadX=daX.  jX is like kX
+without the original edges of X.  It produces a polyhedron with one 4-sided
+face for each edge of X.  For example, jC=jO is the rhombic dodecahedron.
+
+k = kis    All faces are processed or kr = only r-sided faces are processed
+The kis operation divides each n-sided face into n triangles.  A new vertex is
+added in the center of each face, e.g., the kiscube, kC, has 24 triangular
+faces.  The k operator is dual to t, meaning kX=dtdX.
+
+m = meta   Dual to b, mX=dbX=kjX.  mC has 48 triangular faces.  m is like k
+and o combined; new edges connect new vertices at the face centers to the old
+vertices and new vertices at the edge midpoints.  mX=mdX.  mC is the
+"hexakis octahedron".  (Antiprism Extension: or "mn" where n is 1 or greater)
+
+o = ortho  Dual to e, oX=deX=jjX.  oC is the trapezoidal icositetrahedron, with
+24 kite-shaped faces.  oX has the effect of putting new vertices in the middle
+of each face of X and connecting them, with new edges, to the edge midpoints of
+X. (Antiprism Extension: One subscript as "on" or "o_n" where n is 0 or greater
+Two subscripts as "on_m" or "o_n_m" where n and m are 0 or greater)
+
+p = propeller    Makes each n-gon face into a "propeller" of an n-gon
+surrounded by n quadrilaterals, e.g., pT is the tetrahedrally stellated
+icosahedron. Try pkD and pt6kT. p is a self-dual operation, i.e., dpdX=pX and
+dpX=pdX, and p also commutes with a and j, i.e., paX=apX. (This and the next
+are extensions were added by George Hart and not specified by Conway)
+
+r = reflect   Changes a left-handed solid to right handed, or vice versa, but
+has no effect on a reflexible solid. So rC=C, but compare sC and rsC.
+
+s = snub   The snub operation produces the snub cube, sC, from C.  It can be
+thought of as eC followed by the operation of slicing each of the new 4-fold
+faces along a diagonal into two triangles.  With a consistent handedness to
+these cuts, all the vertices of sX are 5-fold.  Note that sX=sdX.
+(Antiprism Extension: or "sn" where n is 1 or greater)
+
+t = truncate  All faces are processed or tr = only vertices of order r are
+processed. Truncating a polyhedron cuts off each vertex, producing a new
+n-sided face for each n-fold vertex.  The faces of the original polyhedron
+still appear, but have twice as many sides, e.g., the tC has six octagonal
+sides corresponding to the six squares of the C, and eight triangles
+corresponding to the cube's eight vertices.
+
+
+Antiprism Extension: Further operations added. Also see
+http://en.wikipedia.org/wiki/Conway_polyhedron_notation
+
+c = chamfer   New hexagonal faces are added in place of edges
+
+B = bowtie    Bowtie like triangles divide pentagonal faces
+
+E = ethyl     like expand but triangles are divided into 3 kites
+
+G = opposite-lace  Similar to lace, except with new quad faces split opposite
+                   L_1. (has also been referred to as L_-1, not supported)
+
+J = joined-medial  Like medial but new rhombic faces in place of original edges
+
+K = stake     Subdivide faces with central quads, and triangles
+              All faces processed or can be "Kr" where r is 3 or greater
+
+L_0 = joined-lace  Similar to lace, except with new quad faces produced in L_1
+                   are not split
+
+L = lace      An augmentation of each face by an antiprism, adding a twist
+              smaller copy of each face, and triangles between
+              Subscript as "L_n" where n is 0 or greater
+              All faces processed or can be "L:r" where r is 3 or greater
+              Both may be specified as "L_n:r"
+
+l = loft      An augmentation of each face by prism, adding a smaller copy of
+              each face with trapezoids between the inner and outer ones
+              Subscript as "l_n" where n is 0 or greater
+              All faces processed or can be "l:r" where r is 3 or greater
+              Both may be specified as "l_n:r"
+
+M = medial    Similar to meta except no diagonal edges added, creating quad
+              faces. Can be "Mn" where n is 1 or greater
+
+n = needle    Dual of truncation, triangulate with 2 triangles across every
+              edge. This bisect faces across all vertices and edges, while
+              removing original edges
+
+q = quinto    ortho followed by truncation of vertices centered on original
+              faces. This create 2 new pentagons for every original edge
+              it effectively lines the original faces with pentagons
+              Lei Williams called this operation "Pental"
+
+S = seed      Seed form
+
+u = subdivide Ambo while retaining original vertices. Similar to Loop
+              subdivision surface for triangle face
+              One subscript as "un" or "u_n" where n is 1 or greater
+              Two subscript as "un_m" or "u_n_m" where n and m are 1 or greater
+
+W = waffle    Truncation on all vertices and then all faces split into sections
+
+w = whirl     Gyro followed by truncation of vertices centered on original
+              faces. This create 2 new hexagons for every original edge
+              it effectively lines the original faces with hexagons
+
+X = cross     Combination of kis and subdivide operation. Original edges are
+              divided in half, with triangle and quad faces
+              Can be "Xn" where n is 1 or greater
+
+z = zip       Dual of kis or truncation of the dual. This create new edges
+              perpendicular to original edges, a truncation beyond "ambo" with
+              new edges "zipped" between original faces. It is also called
+              bitruncation
+
+Orientation of the input model will have an effect on chiral operations such as
+snub or whirl. The orientation mode is set to positive by default. Operations
+have been added to control orientation mode. The mode will remain until changed
++ (plus sign) = positive orientation  - (minus sign) = negative orientation
+Changing orientation mode can be placed anywhere in the operation string
+
+Summary of operators which can take n as subscript or r as face/vertex number
+
+b  - n may be 1 or greater (default: 2)
+e  - n,m n and m may be 0 or greater except for _0 and _0_0 (default: _2_0)
+g  - n may be 1 or greater (default: 1)
+K  - r may be 3 or greater representing face sides
+k  - r may be 3 or greater representing face sides
+L  - n,r n may be 0 or greater, r may be 3 or greater
+l  - n,r n may be 0 or greater, r may be 3 or greater
+       both n and r may be used together as L_n:r or l_n:r (L_0 may not have r)
+       without delimiters Lr and lr, r is face sides and subscript default to 1
+M  - n may be 1 or greater (default: 2)
+m  - n may be 1 or greater (default: 2)
+o  - n,m n and m may be 0 or greater except for _0 and _0_0 (default: _2_0)
+s  - n may be 1 or greater (default: 2)
+t  - r may be 2 or greater representing vertex connections (2 in tiles)
+u  - n,m n and m may be 0 or greater except for _0 and _0_0 (default: _2_0)
+X  - n may be 1 or greater (default: 2)
+
+Antiprism Extension: any operation can be repeated N time by following it with
+the superscript symbol ^ and a number greater than 0. Examples: a^3C M0^2T
+
+Seeds which require a number n, 3 or greater
+
+P  - Prism
+A  - Antiprism
+Y  - Pyramid
+Z  - Polygon (Antiprism Extension)
+R  - Random Convex Polyhedron (Antiprism Extension)
+
+Note: Antiprism Extensions will work on tilings. Hart algorithms (-d) will not
+e.g.: unitile2d 3 | conway p -t | antiview -v 0.1 (-t for tile mode)
+
+Regular 2D tilings can be constructed from base polygons. The basic tilings are
+
+            One Layer  Two Layers  Three Layers...
+Square:     oZ4        o2Z4        o3Z4
+Hexagonal:  tkZ6       ctkZ6       cctkZ6
+Triangular: ktkZ6      kctkZ6      kcctkZ6 (kis operation on Hexagonal)
+
+Name                   Vertex Fig  Op     String Dual Name              String
+Square                 4,4,4,4            oZ4    Square                 do2Z4
+Truncated Square       4,8,8       trunc  toZ4   Tetrakis Square        dto2Z4
+Snub Square            3,3,4,3,4   snub   soZ4   Cairo Pentagonal       dso2Z4
+Triangular             3,3,3,3,3,3 kis    ktkZ6  Hexagonal              ddctkZ6
+Hexagonal              6,6,6              tkZ6   Triangular             dctkZ6
+Trihexagonal           3,6,3,6     ambo   atkZ6  Rhombille              dactkZ6
+Snub Trihexagonal      3,3,3,3,6   snub   stkZ6  Floret Pentagonal      dsctkZ6
+Truncated Hexagonal    3,12,12     trunc  ttkZ6  Triakis triangular     dtctkZ6
+Rhombitrihexagonal     3,4,6,4     expand etkZ6  Deltoidal Trihexagonal dectkZ6
+Truncated Trihexagonal 4,6,12      bevel  btkZ6  Kisrhombille           dbctkZ6
+Elongated Triangular   3,3,3,4,4   NonWythoffian Prismatic Triangular   none
+
+
+Substitutions used by George Hart algorithms
+
+P4 -&gt; C       o  -&gt; jj      dd -&gt;         gT -&gt; D       dD -&gt; I       
+A3 -&gt; O       m  -&gt; kj      ad -&gt; a       aT -&gt; O       aO -&gt; aC      
+Y3 -&gt; T       t  -&gt; dk      gd -&gt; g       dC -&gt; O       aI -&gt; aD      
+e  -&gt; aa      j  -&gt; dad     aY -&gt; A       dO -&gt; C       gO -&gt; gC      
+b  -&gt; ta      s  -&gt; dgd     dT -&gt; T       dI -&gt; D       gI -&gt; gD      
+
+Equivalent Operations (Antiprism)
+
+b1 = z        e1 = d        M1 = o        m1 = k        o1 = S
+b2 = b        e2 = e        M2 = M        m2 = m        o2 = o
+s1 = d        u1 = S        X1 = k
+s2 = s        u2 = u        X2 = X
+
+Equal but opposite handed: e_n_m = e_m_n, o_n_m = o_m_n, u_n_m = u_m_n
+
+</pre>
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/wythoff.html">wythoff - Wythoff-style constructions</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

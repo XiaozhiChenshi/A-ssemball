@@ -1,0 +1,187 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - off_query - list element data</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/off_normals.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->off_query - list element data<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: off_query [options] query [input_file]
+
+Read a file in OFF format and list element data for specified elements.
+Added elements of the query type are also added to the query list.
+Added elements are referred to by xN, where N is the order the element
+was added (starting with 0). Query is a list of letters, the first is the
+query element type V, F, or E followed by the values to print
+   V - Vertex:
+       c - coordinates             d - distance from centre
+       f - face index numbs        F - face angles
+       a - solid angle             n - neighbours
+       o - order                   g - vertex figure
+       K - colour
+   E - Edge:
+       v - vertex index nums       d - distance from centre
+       f - face index nums         D - direction
+       a - diheral angle           l - length
+       c - central angle           C - centroid
+       K - colour
+   F - Face:
+       v - vertex index nums       d - distance from centre
+       n - neighbours              A - area
+       N - normal                  C - centroid
+       a - angles                  l - lengths
+       s - number of sides         p - max nonplanar distance
+       P - perimeter               K - colour
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -c &lt;cent&gt; centre of shape in form 'X,Y,Z', 0 to use origin, C to use
+            centroid (default 0)
+  -I &lt;idxs&gt; list of elements by index number given as index ranges
+            separated by commas, range can be one number or two
+            numbers separated by a hyphen (default range numbers: 0 and
+            largest index, default argument: any added elements else '-')
+  -v &lt;crds&gt; add vertex, coordinates in form 'X,Y,Z'
+  -f &lt;vnos&gt; add face, a list of vertex index numbers separated by commas
+  -e &lt;vnos&gt; add edges, a list of vertex index numbers separated by commas
+            and taken in pairs
+  -k        keep orientation, don't try to orient the faces
+  -E &lt;type&gt; edges for query, e - explicit edges, i - implicit edges
+            a - explicit and implicit (default)
+  -o &lt;file&gt; write output to file (default: write to standard output)
+  -d &lt;dgts&gt; number of significant digits (default 17) or if negative
+            then the number of digits after the decimal point
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+List the angles around each vertex of a cuboctahedron
+
+<br /><pre class="cmds">
+off_query -I - VF -d 6 cubo
+</pre><br /><br />
+
+List the edge lengths of edges 5 to 10, 50 to 60 and 100 of a geodesic sphere
+
+<br /><pre class="cmds">
+off_query -I 5-10,50-60,100 El -d 6 geo_4_1
+</pre><br /><br />
+
+Find the distance between opposite vertices of a unit-edged
+icosahedron.
+
+<br /><pre class="cmds">
+off_trans -s e icosahedron | off_query -e 0,11 El
+</pre><br /><br />
+
+Find the angles between three vertices not on the same face
+
+<br /><pre class="cmds">
+off_trans -s e icosahedron | off_query -f 0,1,11 Fa
+</pre><br /><br />
+
+Find the angles between two vertices and a supplied extra vertex. In this
+example an extra face is added which includes the exta vertex, whose index
+is given as x0, and the query prints the angles for this face
+
+<br /><pre class="cmds">
+off_trans -s e icosahedron | off_query -v 1.0,0.0,0.0 -f 0,x0,11 Fa
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+Use with caution! This program hasn't had extensive testing. It
+is very possible that some calculations
+may fail under particular conditions. Please, report any bugs.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/off_normals.html">off_normals - utility for working with normals</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

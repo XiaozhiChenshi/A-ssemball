@@ -1,0 +1,282 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - off_color - add colours to an OFF file</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/off_color_radial.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->off_color - add colours to an OFF file<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: off_color [options] [input_file]
+
+Read a file in OFF format and add colours to it. If input_file is
+not given the program reads from standard input.
+
+A colour value can be a single integer (a colour index), a value in
+form 'R,G,B,A' (3 or 4 values 0.0-1.0, or 0-255) or hex 'xFFFFFF', a
+colour name from the X11 colour map, 'invisible' or 'none' (which sets
+without any colour information)
+
+Lowercase letters (except l) colour using index numbers and uppercase
+letters colour using colour values. Symmetric colourings are optionally
+followed, separated by commas, by a subsymmetry (Schoenflies notation)
+and a conjugation type (integer). Adjacent element colourings FEV are
+processed after other element colourings, and in the order -f, -e, -v.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -f &lt;col&gt;  colour the faces according to:
+               a colour value - apply to all faces
+               u,U - unique colour
+               p,P - minimal proper colouring
+               s,S - symmetric colouring [,sub_group,conj_type] (see above)
+               n,N - colour by number of sides
+               a,A - colour by average internal angle (to nearest degree)
+               k,K - sets of faces connected by face edges
+               E   - colour with average adjacent edge colour
+               V   - colour with average adjacent vertex colour
+               g,G - gradient on z-coordinate of normal
+               c,C - gradient on z-coordinate of centroid
+               L   - lighting effect by normal (see option -l)
+               l   - lighting effect by centroid (see option -l)
+               M   - use colour map to convert existing colour index numbers
+                     into to values
+  -E &lt;type&gt; colour by edge type, e - explicit edges, i - implicit edges
+            I - implicit edges which are not explicit edges (default: if -e
+            explicit and implicit, else explicit for mapping only)
+  -e &lt;col&gt;  colour the edges according to:
+               a colour value - apply to all edges
+               u,U - unique colour
+               p,P - minimal proper colouring
+               s,S - symmetric colouring [,sub_group,conj_type] (see above)
+               n,N - colour by number of faces connected to each edge
+               k,K - sets of edges connected by edges
+               F   - colour with average adjacent face colour
+               V   - colour with average adjacent vertex colour
+               d,D - colour by edge direction
+               j,J - color by edge length [,minimum_difference (def: 1e-6)]
+               g,G - gradient on z-coordinate of edge direction
+               c,C - gradient on z-coordinate of centroid
+               L   - lighting effect (see option -l)
+               l   - lighting effect on edge directions (see option -l)
+               M   - use colour map to convert existing colour index numbers
+                     into to values
+  -v &lt;col&gt;  colour the vertices according to:
+               a colour value - apply to all vertices
+               u,U - unique colour
+               p,P - minimal proper colouring
+               s,S - symmetric colouring [,sub_group,conj_type] (see above)
+               n,N - colour by order of vertex
+               a,A - colour by avg internal ang of vert-fig (to nearest deg)
+               F   - colour with average adjacent face colour
+               E   - colour with average adjacent edge colour
+               c,C - gradient on z-coordinate
+               L   - lighting effect (see option -l)
+               M   - use colour map to convert existing colour index numbers
+                     into to values
+  -l &lt;file&gt; lights for colouring type L in a file in OFF format, each
+            vertex and its colour gives a light direction and colour
+            (default: a set of six lights giving a rainbow colouring)
+  -m &lt;maps&gt; a comma separated list of colour maps used to transform colour
+            indexes (default: spread), a part consisting of letters from
+            v, e, f, selects the element types to apply the map list to
+            (default 'vef').
+  -r &lt;rnge&gt; Map HSVA values onto the specified HSVA ranges after other
+            processing (but before -I), component letters are followed by
+            one or two values separated by a colon e.g H0.5:0.8 followed by
+            a comma and elements to map from v, e, f (H0:1S0:1V0:1A0:1,vef)
+  -I &lt;elms&gt; map color values to index numbers (after other procesing)
+            elements to map are from v, e and f (default none)
+  -w &lt;wdth&gt; width of sphere containing points (default: calculated)
+  -U &lt;typs&gt; colour only elements with particular current colour types:
+            u - unset, i - indexed, v - visible colour value, x - invisible.
+            ~ before the letter will select the opposite.
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+Make a cuboctahedron with the triangle faces a different colour to
+the square faces
+<br /><pre class="cmds">
+off_color -f N cuboctahedron | antiview
+</pre><br /><br />
+
+Same again, but make the colours black and white. Create a file called
+my_colormap.txt with these two lines, which convert colour index numbers
+into colour values. With <i>-f N</i>, faces are assigned a colour index
+number the same as the number of sides, and this is then mapped to a
+colour value by the active colour map.
+<pre>
+   3 = 0.0 0.0 0.0
+   4 = 1.0 1.0 1.0
+</pre>
+Now the command is
+<br /><pre class="cmds">
+off_color -f N -m my_colormap.txt cuboctahedron | antiview
+</pre><br /><br />
+
+Even easier, create the colour map on the command line, with component
+values or names
+<br /><pre class="cmds">
+off_color -f N -m map_3=0.0/0.0/0.0:4=1.0/1.0/1.0 cuboctahedron | antiview
+off_color -f N -m map_3=black:4=white cuboctahedron | antiview
+</pre><br /><br />
+
+Colour faces with unique colours
+<br /><pre class="cmds">
+off_color -f U geo_2 | antiview -x ve
+</pre><br /><br />
+
+Make dark colours for U by decreasing the value of the default map
+<br /><pre class="cmds">
+off_color -f U -r V0.4 geo_2 | antiview -x ve
+</pre><br /><br />
+
+Rather than changing a map with -r an map with the desired colours
+could be chosen e.g. a map with blue-green range and a pastel range
+<br /><pre class="cmds">
+off_color -f U -m rnd_H0.4:0.7 geo_2 | antiview -x ve
+off_color -f U -m rand_S0.3 geo_2 | antiview -x ve
+</pre><br /><br />
+
+Colour different elements with different maps
+<br /><pre class="cmds">
+off_color -f U -m f,rnd_H0.4:0.7 -e U -m e,rnd_H0.9:1.2 geo_2 | antiview -v 0.05
+</pre><br /><br />
+
+Colour edges and vertices with a rainbow effect
+<br /><pre class="cmds">
+off_color -f 1.0,1.0,1.0 -e L -v L geo_5 | antiview -v 0.05
+</pre><br /><br />
+
+Make a lights file placing a red, green, blue and white light
+tetrahedrally, call it lts.off
+<pre>
+OFF
+4 4 0
+1 1 1
+1 -1 -1
+-1 -1 1
+-1 1 -1
+1 0 255 0 0
+1 1 0 255 0
+1 2 0 0 255
+1 3 255 255 255
+</pre>
+
+Colour faces with a lighting effect using these lights
+<br /><pre class="cmds">
+off_color -l lts.off -f L geo_5 | antiview -x ve
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+A selection of
+<a href="resources.html#lights">lights files</a>
+and
+<a href="resources.html#cmaps">colour map files</a>
+are included with the Antiprism resources.
+More colour maps are available from
+<a href="http://www.iosart.com/firefox/colorzilla/palettes.html">
+Colorzilla Palettes</a>.
+<p>
+Proper colourings are not always optimal.
+<p>
+Face colourings G and L which use normals are affected by the
+orientation of the faces. If the colouring is patchy then
+orient the faces with <i>off_util -O pos</i>
+<p>
+See also <a href="off_color_radial.html">off_color_radial</a> for a symmetric
+colouring method.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/off_color_radial.html">off_color_radial - radial colouring based on symmetry</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

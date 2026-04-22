@@ -1,0 +1,155 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - off_report - report global measures maxima and counts</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/off_query.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->off_report - report global measures maxima and counts<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: off_report [options] [input_file]
+
+Read a file in OFF format and generate a report
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -c &lt;cent&gt; centre of shape in form 'X,Y,Z', 0 to use origin, C to use
+            centroid (default 0)
+  -S &lt;secs&gt; Print values by sections, given as a list of letters
+            A - all                     G - general
+            F - faces                   E - edges
+            S - solid angles            a - plane angles
+            D - distances (min/max)     s - symmetry
+  -C &lt;vals&gt; Print counts of values, given as a list of letters
+            A - all                     F - faces type by angles
+            E - edge lengths            w - windings
+            S - solid angles            D - dihedral angles
+            s - face sides              o - vertex orders
+            h - vertex heights (z-crds) O - symmetry orbits
+            e - faces at an edge
+  -k        keep orientation, don't try to orient the faces
+  -y        subsymmetry for orbits: symmetry subgroup (Schoenflies notation)
+            optionally followed by a comma and conjugation type (integer)
+  -E &lt;type&gt; edges for report, e - explicit edges, i - implicit edges
+            a - explicit and implicit (default)
+  -o &lt;file&gt; write output to file (default: write to standard output)
+  -d &lt;dgts&gt; number of significant digits (default 17) or if negative
+            then the number of digits after the decimal point
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+Full report
+
+<br /><pre class="cmds">
+off_report -S A -C A cube
+</pre><br /><br />
+
+Volume and area of a unit edged icosahedron
+<br /><pre class="cmds">
+   off_trans -s e icosahedron | off_report -S G
+</pre><br /><br />
+
+Report all angle information for a rhombic dodecahedron
+<br /><pre class="cmds">
+   pol_recip cuboctahedron | off_report -S Sa -C SD
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+Use with caution! This program hasn't had extensive testing. It
+is very possible that some calculations
+may fail under particular conditions. Please, report any bugs.
+<p>
+The options letters may change in future versions.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/off_query.html">off_query - list element data</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

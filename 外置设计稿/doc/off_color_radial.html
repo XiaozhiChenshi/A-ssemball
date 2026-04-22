@@ -1,0 +1,181 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - off_color_radial - radial colouring based on symmetry</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/off_trans.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->off_color_radial - radial colouring based on symmetry<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: off_color_radial [options] [input_file]
+
+Color in radial pattern based on symmetry.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -l &lt;lim&gt;  minimum distance change to terminate planarization, as negative
+              exponent (default: 12 giving 1e-12)
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+Scene Options
+  -d &lt;opt&gt;  coloring. radial=1, axes=2 (default: 1)
+              (multiple -d as needed)
+  -a &lt;ax,p&gt; axis order. primary=1, secondary=2, tertiary=3, all=4 (default: 1)
+              p is percent length of the axis. (default: 100 percent)
+              (multiple -a as needed)
+  -f &lt;list&gt; specify a list of elements, list starts with element letter,
+            followed by an index number list, given as index ranges separated
+            by commas. range can be one number or two numbers separated by a
+            hyphen (default range numbers: 0 and largest index).
+            Index number list will be preceded by f, e, v for faces, edges and
+            vertices. Elements resolve to connected faces to be staring point
+            for radial coloring. special selector: s for number of face sides
+              (multiple -f as needed, -f overrides -a)
+  -s &lt;sym&gt;  symmetry subgroup (Schoenflies notation)
+
+Coloring Options (run 'off_util -H color' for help on color formats)
+keyword: none - sets no color
+  -E &lt;col&gt;  color the edges according to: (default: unchanged)
+              a color value - apply to all edges
+              f - color with average adjacent face color
+  -V &lt;col&gt;  color the vertices according to: (default: unchanged)
+              a color value - apply to all vertices
+              e - color with average adjacent edge color
+              f - color with average adjacent face color
+  -T &lt;t,e&gt;  transparency. from 0 (invisible) to 255 (opaque). element is any
+            or all of, v - vertices, e - edges, f - faces, a - all (default: f)
+  -m &lt;maps&gt; a comma separated list of color maps used to transform color
+            indexes (default: rng), a part consisting of letters from
+            v, e, f, selects the element types to apply the map list to
+            (default 'vef'). use map name of 'index' to output index numbers
+              calculated maps: rng, rainbow, gray, grayw, spread, rnd, deal
+              e.g rng will become rngN where N is the number of ridges found
+  -c s,t,n  control map stepping for calculated maps. positive or 0.
+              s - shift, t - step, n - map size (default: 0,1,(calculated))
+  -r        use the face map in reverse order
+  -n &lt;maps&gt; color maps for axes (A=1: calculated, A=2: axes)
+  -A &lt;opt&gt;  color axes by nfold=1, order=2 (default: 1)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+Color faces of a geodesic sphere symmetrically in radial bands
+Also generate symmetry axes with -d axes
+<br /><pre class="cmds">
+off_color -e white -v white geo_7_4_d | off_color_radial -A 2 | antiview -v 0.01
+</pre><br /><br />
+
+Same model with colors reversed
+<br /><pre class="cmds">
+off_color -e white -v white geo_7_4_d | off_color_radial -A 2 -r | antiview -v 0.01
+</pre><br /><br />
+
+Same model grayscale
+<br /><pre class="cmds">
+off_color -e white -v white geo_7_4_d | off_color_radial -A 2 -m gray | antiview -v 0.01
+</pre><br /><br />
+
+Color a figure from conway notation from faces 0 and 3
+<br /><pre class="cmds">
+conway a^5C | off_color_radial -f f0,3 | antiview -x ve
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+<i>off_color_radial</i> was written by
+<a href="http://www.interocitors.com/polyhedra/">Roger Kaufman</a>.
+<p>
+Colors by bands of color eminating from radial points on the
+model. It can color from symmetry axes or chosen faces. It can
+also display symmetry axes as part of the model.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/off_trans.html">off_trans - transformations (rotations etc) of OFF files</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

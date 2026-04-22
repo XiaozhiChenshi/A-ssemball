@@ -1,0 +1,175 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - unitile2d - make uniform tilings on a surface</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/n_icons.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->unitile2d - make uniform tilings on a surface<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: unitile2d [options] [pattern]
+
+Makes uniform tilings on a surface. Surfaces include plane or cylinder
+section, torus, Klein bottle, and many others.
+Patterns are (default: 1)
+   1 - 4,4,4,4      {4,4}    5 - 3,3,3,4,4      9  - 4,8,8
+   2 - 3,3,3,3,3,3  {3,6}    6 - 3,3,4,3,4      10 - 3,4,6,4
+   3 - 6,6,6        {6,3}    7 - 3,3,3,3,6      11 - 4,6,12
+   4 - 3,6,3,6               8 - 3,12,12
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -s &lt;type&gt; surface type:
+        p - plane (default)
+        c - conical frustum (-R bottom radius, -r top radius, -d height,
+            -T X,Y,0)
+        m - mobius strip (-R ring radius, -r strip width, -T X,0,0)
+        t - torus (-R ring radius, -r tube radius. -T X,Y,0)
+        T - trefoil (-R ring radius, -r tube radius. -T X,Y,0, -d N,D)
+        k - Klein bottle (-r tube radius, -T X,0,0)
+        K - figure-8 Klein bottle (-R ring radius, -r tube radius, -T X,0,0)
+        C - cross-cap (needs tile vertices at tiling rectangle corners)
+        w - cross-cap (does not preserve tiling, only works with pattern 1!)
+        r - Roman (does not preserve tiling)
+        b - Boy's (does not presere tiling)
+        R - Roman to Boy's (-d stage of tansformation, range 0.0-1.0
+            does not preserve tiling
+        x - 4D torus (-W rotatation in 4D before projection onto xyz, -T X,Y,0
+        y - 4D Klein bottle (-W rotatation in 4D before projection onto xyz)
+  -w &lt;wdth&gt; width of tiling (default: 20)
+  -l &lt;ht&gt;   height of tiling (default: width)
+  -g        use given height and width, don't increase to make
+            rectangular tile
+  -r &lt;rad&gt;  'minor' radius of surface
+  -R &lt;rad&gt;  'major' radius of surface
+  -d &lt;dist&gt; height of conic frustrum (-s C, default: 5.0) or parameter for
+            Roman to Boy's surface (-s R, default 0.0)
+  -T &lt;tran&gt; translate pattern, three numbers separated by commas which are
+            used as the x, y and z displacements
+  -S &lt;X,Y&gt;  \"shear\" the base rectangular tiling pattern by X units in the
+            w direction and Y units in the l direction (used with -s t)
+  -W &lt;rot&gt;  rotation of 4D surface before projection, six angles
+            separated by commas to rotate in planes xy,yz,zw,wx,xz,yw
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+Display a chunky figure-8 Klein bottle
+<br /><pre class="cmds">
+unitile2d -s K -R 1.5 6 | off_color -f N | antiview -t no_tri
+</pre><br /><br />
+
+Display the Roman surface, using a larger number of tiles
+<br /><pre class="cmds">
+unitile2d -s r -l 40 -w 40 9 | off_color -f N | antiview -t no_tri
+</pre><br /><br />
+
+General "trefoil" with triangle tiling and 7/3 path
+<br /><pre class="cmds">
+unitile2d -s T -w 12 -l 160 -r 0.6 -d 7,3 2 | off_color -f P | antiview -xev -t no_tri
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+If a pattern doesn't mesh on a surface you may have to change options
+-l or -w slightly. Pattern 7 won't mesh on any non-orientable surface.
+Using values for option -T which are inappropriate for a particular
+surface may cause the tiling not to mesh.
+<p>
+Some of the projective plane surfaces don't preserve the tiling as
+they map a line of the tiling rectangle onto a single point of the
+surface.
+<p>
+Unused options are silently ignored.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/n_icons.html">n_icons - sphericon like polyhedra </a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

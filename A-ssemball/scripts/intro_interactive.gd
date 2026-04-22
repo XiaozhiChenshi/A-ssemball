@@ -443,8 +443,8 @@ func _is_click_on_goal_sphere(screen_pos: Vector2) -> bool:
 	var projected_radius := projected_center.distance_to(projected_edge)
 	if projected_radius > 0.0:
 		var projected_center_screen := _subviewport_to_screen_position(projected_center, container_rect)
-		var draw_rect := _get_subviewport_draw_rect(container_rect)
-		var radius_scale := draw_rect.size.x / maxf(1.0, float(sub_viewport.size.x))
+		var viewport_draw_rect := _get_subviewport_draw_rect(container_rect)
+		var radius_scale := viewport_draw_rect.size.x / maxf(1.0, float(sub_viewport.size.x))
 		var projected_radius_screen := maxf(8.0, projected_radius * radius_scale)
 		if projected_center_screen.distance_to(screen_pos) <= projected_radius_screen * 1.35:
 			return true
@@ -457,11 +457,11 @@ func _is_click_on_goal_sphere(screen_pos: Vector2) -> bool:
 
 
 func _screen_to_subviewport_position(screen_pos: Vector2, container_rect: Rect2) -> Vector2:
-	var draw_rect := _get_subviewport_draw_rect(container_rect)
-	var local := screen_pos - draw_rect.position
+	var viewport_draw_rect := _get_subviewport_draw_rect(container_rect)
+	var local := screen_pos - viewport_draw_rect.position
 	var uv := Vector2(
-		local.x / maxf(1.0, draw_rect.size.x),
-		local.y / maxf(1.0, draw_rect.size.y)
+		local.x / maxf(1.0, viewport_draw_rect.size.x),
+		local.y / maxf(1.0, viewport_draw_rect.size.y)
 	)
 	uv.x = clampf(uv.x, 0.0, 1.0)
 	uv.y = clampf(uv.y, 0.0, 1.0)
@@ -472,14 +472,14 @@ func _screen_to_subviewport_position(screen_pos: Vector2, container_rect: Rect2)
 
 
 func _subviewport_to_screen_position(subviewport_pos: Vector2, container_rect: Rect2) -> Vector2:
-	var draw_rect := _get_subviewport_draw_rect(container_rect)
+	var viewport_draw_rect := _get_subviewport_draw_rect(container_rect)
 	var uv := Vector2(
 		subviewport_pos.x / maxf(1.0, float(sub_viewport.size.x)),
 		subviewport_pos.y / maxf(1.0, float(sub_viewport.size.y))
 	)
 	return Vector2(
-		draw_rect.position.x + uv.x * draw_rect.size.x,
-		draw_rect.position.y + uv.y * draw_rect.size.y
+		viewport_draw_rect.position.x + uv.x * viewport_draw_rect.size.x,
+		viewport_draw_rect.position.y + uv.y * viewport_draw_rect.size.y
 	)
 
 
@@ -487,13 +487,13 @@ func _get_subviewport_draw_rect(container_rect: Rect2) -> Rect2:
 	var sub_size := Vector2(float(sub_viewport.size.x), float(sub_viewport.size.y))
 	if sub_size.x <= 1.0 or sub_size.y <= 1.0:
 		return container_rect
-	var scale := minf(
+	var viewport_scale := minf(
 		container_rect.size.x / maxf(1.0, sub_size.x),
 		container_rect.size.y / maxf(1.0, sub_size.y)
 	)
-	if scale <= 0.0:
+	if viewport_scale <= 0.0:
 		return container_rect
-	var draw_size := sub_size * scale
+	var draw_size := sub_size * viewport_scale
 	var offset := (container_rect.size - draw_size) * 0.5
 	return Rect2(container_rect.position + offset, draw_size)
 

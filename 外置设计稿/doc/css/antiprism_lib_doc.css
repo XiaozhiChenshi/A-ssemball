@@ -1,0 +1,35 @@
+.ant_header { 
+  color: orange;
+  background: #602525;
+  padding: 2px;
+  border: 1px solid #602525;
+  overflow: auto;
+  width: 100%;
+}
+
+.ant_surround {
+  color: white;
+  background: #602525
+}
+
+
+.ant_footer, .ant_footer a:link, .ant_footer a:visited, .ant_footer a:active {
+  color: white;
+  background: #602525;
+  padding: 2px;
+  border: 1px solid #602525;
+  overflow: auto;
+  width: 100%;
+  text-align: center;
+  text-decoration: none
+}
+
+.ant_surround a:link, .ant_surround a:visited, .ant_surround a:active {
+  color: white;
+  text-decoration: none
+}
+
+.ant_surround a:hover {
+  color: white;
+  text-decoration: underline
+}

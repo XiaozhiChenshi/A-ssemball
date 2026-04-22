@@ -1,0 +1,237 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - planar - convert overlapping coplanar polygons to tiles</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/off_report.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->planar - convert overlapping coplanar polygons to tiles<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: planar [options] [input_file]
+
+Read a file in OFF format and convert overlapping coplanar polygons into
+non-overlapping polygon tiles. If input_file is not given the program 
+reads from standard input.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -l &lt;lim&gt;  minimum distance for unique vertex locations as negative exponent
+               (default: 12 giving 1e-12)
+  -o &lt;file&gt; write output to file (default: write to standard output)
+  
+Scene Options
+  -M &lt;mode&gt; color system mode. HSV=1, HSL=2, RGB=3 (default: 2)
+  -d &lt;opt&gt;  blend overlapping (tile) or adjacent (merge) planar faces  
+               tile=1, merge=2 (default: none)
+  -p &lt;opt&gt;  polygon fill algorithm.  angular=1, modulo2=2 (pnpoly)
+               triangulation=3, even_overlap=4, alt_modulo2=5 (default: 1)
+  -S        stitch seams created by tiling or merging
+  -R        split pinched faces
+  -r        rebuild compound model to separate vertices
+  -I        rid faces of extra in-line vertices
+  -e &lt;opt&gt;  blend existing explicit edges and/or vertices using blend options
+               e - edges, v - vertices, b - both (-d forces b, otherwise none)
+  -E &lt;opt&gt;  remove explicit edges, blend new ones using face colors (sets -S)
+               e - edges only, v - also blend vertices (default: none)
+               V - also blend invisible vertices, s - strip edges and vertices
+  -c        CMY mode. Complementary colors.  RGB-&gt;(RYB/GMO)-&gt;CMY-&gt;blend
+  -b &lt;val&gt;  brightness adjustment for areas of blended colors
+               valid values -1.0 to +1.0 (default: no adjustment)
+               negative for darker, positive for lighter
+               at 0, an area with 2 blended colors will not change
+               but areas with 3 or more will become slightly darker
+
+Winding Options
+  -w &lt;opt&gt;  winding rule, include face parts according to winding number
+               odd, even, positive, negative, nonzero, zero (default: none)
+               zodd, zeven, zpositive, znegative (includes zero)
+               or symbol proceeding integer: eq, ne, gt, ge, lt, le  meaning
+               equal, not equal, greater than, greater than or equal, less
+               than, less than or equal. use 'a' for absolute value  e.g. gea2
+  -z        use direction of normals for hemispherical winding numbers
+  -D        delete invisible faces created by winding rule
+  -O &lt;opt&gt;  orient the faces first (if possible) then for volume
+               positive=1, negative=2, reverse=3, or use flip=4
+               which reverses the orientation of the model as it was input
+  -C &lt;xyz&gt;  center of model for normals, three comma separated coordinates
+               0 for origin  (default: centroid)
+  -H        turn off hole detection
+  -V        verbose output (list of winding numbers)
+
+Color Blending Options (for option -d, -M 1,2)
+  -s &lt;sat&gt;  HSV/HSL saturation curve. Greater than 0 (default: 1)
+               1.0 - no curve. lower than 1.0 makes blends more pastel
+  -t &lt;val&gt;  HSV/HSL threshold to use average saturation (default: 1)
+               between 0.0 (all averaging) and 1.0 (no averaging)
+  -v &lt;val&gt;  HSV/HSL value curve. Positive integer (default: 0)
+               simulates subtractive coloring for blending 3 or more colors
+               RGB: Red+Green+Blue = White   Cyan+Magenta+Yellow = Black
+               RYB: Red+Yellow+Blue = Black  Green+Magenta+Orange = White
+               1.0 - no curve. lower than 1.0 number makes blends lighter
+               0.0 - use average value instead
+  -u &lt;val&gt;  HSV/HSL value advance. Rotates meaning of white and black
+               valid values 0.0 to 120.0 degrees (default: 0)
+  -a &lt;int&gt;  alpha for blend. average=1, minimum=2, maximum=3 (default: 3)
+  -y        RYB mode. Blend colors as in Red-Yellow-Blue color wheel
+
+Coloring Options (run 'off_util -H color' for help on color formats)
+  -F &lt;opt&gt;  take face colors from map (processed before -d)
+               n - unique color for faces with same normals
+               p - unique color for faces on same planes only
+               o - unique color for faces on same and opposite normals
+  -T &lt;t,e&gt;  transparency. from 0 (invisible) to 255 (opaque). element is any
+            or all of, v - vertices, e - edges, f - faces, a - all (default: f)
+  -Z &lt;col&gt;  color for areas found colorless by winding (default: invisible)
+               keyword: b - force a color blend
+  -W &lt;opt&gt;  color by winding number, using maps (overrides option -F)
+               w - use actual winding number
+               a - absolute value of winding number
+               n - negative of absolute value of winding number
+  -m &lt;maps&gt; color maps for faces to be tried in turn (default: compound)
+  -n &lt;maps&gt; maps for negative winding numbers (default: calculated)
+               (map position zero not used for negative winding maps)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+Display uniform compounds without flashing, compare the command
+below with <tt>antiview uc6</tt> .
+<br /><pre class="cmds">
+planar -d tile uc6 | antiview
+</pre><br /><br />
+
+Make a compound of three triangular prisms, colour faces by part, then
+blend the result
+<br /><pre class="cmds">
+polygon pri 12/4 | off_color -f K | planar -d tile | antiview
+</pre><br /><br />
+
+Same as above, but this time merge the faces instead of tiling
+<br /><pre class="cmds">
+polygon pri 12/4 | off_color -f K | planar -d merge | antiview
+</pre><br /><br />
+
+Make a compound of four 5/2 star prisms, coloured by compound and blended using RGB. Edges and vertices are also blended
+<br /><pre class="cmds">
+planar -d tile -M rgb uc21_n5/2k4 -E v | antiview -v 0.01
+</pre><br /><br />
+
+Same as above but edges and vertices are supressed in antiview
+<br /><pre class="cmds">
+planar -d tile -M rgb uc21_n5/2k4 | antiview -x ve
+</pre><br /><br />
+
+Same as above but modulo2 faces are made invisible
+<br /><pre class="cmds">
+planar -d tile -M rgb -p 2 uc21_n5/2k4 | antiview -x ve
+</pre><br /><br />
+
+The faces of uniform compound 75 are colored by winding number
+<br /><pre class="cmds">
+planar -d tile -W w -m map_white:red uc75 | antiview -x ve
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+Overlapping coplanar polygons of different colours are not generally
+handled well by display programs. In <i>antiview</i>, for example,
+the colour of the overlapping region may switch rapidly as a model
+is rotated, producing a flashing effect. The <i>planar</i> program
+provides a solution to this by replacing the regions of overlap with
+non-overlapping polygons. The new polygons may be coloured with a
+blend of the colours from the overlapping polygons.
+<p>
+
+<i>planar</i> was written by
+<a href="http://www.interocitors.com/polyhedra/">Roger Kaufman</a>.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/off_report.html">off_report - report global measures maxima and counts</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

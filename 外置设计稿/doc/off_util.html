@@ -1,0 +1,415 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - off_util - utilities for OFF files</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/planar.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->off_util - utilities for OFF files<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: off_util [options] input_files
+
+Read one or more files in OFF format, combine them into a single file and
+process it. Most operations manipulate elements, such as adding, deleting,
+and combining elements, triangulating and orientimg faces, making an edge
+skeleton, and rounding the precision of coordinates. Other miscellaneous
+operations include projection onto a sphere, creating a net, truncating
+vertices, and converting edges to quadrilaterals. Operations are performeded
+in the order they are given on the command line. input_files is the list of
+files to process, which may include 'null' as an empty geometry, or if not
+given the program reads from standard input.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -M &lt;args&gt; Sort and merge elements whose coordinates are the same to
+            the number of decimal places given by option -l.  args is 1 or 2
+            comma separated parts. The first part is the elements to merge,
+            which can include: v - vertices, e - edges, f - faces,
+            a - all (vef), b - bond (merge 've' and delete any face
+            coincident with another), s - sort without merging.
+            The second part (default 3) is the merge blend color:
+            first=1, last=2, rgb=3, ryb=4
+  -l &lt;lim&gt;  minimum distance for unique vertex locations as negative
+            exponent (default: 12 giving 1e-12)
+  -O &lt;opt&gt;  orient the faces first (if possible) then adjust for signed
+            volume, value may be: positive, negative, reverse, or flip
+            (which reverses the orientation of the model as it was input)
+  -T &lt;rat&gt;  truncate vertices by cutting edges at a ratio from each vertex,
+            can also be 'rat,num' to truncate only vertices of order num
+  -s        skeleton, write the face edges and remove the faces
+  -t &lt;disp&gt; triangulate, include face parts according to winding number
+            from: odd, nonzero, positive, negative, triangulate (synonym
+            for nonzero)
+  -g        geometry only, remove all colours, remove all two-vertex faces
+            (edges) that are also a face edge
+  -x &lt;elms&gt; remove OFF face elements. The element string is processed in
+            order and can include v, e, f to remove OFF faces with one
+            vertex (vertices), two-vertices (edges) and three or more
+            vertices (faces), V to remove vertices that are not part
+            of any face or edge, E to remove two-vertex faces (edges)
+            that are not part of any face, D to remove two-vertex faces (edges)
+            that are also a face edge (decorators), F to remove faces that
+            do not share a vertex with another face
+  -e        Fill in missing explicit edges
+  -D &lt;list&gt; delete a list of elements, list starts with element letter,
+            followed by an index number list, given as index ranges separated
+            by commas. range can be one number or two numbers separated by a
+            hyphen (default range numbers: 0 and largest index). Element
+            letters may also be F or E to delete compound parts by part number.
+            Index number list may be preceded by f, e, v, E or F to find 
+            elements based on connectivity to another element type or part.
+            Compound parts may also be found by element number. Only elements
+            specifically specified are deleted. list can have a suffix '%' to
+            invert results. e or E only act on explicit edges. If some explicit
+            edges are missing, use -e to fill them in
+            special connectivity selectors: o - vertices by vertex order
+               s - faces by number of sides, or to select by a color...
+               x - vertex color, y - edge color, z - face color
+  -K &lt;list&gt; keep a list of elements using the same parameters as -D. Only
+            elements specifically specified are kept along with their vertex
+            and edge decorators if present. Implicit edges which are kept are
+            converted to explicit edges
+  -A &lt;elem&gt; add element, elem is element letter (v, e, f), followed by
+            element data, optionally followed by ':' and a colour. Data is
+               v: three comma separated coordinates, 0 for origin
+               e: a comma separated list of index numbers, joined as a ring
+               f: a comma separated list of index numbers
+            negative index numbers are relative to the end of the vertex
+            list, last vertex is -1 (useful to refer to added vertices.)
+  -c &lt;col&gt;  close polyhedron, each hole converted to a face with colour col,
+            holes having a vertex with more than two open edges are not filled
+  -S        project onto unit sphere centred at origin
+  -u &lt;args&gt; unfold a polyhedron into a net, takes up to three comma separated
+            values for base face index, dihedral fraction (normally 1.0 to
+            -1.0, default: 0.0 flat), and final option letters: 'f' centre
+            on centroid of face centres, 'z' align base face normal to z_axis.
+  -d &lt;dgts&gt; number of significant digits (default 16) or if negative
+            then the number of digits after the decimal point
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+combine two files/models into a single file
+<br /><pre class="cmds">
+off_util cube oct > cube_and_oct.off
+</pre><br /><br />
+
+Combine two files/models into a single file, and merge all elements. The
+first off_util command uses a default average for colouring blended elements,
+and the second command simply uses the colour from the first of blended
+elements.
+<br /><pre class="cmds">
+off_color -f red cube > red_cube.off
+off_color -f yellow cube > yellow_cube.off
+off_util -M a red_cube.off yellow_cube.off | antiview
+off_util -M a,first red_cube.off yellow_cube.off | antiview
+</pre><br /><br />
+
+Combine two files/models into a single file, and merge coincident vertices
+only
+<br /><pre class="cmds">
+off_util -M v std_cube std_cube | antiview -n vf
+</pre><br /><br />
+
+Add elements to a model
+<br /><pre class="cmds">
+off_util -A v0,0,1:blue -A f8,0,2:yellow -A e8,4,6:green cube | antiview
+</pre><br /><br />
+
+Add elements to an empty geometry, to create a model from scratch
+<br /><pre class="cmds">
+off_util -A v0,0,1:blue null | poly_kscope -s O | conv_hull | antiview
+</pre><br /><br />
+
+
+Delete elements from a model. The following commands: delete vertex 0,
+delete face 1, delete faces 1 and 5, delete faces 1 to 3, delete faces
+2 and less and 4 and more (leaving face 3), delete all faces ecept for
+faces 0 and 1.
+<br /><pre class="cmds">
+off_util -D v0 cube | antiview
+off_util -D f1 cube | antiview
+off_util -D f1,5 cube | antiview
+off_util -D f1-3 cube | antiview
+off_util -D f-2,4- cube | antiview
+off_util -D f0,1% cube | antiview
+</pre><br /><br />
+
+Delete edge or face parts of a model. The following commands:
+delete edge part 0, delete face part 0
+<br /><pre class="cmds">
+off_util -D E0 uc4 | antiview
+off_util -D F0 uc4 | antiview
+</pre><br /><br />
+
+Delete elements from a model which are connected to other elements. The
+following commands: delete faces connected to vertex 0, face parts
+to connected to vertex 1, vertices connected to face 3, vertices
+connected to face part 0
+<br /><pre class="cmds">
+off_util -D fv0 cube | antiview
+off_util -D Fv1 uc4 | antiview
+off_util -D vf3 uc4 | antiview
+off_util -D vF0 uc4 | antiview
+</pre><br /><br />
+
+Use <i>-e</i> to convert implicit edges to explicit edges before a delete
+to preserve the edges that have all their supporting faces deleted
+<br /><pre class="cmds">
+off_util -e -D fv0 cube | antiview
+pol_recip -a cube | off_util -e -D F0 | antiview
+</pre><br /><br />
+
+
+Keep elements from a model. <i>-K</i> is not exactly an opposite to
+<i>-D</i>, as when it keeps elements it also keeps "decorators",
+considered to be any coloured vertices or edges which lie on kept
+elements. If it should keep implicit edges, these will be made explicit.
+The following commands: keep face 0, keep the edges attached
+to vertex 1, keep the faces attached to vertex 1, keep the edge part
+attached to vertex 1, keep the face part attached to vertex 1, keep
+the edges connected to face 1 of a cube (implicit edges converted to
+explicit edges)
+<br /><pre class="cmds">
+off_util -K f0 uc4 | antiview
+off_util -K ev1 uc4 | antiview
+off_util -K fv1 uc4 | antiview
+off_util -K Ev1 uc4 | antiview
+off_util -K Fv1 uc4 | antiview
+</pre><br /><br />
+
+Keep elements from a model, inverting selection. When using % with <i>-K</i>,
+the elements that would have been kept are deleted instead. Decorators
+are kept, except where they are specificed by the option parameter. The
+following commands: invert keep of edge part 0 (the only thing deleted
+is the edges of edge part 0, the vertex decorators are retained as they
+are decorators for remaining faces), invert keep of face part 0 (face
+part 0 is deleted along with its decorators.)
+<br /><pre class="cmds">
+off_util -K E0% uc4 | antiview
+off_util -K F0% uc4 | antiview
+</pre><br /><br />
+
+
+
+Orient the faces a model. The signed volume of the oriented model will be
+positive.
+<br /><pre class="cmds">
+off_util -O p cube | off_report
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+Triangulate a model, any new internal edges and vertices will be coloured
+invisible
+<br /><pre class="cmds">
+off_util -t tri tr_cube | antiview -n f
+off_util -t tri -g tr_cube | antiview -n f
+</pre><br /><br />
+
+Reduce a model to an uncoloured mesh. Remove any edges or vertices not
+on faces. Applying this to the previous triangulated model
+<br /><pre class="cmds">
+off_util -t tri -g tr_cube | antiview -n f
+</pre><br /><br />
+
+Remove particular elements, e.g. remove edges from the previous skeleton model
+<br /><pre class="cmds">
+off_util -s ico -x e | antiview
+</pre><br /><br />
+
+Make an edge skeleton by replacing faces with their surrounding edges
+<br /><pre class="cmds">
+off_util -s ico | antiview
+</pre><br /><br />
+
+Close a polyhedron. The first command deletes a cube vertex and closes the
+opening. The second deletes two non-coplanar adjacent faces and closes the
+opening with a non-planar face. The third command shows that if a vertex
+lies on more than one opening those openings cannot be closed.
+<br /><pre class="cmds">
+off_util -D v0 -c red cube | antiview
+off_util -D f0,1 -c none cube | antiview -t no_tri
+off_util -D f0,2 -c none oct | antiview -t no_tri
+</pre><br /><br />
+
+Truncate all vertices, or all 4-way vertices, to 1/3 along the edges
+<br /><pre class="cmds">
+off_util -T 1/3 rd | antiview
+off_util -T 1/3,4 rd | antiview
+</pre><br /><br />
+
+Project a model onto a unit sphere, the resulting polyhedron may
+have non-planar faces
+<br /><pre class="cmds">
+off_util -S rd | antiview
+</pre><br /><br />
+
+Truncate the number of decimal places for coordinates in the output
+<br /><pre class="cmds">
+off_util -d 3 tet
+</pre><br /><br />
+
+Make a net of a polyhedron (very basic)
+<br /><pre class="cmds">
+off_util -u 0,0,z ico | antiview
+</pre><br /><br />
+
+
+
+
+
+
+
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+
+<h3>Deleting Elements</h3>
+
+Delete and keep operations work in slightly different ways.
+<p>
+<b>Delete, <i>-D</i></b>
+<ul>
+<li>convert implicit edges to explicit</li>
+<li>find face and edge parts</li>
+<li>delete elements according to the index numbers displayed in <i>antiview</i></li>
+<li>delete any explicit edges that were originally implicit</li>
+</ul>
+
+<p>
+<b>Keep, <i>-K</i></b>
+<ul>
+<li>convert implicit edges to explicit</li>
+<li>find face and edge parts</li>
+<li>keep elements according to the index numbers displayed in <i>antiview</i></li>
+<li>keep all supporting vertices and any decorators (coloured vertices lying
+on an edge or coloured vertices and edges lying on a face)</li>
+<li>delete all elements not kept</li>
+</ul>
+
+When elements are deleted, this affects other elements as follows:
+<dl>
+<dt>Vertex deleted:</dt>
+<dd>Removes the vertex (index number) from any faces it is part of,
+reducing the number of vertices in these faces and causing deletion
+of any face with less than two vertices remaining. Deletes any edges
+that the vertex is part of.
+<dt>Edge deleted:</dt>
+<dd>No effect on faces or vertices. May leave free vertices not lying
+on any face or edge.</dd>
+<dt>Face deleted:</dt>
+<dd>No effect on vertices. May leave free vertices not lying on any face or
+edge. No effect on explicit edges. Implicit edges no longer exist, in any sense,
+when the last face they lie on is deleted.</dd>
+<dt>Edge or face part deleted</dt>
+<dd>An edge or face part is just a set of elements of the corresponding type.
+Deleting the part deletes the elements in this set.</dd>
+</dl>
+
+<h3>Other Notes</h3>
+Option <i>-E</i> is like the <i>join</i> operation in Conway Notation.
+<p>
+The face sorting performed by option <i>-M</i> orients faces in
+a particular way. Option <i>-O</i> will generally reorient some
+of the sorted faces, and this will always be true if the input
+is a polyhedron.
+<p>
+The coordinates of a file can be tidied up by running <i>off_util -d</i>
+twice, the first time with a negative number to truncate the coordinate
+at a number of decimals, the second time with a positive number to
+truncate the trailing zeros. For example, to tidy
+<i>pol_recip&nbsp;cubo&nbsp;|&nbsp;off_trans&nbsp;-s&nbsp;r</i>
+<br /><pre class="cmds">
+pol_recip cubo | off_trans -s r | off_util -d -1 | off_util -d 1
+</pre><br /><br />
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/planar.html">planar - convert overlapping coplanar polygons to tiles</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

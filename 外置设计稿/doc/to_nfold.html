@@ -1,0 +1,246 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - to_nfold - change the rotational symmetry of a polyhedron</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/symmetro.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+<h1><!-- TITLE_START -->to_nfold - change the rotational symmetry of a polyhedron<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: to_nfold [options] fraction [input_file]
+
+Generalise an axial model by changing its rotational symmetry. Read a model,
+in OFF format, with an m-fold rotational axis on the z-axis, and create a
+new model, generally non-planar, with the same relative connections, but
+with an n-fold axis instead. fraction is given as n, or n/d (n and d
+integers). Vertices of a face originally separated by x/m of a turn around
+the z-axis will be separated by xd/n of a turn in the final model. The new
+model will be symmetrically coloured using colours from the base model. If
+input_file is not given the program reads from standard input.
+to_nfold is based on an idea by Bruce R. Gilson.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -x &lt;idxs&gt; vertex index numbers, separated by commas, the rings including
+            these vertices will be rotated 180 degrees before processing
+            and rotated back afterwards
+  -p &lt;args&gt; transform ring of vertices of base model, and suppress normal
+            to_nfold processing. Arguments are two or three numbers
+            separated by commas: vertex index number (specifies the ring),
+            the scale-xy factor (ring radius), and an optional translation-z
+            (ring height). Can be used multiple times. Index numbers are
+            preserved.
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+Increase rotational symmetry, e.g. pentagonal prism to hexagonal prism
+<br /><pre class="cmds">
+   to_nfold 6 pri5 | antiview
+</pre><br /><br />
+
+Decrease rotational symmetry, e.g. pentagonal prism to triangular prism
+<br /><pre class="cmds">
+   to_nfold 3 pri5 | antiview
+</pre><br /><br />
+
+Change rotational symmetry with a fraction, the denominator introduces a
+step, e.g. pentagonal prism to {7/2}-prism
+<br /><pre class="cmds">
+   to_nfold 7/2 pri5 | antiview
+</pre><br /><br />
+
+Change the basic step of a model, e.g. pentagramic dipyramid to pentagonal
+pyramid (2*3 = 1 mod(5))
+<br /><pre class="cmds">
+   to_nfold 5/3 dip5/2 | antiview
+</pre><br /><br />
+
+Open an edge, taken as a digon, e.g. convert snub disphenoid to (non-Johnson)
+snub square antiprism
+<br /><pre class="cmds">
+   to_nfold 4 j_snub_disphenoid | antiview
+</pre><br /><br />
+
+Close a polygon down to a digon, e.g. convert snub square antiprism to
+(non-Johnson) snub disphenoid
+<br /><pre class="cmds">
+   to_nfold 2 j_snub_square_antiprism | antiview
+</pre><br /><br />
+
+Convert a polyhedral torus
+<br /><pre class="cmds">
+   unitile2d -s t | off_trans -R 90,0,0 | to_nfold 11/2 | antiview
+</pre><br /><br />
+
+A 5/2 crossed-antiprism has oblique faces that cycle the axis, and the
+result of regular processing does not produce a crossed-antiprism,
+but the crossed-antiprism form can be preserved with option <i>-x</i>
+<br /><pre class="cmds">
+   antiview ant5/3
+   to_nfold 7 ant5/3 | antiview
+   to_nfold 7 ant5/3 -x 0 | antiview
+</pre><br /><br />
+
+Uncross a crossed-antiprism (the fraction parameter is required,
+but not used) 
+<br /><pre class="cmds">
+   antiview ant5/3
+   to_nfold 2 ant5/3 -p 0,-1 | antiview
+</pre><br /><br />
+
+Dimple a ring of vertices of a snub-antiprism (the fraction parameter is
+required, but not used) 
+<br /><pre class="cmds">
+   antiview snu4
+   to_nfold 2 snu4 -p 10,0.2 | antiview
+</pre><br /><br />
+
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+
+<h3>Algorithm</h3>
+
+<p>
+First the cyclic symmetry of the model, <i>C<sub>n_from</sub></i>, is found.
+An arbitrary sector of angular width <i>2&pi; / n_from</i> is considered, and
+this sector is scaled by rotation to have angular width
+<i>2&pi; &middot; d_to / n_to</i>.
+This determines the new vertex positions unambiguously.
+</p>
+<p>
+The faces are determined by considering each set of faces which are equivalent
+under <i>C<sub>n_from</sub></i> symmetry, and then choosing a minimal chain
+of edges that will repeat by this symmtry to recreate the edges of this
+set of faces. The chain is transformed, edge by edge, to match the
+final symmetry and step. It is then
+repeated by the final symmetry into one or more circuits, which are
+the final faces.
+</p>
+<p>
+To transform each edge, the original central angle is considered
+positive if the symmetry axis lies in the sweep of this edge and the last,
+otherwise negative, but if the edge intersects the symmetry axis (180
+degree edge) then its sign is ambiguous. In this case, if the sum of
+angles with the adjoining edges is positive then the sign is taken as
+negative, and vice versa. If the sum is zero, then the sign is chosen,
+arbitrarily.
+</p>
+
+<h3>Issues</h3>
+<ul>
+<li>If a model has faces that meet at a 180 degree edge
+    in the base model then they may not meet in the final model.</li>
+<li>Some polygons may have a face that shares the axial symmetry but
+    will not divide into valid edge chains, e.g. a rectangular bow-tie
+    quadrilateral has 4 edges and 2-fold symmetry, but a chain of two
+    of its edges cannot be repeated by 2-fold symmetry to recreate the
+    original bow tie.</li>
+<li>Some models have an axial fractional polygon, or a form that can
+    be identified with one (e.g. a polyhedral tube might follow the
+    path of pentagram edges). The step of a polygon tends to be
+    preserved when applying <i>to_nfold</i>, and it may be that the
+    apparent final model step will divide the final <i>n_to</i>. Such
+    models are not constructible, and will lead to a broken final model,
+    likely with edges from a vertex onto itself,
+    e.g. <tt>to_nfold&nbsp;3&nbsp;pri7/3</tt>.
+<li>Faces that slant and are intersected by the axis may lead to
+    skew polygons that wrap the axis several times. This may not
+    be the desired result, however, it is correct for the
+    algorithm. e.g. <tt>to_nfold&nbsp;7&nbsp;ant5/3</tt>. It
+    may be possib;e to correct this with option <i>-x</i>.
+</ul>
+<p>
+<i>to_nfold</i> is based on an 
+<a href="http://tech.groups.yahoo.com/group/antiprism/message/6997">idea by Bruce R. Gilson</a>.
+</p>
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/symmetro.html">symmetro - polyhedra with regular polygons at symmetry axes</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

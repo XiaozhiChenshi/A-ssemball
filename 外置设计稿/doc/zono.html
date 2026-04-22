@@ -1,0 +1,194 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - zono - zonohedra from OFF files</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/stellate.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->zono - zonohedra from OFF files<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: zono [options] [star_file] 
+
+Make a zonohedron or add zones to a convex seed polyhdron. The zones are
+created from a star of vectors, which can be based on a polyhdron (input
+model and option -m) or initialised (option -P) to make a polar zonohedron.
+If input_file is not given the program reads from standard input
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -m &lt;mthd&gt; method to create star from input, can be
+               v - centre to vertices are vectors (default)
+               a - all vertex to vertex are vectors
+               i - implicit edges (face sides) are vectors
+               e - explicit edges are vectors
+  -c &lt;cent&gt; centre of points for method v, in form 'X,Y,Z', or C to use
+            centroid (default '0,0,0')
+  -s        output the star (instead of the zonohedron)
+  -S &lt;poly&gt; seed model to add zones to, must be convex
+  -u        make vectors unit length
+  -C &lt;col&gt;  colour for new zone faces
+  -P &lt;arg&gt;  polar zonohedron from ordered star, arg can be an offset polygon
+            given as an integer or fraction (e.g. 5, 7/2) or 's' to use
+            star_file. Optionally, follow by a comma and an integer to
+            to make a spirallohedron with that spiral width (default:0, a
+            polar zonohedron). Any further comma separated parts are colour
+            maps to colour the faces.
+  -T &lt;star&gt; translation surface made from two ordered stars (argument star
+            and star_file) optionally followed by a comma and two characters
+            (or one to use for both) to indicate if the stars of vectors
+            are open, or close to form a loop: d-detect, c-force close,
+             o-leave open.
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+See also,
+<a href="http://www.antiprism.com/examples/200_programs/660_zono/imagelist.html">zono examples with images</a>.
+<p>
+A largish polar zonohedron
+<br /><pre class="cmds">
+zono -P 50 | antiview
+</pre><br /><br />
+
+A largish rhombic spirallohedron
+<br /><pre class="cmds">
+zono -P 50,5 | antiview
+</pre><br /><br />
+
+Rhombic triacontahedron
+<br /><pre class="cmds">
+zono ico | antiview
+</pre><br /><br />
+
+Non-Archimedean truncated octahedron
+<br /><pre class="cmds">
+zono -m i ico | antiview
+</pre><br /><br />
+
+Archimedean truncated octahedron
+<br /><pre class="cmds">
+zono -m i -u ico | antiview
+</pre><br /><br />
+
+Make a unit star from tetrahedron vertices and use to add red zones
+to a icosahedron
+<br /><pre class="cmds">
+zono -S ico -u -C red tet | antiview
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+Rhombic torus as a translation surface
+<br /><pre class="cmds">
+off_util -s std_pol10  | off_trans -R 90,0,0 | zono -T std_pol10 - | antiview
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+Spirallohedron from translation surface
+<br /><pre class="cmds">
+off_trans -T 0,0,1 std_pol12  | off_util -Dv3- > t1.off
+off_trans -T 0,0,1 std_pol12  | off_util -Dv-2 > t2.off
+zono -T t1.off t2.off | poly_kscope -sC4 | antiview
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+Option <i>-S</i> implements George Hart's
+<a href="http://www.georgehart.com/virtual-polyhedra/zonish_polyhedra.html">Zonish polyhedra</a>.
+<!-- NOTES_END -->
+
+<p>
+<a href="http://mathworld.wolfram.com/RhombicSpirallohedron.html">Rhombic
+  spirallohedra</a>
+were
+<a href="https://www.northforktrails.com/RussellTowle/Mathematica/Mathematica.html">discovered by Russell Towle</a>. See also
+<a href="https://youtu.be/OADGS587eOs">Spirallohedra Rule!</a> and 
+<a href="https://youtu.be/Js0evCum83o">Hexagonal Spirallohedra</a>, 
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/stellate.html">stellate - polyhedron stellations</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,203 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - leonardo - Leonardo da Vinci style models</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/poly_form.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->leonardo - Leonardo da Vinci style models<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: leonardo [options] [input_file]
+
+Read a file in OFF format, and thicken the faces and cut a hole in their
+centres to produce a model like those illustrated by Leonardo da Vinci. If
+input_file is not given the program reads from standard input.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -w &lt;wdth&gt; width of the perimeter border of the faces, follow by % for
+            percentage of maximum width without overlap (default: 30%)
+  -l &lt;ht&gt;   height to thicken faces, 0 for single polygon height, follow by
+            % for percentage of width value (default: 100%)
+  -c &lt;cent&gt; centre point to extrude faces towards, in form 'X,Y,Z', or C to
+            use centroid (default: no centre, use calculated vertex normals)
+  -p        faces converted to panels without holes (incompatible with
+            -w, -x, -e)
+  -m        distribute the height equally on both sides of the faces, so
+            the original faces would lie in the middle of the new faces
+            (use for non-orientable models)
+  -x        hide the edges that join the outside of a face to the hole
+  -e        take colours from the edge colours of the base polyhedron
+            (default: use face colours)
+  -k        keep orientation, don't try to orient the faces
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+See also,
+<a href="http://www.antiprism.com/examples/200_programs/670_leonardo/imagelist.html">leonardo examples with images</a>.
+<p>
+Leonardo da Vinci style rhombicuboctahedron
+<br /><pre class="cmds">
+leonardo std_rhombicuboctahedron | antiview -v 0.02
+</pre><br /><br />
+
+Leonardo da Vinci style rhombicuboctahedron, and hide edges that run
+from the outside of the faces to the holes
+<br /><pre class="cmds">
+leonardo -x std_rhombicuboctahedron | antiview -v 0.02
+</pre><br /><br />
+
+Leonardo da Vinci style rhombicuboctahedron, and thicken border and
+use the same value for height
+<br /><pre class="cmds">
+leonardo -w 0.3 std_rhombicuboctahedron | antiview -v 0.02
+</pre><br /><br />
+
+Leonardo da Vinci style rhombicuboctahedron, and thicken border and
+use a smaller value for height
+<br /><pre class="cmds">
+leonardo -w 0.3 -l 0.05 std_rhombicuboctahedron | antiview -v 0.02
+</pre><br /><br />
+
+Models use the colours from the base faces by default. In this
+example a geodesic sphere dual has a proper colouring of its
+faces and is then converted to Leonardo da Vinci style model
+<br /><pre class="cmds">
+off_color -f P geo_3_d -m map_orange:purple:white | leonardo -x | antiview -v 0.01
+</pre><br /><br />
+
+Models can also use the colours from the base edges. In this
+example a geodesic sphere dual has a proper colouring of its
+edges and is then converted to Leonardo da Vinci style model using the
+edge colours
+<br /><pre class="cmds">
+off_color -e P geo_3_d -m map_orange:purple:white | leonardo -e | antiview -v 0.01
+</pre><br /><br />
+
+For non-orientable models, like the Mobius strip in this example, the
+original faces must have the height equally distributed on each side so
+that the units still meet correctly when the surface joins after being
+flipped over
+<br /><pre class="cmds">
+unitile2d -s m -w 29 -l 2 | off_color -f P -m map_darkblue:white | leonardo -m -w 0.15 | antiview -v 0.02
+</pre><br /><br />
+
+To make an image of a wooden model, create a file called <i>wood_faces.inc</i>
+that contains these two lines
+<pre>
+   #include "textures.inc"
+   #declare face_tex = texture { DMFWood4 scale 0.4 translate &lt;3,2,4&gt; };
+</pre>
+
+Now create the POV-Ray model with a command like this
+<br /><pre class="cmds">
+leonardo std_rhombicuboctahedron | off_trans -R 0,15,0 -R 15,0,0 | off2pov -i wood_faces.inc -x ev -B white &gt; wood_rhombicubo.pov
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+<a href="https://www.google.com/search?q=Leonardo+da+Vinci+Polyhedra&amp;tbm=isch">Search for images</a>
+of Leonardo da Vinci's polyhedron illustrations.
+<p>
+In an oriented model based on an Antiprism resource model the new units
+should generally have their outer side aligned with the original faces, and
+the units will meet well on the visible outer surface. In the opposite
+orientation the units will bind to the outside of the model, and will
+not generally meet so well on their outer visible surface. If units do
+not appear to be meeting well then try reorienting the model using
+<i>off_util -O</i>. In the case of using -m, for non-orientable models,
+neither of the new face unit surfaces coincide with the original faces
+and reorienting the model will not help.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/poly_form.html">poly_form - make face-regular and unscramble models</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

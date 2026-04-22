@@ -1,0 +1,153 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - EXTRA: jitterbug - jitterbug transformation</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/lat_grid.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->EXTRA: jitterbug - jitterbug transformation<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: jitterbug [options] [cycle_stage]
+
+Create a stage of the jitterbug transformation in OFF format. The
+cycles run from 0.0 to 1.0. The fractional part of cycle_stage
+is tied to a stage in a full rotation jitterbug. This stage is
+measured by the distance travelled by a point moving around a square
+which halves a cube of edge 0.25, and which determines the jitterbug
+shape.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -f &lt;fces&gt; faces to includ
+              x - none
+              a - all
+              e - equilateral triangles (default)
+              o - other triangles
+  -c &lt;cyc&gt;  cycle type:
+              f - full rotation
+              o - alternating between left and right octahedron stages
+              r - rolling between left and right octahedron stages
+              i - alternating between left and right icosahedron stages
+  -l &lt;size&gt; lattice size, nummber of jitterbugs along an edge (default 1)
+  -r        allow lattice reversal by fixing connections between
+            jitterbug neighbours
+  -t        fix an opposing pair of triangles, stopping them from rotating
+  -T        rotate so equilateral triangle is on top (suports -t)
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+Octahedron stage of full jitterbug, include only the equilateral triangles
+<br /><pre class="cmds">
+jitterbug -f e 0.125 | antiview
+</pre><br /><br />
+
+Icosahedron stage of icosahedron cycle jitterbug, in 3x3x3 lattice
+<br /><pre class="cmds">
+jitterbug -c i -l 3 0.75 | antiview
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+The models are based on R. Buckminster Fuller's
+<a href="http://www.rwgrayprojects.com/synergetics/s04/p6000.html#460.011">
+jitterbug transformation</a>.
+<p>
+The equilateral faces are given colour index 1, and the other faces
+have colour index 2. The faces can easily be given colour values
+using the <i>off_color</i> program. E.g.
+<br /><pre class="cmds">
+   jitterbug -c i -l 3 0.75 | off_color -f M -m map_1=black:2=white | antiview 
+</pre><br /><br />
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/lat_grid.html">EXTRA: lat_grid - lattices and grids with integer coordinates</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

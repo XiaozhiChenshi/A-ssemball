@@ -1,0 +1,528 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - canonical - canonicalize a polyhedon</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/geodesic.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->canonical - canonicalize a polyhedon<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: canonical [options] [input_file]
+
+Read a polyhedron from a file in OFF format. Canonicalize or planarize it.
+Uses algorithms by George W. Hart, http://www.georgehart.com/
+http://www.georgehart.com/virtual-polyhedra/conway_notation.html
+http://www.georgehart.com/virtual-polyhedra/canonical.html
+If input_file is not given the program reads from standard input.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -H        documention on algorithm
+  -z &lt;nums&gt; number of iterations between status reports (implies termination
+            check) (0 for final report only, -1 for no report), optionally
+            followed by a comma and the number of iterations between
+            termination checks (0 for report checks only) (default: 1000,1)
+  -l &lt;lim&gt;  minimum distance change to terminate, as negative exponent
+               (default: 12 giving 1e-12)
+            WARNING: high values can cause non-terminal behaviour. Use -n
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+Canonical and Planarization Options
+  -e &lt;opt&gt;  edge distribution (default : none, canonicalization only)
+               s - project vertices onto a sphere
+  -s &lt;opt&gt;  shuffle model indexes
+               v - vertices, e - edges, f - faces, a - all (default: none)
+  -t &lt;opt&gt;  target model
+               b - work on base only (default)
+               p - work on dual for planarization only
+               c - work on dual for planarization and canonicalization
+  -p &lt;opt&gt;  planarization only, or initial planarization if -c is set
+              (default: no planarization)
+               p - poly_form planarize (poly_form -a p)
+               m - mathematica planarize
+               a - moving edge planarize
+               b - base/dual (reciprocate on face centroids magnitude squared)
+  -i &lt;itrs&gt; maximum planarize iterations. -1 for unlimited (default: -1)
+            WARNING: unstable models may not finish unless -i is set
+  -c &lt;opt&gt;  canonicalization
+               c - circle packings (default)
+               m - mathematica version
+               a - moving edge version
+               b - base/dual version (reciprocate on face normals)
+               x - none (default, if -p is set)
+  -n &lt;itrs&gt; maximum canonical iterations. -1 for unlimited (default: -1)
+            WARNING: unstable models may not finish unless -n is set
+  -d &lt;perc&gt; radius test. percent difference between minimum and maximum radius
+               checks if polyhedron is collapsing. 0 for no test 
+               (default: 80 for canonicalizing, not used for planarizing)
+  -y        maintain symmetry and alignment of the base model during
+               processing (with -p p, -c c) 
+
+Extra Options
+  -Q &lt;perc&gt; percentage to scale edge tangency (default: 50) (-c m)
+  -P &lt;perc&gt; percentage to scale face planarity (default: 20) (-c m, -p m, -p p)
+  -f &lt;adj&gt;  initial percent adjustment factor, optionally followed by a comma
+            and a maximum percent adjustment (default: 1,50) (-c c)
+  -C        continue processing a near-canonical model (the initial
+            intermediate processing model will preserves the geometry
+            of the base model rather than avoid scrambling) (-c c)
+            
+Scene Options
+  -O &lt;args&gt; output b - base, d - dual, i - intersection points (default: b)
+               edge nearpoints, n - base, m - dual; c - base/dual convex hull
+               edge nearpoints centroid, p - base, q - dual; o - origin point
+               tangent sphere, u - minimum, U - maximum
+               incircles, s - base, t - dual; as rings, S - base, T - dual
+  -q &lt;dist&gt; incircles offset to avoid coplanarity e.g 0.0001 (default: 0)
+  -g &lt;opt&gt;  roundness of tangent sphere, positive integer n (default: 8)
+  -Y        align output model geometry to full symmetry
+
+Coloring Options (run 'off_util -H color' for help on color formats)
+keyword: none - sets no color, u - input base model, color of element unchanged
+  -F &lt;col&gt;  face color/operation, assignment (required), transparency (optional)
+              assignments to are: b - base, d - dual, i - intersection points
+                edge nearpoints, n - base, m - dual; c - base/dual convex hull
+                edge nearpoints centroid, p - base, q - dual; o - origin point
+                u - tangent sphere, incircles (or rings), s - base, t - dual
+                (one element, required; multiple -F as needed)
+              -F d,b - face color by convexity, -F b,d - color from base verts
+              -F s,f take color from faces, -F t,f take color from faces
+              defaults: b - 'u' unchanged, d - 'b' take color from base verts,
+                i - yellow, n,p - red, m,q - darkgreen, c - white,
+                o - yellow, u - white, s,t - 'f' color of face
+  -E &lt;col&gt;  edge color (same format as for faces) (defaults: unchanged)
+            -E d,b - edge color by convexity
+  -V &lt;col&gt;  vertex color (same format as for faces) (defaults: unchanged)
+            transparency: valid range from 0 (invisible) to 255 (opaque)
+  -m &lt;maps&gt; a comma separated list of color maps used to transform color
+            indexes (default: colorful), a part consisting of letters from
+            v, e, f, selects the element types to apply the map list to
+            (default 'vef'). use map name of 'index' to output index numbers
+               convexity:  white,gray50,gray25 (for -F d,b, -E d,b)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+Make a cube, distort it, and canonicalize it back into a cube
+<br /><pre class="cmds">
+off_util cube | off_trans -S 1,2,3 | canonical | antiview
+</pre><br /><br />
+
+Make a geodesic sphere, canonicalize it, and add it to it reciprocal
+<br /><pre class="cmds">
+geodesic -c 2 ico | canonical -O bd | antiview -v 0.02
+</pre><br /><br />
+
+Make a propeller cube, canonicalize it, and cover it with the tranparent
+convex hull of the base and reciprocal
+<br /><pre class="cmds">
+conway pC | canonical -O bdc -F white,c,128 | antiview -v 0.01
+</pre><br /><br />
+
+Make a gyro icosahedron, make it transparent, canonicalize it, and show the
+edge tangent sphere and base edge nearpoints
+<br /><pre class="cmds">
+conway gI | canonical -O bnU -F u,b,128 | antiview -v 0.01
+</pre><br /><br />
+
+A nice conway notation model and the same model as base and dual incircle rings
+<br /><pre class="cmds">
+conway ageC | canonical | antiview -v 0.01
+conway ageC | canonical -O ST | antiview -v 0.01
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+The program will not always converge, and produce the canonical form.
+In this cases it may help to distort the polyhedron before running
+canonical. This could be done with <i>off_util -S</i>, <i>repel</i>,
+<i>poly_form</i>, <i>off_trans</i> or even editing the OFF file by hand.
+<p>
+George Hart has a page on
+<a href="http://www.georgehart.com/virtual-polyhedra/canonical.html">
+canonicalization</a>.
+<p>
+Uses algorithms by George W. Hart,
+<a href="http://www.georgehart.com/">http://www.georgehart.com/</a>.
+The 'Mathematica' algorithms have been written to follow George Hart's
+<a href="http://library.wolfram.com/infocenter/Articles/2012/">
+Mathematica implementation</a>
+<p>
+The following extended help for the program may be displayed with
+<i>canonical -H</i>
+<pre class="prog_help">
+
+
+Calculating Canonical Polyhedra (description of mathematica algorithm)
+
+A relaxation algorithm is presented to determine a canonical form for an
+arbitrary convex polyhedron.
+
+by George W. Hart
+
+One important role of high-level mathematical software such as Mathematica is
+that it easily allows for the testing of experimental algorithms. Here we
+explore a method of finding a canonical form of a polyhedron. The canonical
+form is a polyhedron topologically equivalent to an input polyhedron, but with
+all edges tangent to a unit sphere and with the center of gravity of the
+tangent points being the origin.  A variety of examples will illustrate this
+procedure. One application is that the algorithm constructs a geometrically
+self-dual polyhedron given one which is only combinatorially self-dual.
+
+A theorem of Schramm [Schramm 1992] states that for any given convex polyhedron
+or 3-connected planar graph, there is a topologically equivalent polyhedron
+with the following properties:
+
+ 1) each edge is tangent to the unit sphere,
+
+ 2) the center of gravity of the points of tangency is the origin.
+
+The solution is unique, up to rotations and reflections of the sphere and so
+provides a kind of canonical representation. Although we will not pursue it
+here, the theorem is actually more general in that it allows the sphere to be
+replaced with an arbitrary smooth convex body, e.g., an egg-shaped
+quasi-ellipsoid. The theorem is closely related to the Koebe-Andreev-Thurston
+Circle Packing theorem for planar graphs. See Ziegler [Ziegler 1995, p. 118]
+for discussion and other references. 
+
+For example, if our input polyhedron is a geometrically distorted (but
+topologically unchanged) form of any Platonic or Archimedean solid, and we
+calculate its canonical form, our algorithm should output its undistorted form
+centered at the origin, with a midradius of 1, and with an arbitrary rotation.
+E.g., given any parallelepiped as input, the canonical form output is a cube of
+edge Sqrt[2]. For an arbitrary polyhedron, the canonical form is a way of
+illustrating its combinatorial or topological structure, which often lets one
+immediately see and understand its structure and symmetry.  
+
+As an illustration, we will use the algorithm to find three geometrically
+self-dual polyhedra, given starting points which are only combinatorially
+self-dual. It follows from the above that the dual polyhedron also shares
+properties (1) and (2). Thus, for these three self-dual examples, we can make
+a compound of the polyhedron with its dual, i.e., with itself, in which both
+polyhedra have the same points of tangencies and at these points their edges
+cross each other's at right angles. 
+
+The proofs cited above are of existence and not constructive, so we are
+interested in an algorithm for determining the canonical form of an input
+polyhedron. The algorithm proposed here operates by relaxation to iteratively
+move the vertices of the given polyhedron along a trajectory which converges
+at the canonical form. Although we begin and end with a polyhedron, during this
+relaxation, the object defined by the vertices is likely not to be a polyhedron
+geometrically.  Sets of points which belong to a face (combinatorially) are
+likely not to be coplanar. So we add a third condition for a solution, to the
+two above:
+
+ 3) the faces are planar.
+
+
+Algorithm
+
+Our algorithm inputs a polyhedron and iteratively adjusts its vertices to
+slightly improve its conformance with the three conditions above. Within a
+couple of hundred iterations, it typically finds all the conditions are
+satisfied within a small tolerance, and stops. Three simple operations are all
+that is needed, corresponding to the three conditions:
+
+ A) For each edge, the closest point to the origin is determined; call it p.
+    If p lies at unit distance from the origin, condition (1) is satisfied for
+    that edge. If not, a small fraction of p is added to the two vertices
+    which define the edge, (in proportion to the sign and amount of the error)
+    so that at the next iteration the edge will be closer to tangency with the
+    unit sphere. 
+
+ B) The center of gravity of all the points p is determined. If it is zero,
+    condition (2) is satisfied. If not, it is subtracted from all the vertices. 
+
+ C) For each face, if the vertices lie in some plane in space, condition (3) is
+    satisfied. If not, a plane which approximates it is computed. Each vertex
+    of the face is then moved along a normal towards the plane. 
+
+Iterating, it sometimes takes many steps for a correction at one part of the
+polyhedron to percolate its way around and equalize the conditions everywhere.
+On the examples below, between 50 and 100 iterations were sufficient to have
+all conditions satisfied within a tolerance of 10^-8. Although the individual
+steps are quite simple, this takes a minute or so in these examples and would
+take longer on more complex polyhedra. Refinement and optimization are left as
+future work.
+
+
+Additional Work by Adrian Rossiter:
+
+Edge near-point / circle-packing canonicalisation algorithm
+===========================================================
+
+Approach
+--------
+
+A polyhedron with a midsphere corresponds to two circle packings on the
+same sphere: the incircles of the base faces and the incircles of the dual
+faces. The circles from the two packs intersect at the edge tangency points
+of the base (or dual) polyhedron in two orthogonal tangent pairs. By moving
+a set of points until they satisfy the conditions for being the intersection
+points of these circles, a model corresponding to a polyhedron with a
+midsphere can be made.
+
+If the midsphere is the unit sphere, and the edge tangency points have
+their centroid at the sphere centre then the polyhedron is canonical.
+
+
+Processing model
+----------------
+
+The processing model has a vertex for each edge tangency point, and a face
+for each circle of the two packs. Each vertex is therefore surrounded by four
+faces, and these faces correspond, in opposing pairs, to each of the two
+circle packs.
+
+The canonical model is solved when the processing model satisfies
+the following conditions:
+
+*  the vertices are at distance 1 from the origin
+
+*  the vertices have their centroid at the origin
+
+*  the faces are planar, hence each set of vertices corresponding to a
+   base/dual face lies on a circle of the base/dual circle pack
+
+*  each vertex lies on the two planes through the origin containing the
+   normals of opposing faces, hence each pair of circles meeting at the
+   vertex are tangent (and this is sufficient to ensure that they are
+   also orthogonal)
+
+
+Algorithm
+---------
+
+Initialisation
+
+1. Translate the base model to carry the vertex centroid to the origin.
+
+2. Converted to an 'ambo' form. The vertices are truncated to a single
+   point on each edge. These points are initially set to either the
+   centroid of the edge vertices (better for a general input), or the
+   point on the edge line nearest to the origin (better for a
+   near-canonical input).
+
+3. Make a list of the cycle of four faces around each vertex. Alternate
+   faces will be opposing faces.
+
+4. Choose a small termination value, that if the minimum vertex
+   movement is less than this then the iteration terminates.
+
+5. The amount of vertex movement is controlled by an adjustment factor,
+   which can change each iteration. Choose a starting value (e.g. .1),
+   and a maximum value (e.g. .5).
+
+
+Iteration
+
+An offset will be calculated for each vertex, and will be applied
+near the end of the iteration loop.
+
+For each vertex:
+
+1. Initialize the offset to zero.
+
+2. Adjust for the tangency point centroid:
+   Add
+      -vertices_centroid
+   to the offset.
+
+3. Adjust for coplanar / circular points:
+   Calculate the projection the vertex onto its four surrounding planes,
+   and then calculate the centroid of these four projection points. Add
+      (projection_point_centroid - vertex) * factor
+   to the offset.
+
+4. Adjust for mutual tangency / orthogonality:
+   For each pair of opposing faces:
+      find a normal to their normals (a base or dual edge direction)
+      calculate the projection of the vertex onto a plane through the origin
+      with this normal
+   Add
+      (projection_point_centroid - vertex) * factor
+   to the offset.
+
+5. Adjust for unscrambling:
+   If a vertex does not lie inside the cycle of its four neighbouring
+   vertices, make the following adjustment. Add
+      (neighbour_vertices_centroid - vertex) * 0.5 * factor
+   to the offset.
+
+6. Add the offset to the vertex
+
+7. Scale the vertex to have a length of exactly 1
+
+8. Adjust the adjustment factor:
+   If the maximum offset length is less than that of the last iteration
+   then scale the factor by 1.01 (if this will not exceed the maximum
+   specified), but if it is greater then scale the factor by 0.995.
+
+9. Terminate iteration if the maximum offset length is less than the
+   termination value.
+
+
+Final model
+
+The processing model has faces that correspond to base faces and those
+that correspond to dual faces, which also correspond to base vertices as
+they were the faces produced by vertex truncation.
+
+The final base model retains the faces of the original base model, but
+each vertex is set to the polar reciprocal of the corresponding processing
+model face plane.
+
+For each vertex in the base model
+
+1. Determine the corresponding processing model face.
+
+2. Calculate the point nearest to the origin on the face plane, and its
+   distance from the origin, and the final vertex position is
+     position = point / distance^2
+
+
+Symmetry optimisation
+---------------------
+
+The algorithm is suitable for use with a symmetry optimisation. This
+also forces the original symmetry to be maintained, as repeated processing
+of the vertices may otherwise cause them to wander from the original
+symmetry.
+
+Use the symmetry group of the base model. In the processing model just one
+vertex from each orbit is processed. The faces surrounding the vertex have
+their other vertex positions calculated, once per iteration, by a symmetry
+transformation of a processed vertex.
+
+To avoid calculating all the vertex positions for the centroid, it can be
+calculated as: the centroid of the processed vertices, each projected onto
+the subspace left invariant by the subgroup that fixes it, and weighted by
+the number of vertices in its orbit.
+
+-------------------------------------------------------------------------------
+From George Hart: https://www.georgehart.com/virtual-polyhedra/canonical.html
+
+An interesting theorem states that there exists a "canonical form" of any given
+convex polyhedron. This canonical form is a possibly distorted version of the
+given polyhedron in which the vertices are positioned in space to satisfy the
+following properties:
+
+1) all the edges are tangent to the unit sphere,
+2) the origin is the center of gravity of the points at which the
+   edge touch the sphere,
+3) the faces are flat (i.e. the vertices of each face lie in some plane),
+   but are not necessarily regular.
+
+It follows that a dual to the canonical polyhedron can be constructed which has
+the above three properties as well, and the edges of the canonical polyhedron
+and its dual cross at right angles. The representation is unique except for its
+rotations and reflections.
+
+Antiprism Note: These properties are measured for making a canonical model.
+While the algorithms calculate vertex locations within a distance given by
+-l n, meaning 10 to the -n power, the mathematical error of the measure of
+intersections between the base model and its dual accumulates. The precision
+of the intersections is measured to be within 10 to the -(n-2) power. The
+mathematical error of the planar measure of a face is multiplied by the face's
+number of edges. To achieve a measurably planar model may be beyond precision
+limits of the processor.
+
+Tip: If the dual of a model has faces with less sides, it may easier to achieve
+a planar model by instead working on the dual using option -t c. Face side
+counts can be found with off_report -C s
+
+If a canonical base is produced as an off file, the reciprocal will need to be
+generated using the midsphere with pol_recip -c M
+
+</pre>
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/geodesic.html">geodesic - geodesic spheres</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

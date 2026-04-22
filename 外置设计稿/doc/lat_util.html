@@ -1,0 +1,178 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - lat_util - lattice utilities</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/polygon.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->lat_util - lattice utilities<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: lat_util [options] [input_files]
+
+Read one or more files in OFF format, combine them into a single file and
+process it. Operations take place in the order listed below. input_files is the
+list of files to process. If they don't exist, explicit edges are created.
+If the input possesses faces they are stripped by default.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -I        verbose output
+  -l &lt;lim&gt;  minimum distance for unique vertex locations as negative exponent
+              (default: 12 giving 1e-12)
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+Scene Options
+  -z        suppress stripping of faces
+  -c &lt;type&gt; container, c - cube (default), s - sphere (uses radius)
+  -k &lt;file&gt; container, convex hull of off file or built in model (uses radius)
+  -r &lt;c,n&gt;  radius. c is radius taken to optional root n. n = 2 is sqrt
+              or  l - max insphere radius, s - min insphere radius (default)
+              or  k - take radius from container specified by -k
+  -q &lt;xyz&gt;  center offset, three comma separated coordinates, 0 for origin
+  -s &lt;s,n&gt;  create struts. s is strut length taken to optional root n
+              use multiple -s parameters for multiple struts
+  -D &lt;opt&gt;  Voronoi (a.k.a Dirichlet) cells (Brillouin zones for duals)
+              c - cells only, i - cell(s) touching center only
+  -C &lt;opt&gt;  c - convex hull only, i - keep interior
+  -A        append the original lattice to the final product
+  -R &lt;fi,s&gt; repeat off file fi at every vertex in lattice. If optional s is
+            set, sort and merge elements whose coordinates are the same to
+            the number of decimal places given by option -l.  elements can
+            include: v - vertices, e - edges, f - faces,  a - all (vef)
+            n - no merging  (default 'a'. Colors blended as RGB)
+  -K        append cage of container of -k to final product
+  -Z &lt;col&gt;  add center vertex to final product in color col
+  -O        translate center of final product to origin
+
+Listing Options
+  -Q &lt;vecs&gt; center for radius calculations in -L (default: centroid)
+              c - original center, o - original center + offset in -q
+  -L &lt;opt&gt;  list unique radial distances of points (to standard output)
+              f - full report, v - values only
+  -S &lt;opt&gt;  list every possible strut value (to standard output)
+              f - full report, v - values only
+
+Coloring Options (run 'off_util -H color' for help on color formats)
+  -V &lt;col&gt;  vertex color, (optional) transparency, (optional) elements
+              transparency: valid range from 0 (invisible) to 255 (opaque)
+              elements to color are l - lattice, c - convex hull, v - voronoi
+                 (default elements: lcv)
+              Note: input element colors from -R input are not changed
+  -E &lt;col&gt;  edge color (same format as for vertices)
+              lower case outputs map indexes. upper case outputs color values
+              t,T - for color edges by root value of final product
+  -F &lt;col&gt;  face color (same format as for vertices)
+              special coloring: calculates color from normals, not maps
+              lower case outputs map indexes. upper case outputs color values
+              y,Y - color by symmetry using face normals
+              z,Z - color by symmetry using face normals (chiral)
+  -T &lt;tran&gt; face transparency for color by symmetry. valid range from 0 to 255
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+Repeat a cube in a chequerboard pattern
+<br /><pre class="cmds">
+lat_grid fcc 3 | lat_util -R cube | antiview
+</pre><br /><br />
+
+Include points of a grid that are inside a truncated octahedron. Include the cage of the truncated octahedron. Add struts of 2. Make a convex hull of the included points and keep the interior points. Color the convex hull symetrically and make transparent.
+<br /><pre class="cmds">
+lat_grid fcc 3 | lat_util -s 2 -k tr_oct -K -C i -F Y -T 128 | antiview
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+<i>lat_util</i> was written by
+<a href="http://www.interocitors.com/polyhedra/">Roger Kaufman</a>.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/polygon.html">polygon - polygon based polyhedra</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

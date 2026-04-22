@@ -1,0 +1,318 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - symmetro - polyhedra with regular polygons at symmetry axes</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/kcycle.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->symmetro - polyhedra with regular polygons at symmetry axes<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: symmetro [options]
+
+Symmetrohedra and Twisters are created by placing equilateral polygons centered
+on the symmetry axes of Icosahedral, Octahedral, Tetrahedral, or Dihedral
+symmetry. The sides of the polygons will be a multiple number of the axis
+reflection number. Axes are numbered as 0, 1 and 2
+
+It is possible to generate models such that the polygons intersect. If a
+collision is detected, convex hull will be suppressed
+
+options -k, -t, -s and -c cannot be used together but one needs to be specified 
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -v        verbose output
+  -l &lt;lim&gt;  minimum distance for unique vertex locations as negative exponent
+               (default: 12 giving 1e-12)
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+Program Options
+  -k &lt;s,l,m,n,a&gt; Kaplan-Hart notation. Generate Symmetrohedra based on a study
+            by Craig S. Kaplan and George W. Hart (http://www.georgehart.com).
+            Url: https://cs.uwaterloo.ca/~csk/Old/projects/symmetrohedra/
+            Pdf: https://antiprism.com/misc/kaplan_hart_bridges2001.pdf
+            s: symmetry type of Symmetrohedra. sets {p,q,2}
+               I-icosahedral {5,3,2} O-octahedral {4,3,2} T-tetrahedral {3,3,2}
+            l,m,n: multipliers for axis polygons. Separated by commas, two
+               multipliers may be * or 0, no more than two positive integers
+            a: face rotation type: vertex=1, edge=0  (default: 1)
+            example: -k i,2,*,4,e
+  -t &lt;s[p,q]i,m1,m2&gt; Twister notation. Generate twister models.
+            s: symmetry. I-icosahedral, O-octahedral, T-tetrahedral, D-dihedral
+            p,q: rotational order of each of the two axes. may be swapped
+            i: (default: 1): integer to select between non-equivalent pairs of
+               axes having the same symmetry group and rotational orders
+            m1,m2: an integer multiplier for each axis. i.e. m1*p and m2*q
+               also can be entered as m1/d, m2/d fractional values
+               e.g. T[3,2],1,2  I[5,2]2,1/2,3  D7[7,3],1,2  D11[2,2]5,2,2
+                  Axis pairs are from the following
+                  T: [3,3], [3,2], [2,2]
+                  O: [4,4], [4,3], [4,2]x2, [3,3], [3,2]x2, [2,2]x2
+                  I: [5,5], [5,3]x2, [5,2]x3, [3,3]x2, [3,2]x4, [2,2]x4
+                  Dn:[n,2], [2,2]x(n/2 rounded down)
+  -s &lt;n/d:D&gt;,s S symmetry twisters. denominator d optional (default: 1)
+               optional D substitutes a polygon of n/D in place of n/d
+               optional s: symmetry override c - C symmetry
+  -c &lt;n1/d1:D1,n2/d2:D2,s,v&gt; C symmetry twisters
+               optional d denominator (default: 1)
+               optional D substitutes a polygon of n/D in place of n/d
+               optional n2 can differ from n1. if not specified n2=n1, d2=d1
+               optional s: symmetry: c - C (default), h - Ch, v - Cv, d - D
+               optional v: vertex index of radial polygon to bring to z plane
+                  v of -1 is original position (default: index of largest z)
+  -M &lt;opt&gt;  mirroring (may create compound). Can be x, y or z (default: none)
+  -a &lt;a,n&gt;  a in degrees of rotation given to polygon applied to optional
+               axis n (default: 0). A suffix of 'e' may be used, where 1.0e is
+               half the central angle of an edge. Then a is a multiplier. For
+               example 2e. A suffix of x is like e but with a half turn offset
+  -r &lt;r,n&gt;  set the edge length of the polygon on axis n (default: 0)
+               to r. Must be non-negative. The default edge length is 1
+  -A &lt;a&gt;    a in degrees is angle between axes (default: calculated)
+  
+Scene Options
+  -C &lt;mode&gt; convex hull. polygons=1, suppress=2, force=3, auto=4 (default: 4)
+  -q &lt;args&gt; include frame elements in output
+               r - rhombic tiling edges, a - rotation axes (default: none)
+  -O &lt;dist&gt; amount to offset the first polygon to avoid coplanarity with the
+               second polygon, for example 0.0001 (default: 0.0)
+  -x        remove any free faces that are produced
+
+Coloring Options (run 'off_util -H color' for help on color formats)
+keyword: none - sets no color
+  -F &lt;col&gt;  color the faces according to: (default: i)
+               a color value - apply to all faces
+               n - color by number of sides
+               s - symmetric coloring [,sub_group,conj_type]
+               i - color by axis number
+  -E &lt;col&gt;  color the edges according to: (default: lightgray)
+               a color value - apply to all edges
+               s - symmetric coloring [,sub_group,conj_type]
+  -V &lt;col&gt;  color the vertices according to: (default: gold)
+               a color value - apply to all vertices
+               s - symmetric coloring [,sub_group,conj_type]
+  -T &lt;t,e&gt;  transparency. from 0 (invisible) to 255 (opaque). element is any
+            or all of, v - vertices, e - edges, f - faces, a - all (default: f)
+  -m &lt;maps&gt; a comma separated list of color maps used to transform color
+            indexes (default: axes), a part consisting of letters from
+            v, e, f, selects the element types to apply the map list to
+            (default 'vef'). use map name of 'index' to output index numbers
+               axes:       red,blue,yellow,darkgreen
+                  note: position 4 color is for faces added by convex hull
+               kaplan:     approximating colors in the symmetrohedra pdf file
+               colorful:   red,darkorange1,yellow,darkgreen,cyan,blue,magenta,
+                           white,gray50,black (default when -F n)
+               (default internal maps shifted '+-3' when -F n)
+  -D        don't cover digons with edge color
+  -Q &lt;col&gt;  frame color  (default: skyblue3)
+               
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+See also,
+<a href="http://www.antiprism.com/examples/200_programs/680_symmetro/imagelist.html">symmetro examples with images</a>.
+<p>
+Make a Cuboctahedron (U7)
+<br /><pre class="cmds">
+symmetro -k o,1,1,0,e | antiview
+symmetro -t O[3,3],1,1 | antiview
+</pre><br /><br />
+
+Like a Rhombicuboctahedron, but scale the squares on the 4-fold axes by 2.
+<br /><pre class="cmds">
+symmetro -k o,1,1,0 -r 2  | antiview
+symmetro -t O[4,3],1,1 -r 2 | antiview
+</pre><br /><br />
+
+Make an approximate Snub Cube (U12)
+<br /><pre class="cmds">
+symmetro -k o,1,0,1 -a 28.53243959961367 -C f | antiview
+symmetro -t O[4,2],1,1 -a 28.53243959961367 -C f | antiview
+</pre><br /><br />
+
+Make a 'twister' by suppressing the convex hull and varying the twist parameter
+<br /><pre class="cmds">
+symmetro -k t,1,1,0 -C s -a 15 | antiview
+symmetro -t T[3,3],1,1 -C s -a 15 | antiview
+</pre><br /><br />
+
+Make an Small Stellated Dodecahedron (U34)
+<br /><pre class="cmds">
+symmetro -s 5:2 -a 2e | antiview -v 0.03
+</pre><br /><br />
+
+Make an Icosidodecahedron (U24)
+<br /><pre class="cmds">
+symmetro -c 5,5,d | antiview
+</pre><br /><br />
+
+Make an Pentagonal Orthobirotunda (Johnson Solid J34)
+<br /><pre class="cmds">
+symmetro -c 5,5,h | antiview
+</pre><br /><br />
+
+Bowtie models from Kaplan-Hart paper Figure 3 in order of appearance
+<br /><pre class="cmds">
+symmetro -k t,2,3,*,e -F n -m kaplan | antiview
+symmetro -k o,2,3,*,e -F n -m kaplan | antiview
+symmetro -k o,3,2,*,e -F n -m kaplan | antiview
+symmetro -k i,2,3,*,e -F n -m kaplan | antiview
+symmetro -k i,3,2,*,e -F n -m kaplan | antiview
+symmetro -k t,1,2,*,v -F n -m kaplan | antiview
+symmetro -k o,1,2,*,v -F n -m kaplan | antiview
+symmetro -k o,2,1,*,v -F n -m kaplan | antiview
+symmetro -k i,1,2,*,v -F n -m kaplan | antiview
+symmetro -k i,2,1,*,v -F n -m kaplan | antiview
+</pre><br /><br />
+
+Jamnitzer models from Kaplan-Hart paper Figure 7 in order of appearance
+<br /><pre class="cmds">
+symmetro -k o,2,2,0,v -r 1.06680419358835388 -F n -m kaplan | antiview
+symmetro -k o,3,3,0,v -r 1.04966777114351 -F n -m kaplan | antiview -v 0.03
+symmetro -k i,2,2,0,v -r 1.09818547139510914 -F n -m kaplan | antiview -v 0.03
+symmetro -k i,3,3,0,v -r 1.0726110096817 -F n -m kaplan | antiview -v 0.05
+</pre><br /><br />
+
+LCM models from Kaplan-Hart paper Figure 8 in order of appearance
+<br /><pre class="cmds">
+symmetro -k t,2,0,3,e -F n -m kaplan | antiview
+symmetro -k t,2,0,3,v -F n -m kaplan | antiview
+symmetro -k o,1,0,2,v -F n -m kaplan | antiview
+symmetro -k o,3,4,*,e -F n -m kaplan | antiview
+symmetro -k o,3,4,*,v -F n -m kaplan | antiview
+symmetro -k o,*,2,3,e -F n -m kaplan | antiview
+symmetro -k o,*,2,3,v -F n -m kaplan | antiview
+symmetro -k i,3,5,*,e -F n -m kaplan | antiview
+symmetro -k i,3,5,*,v -F n -m kaplan | antiview
+symmetro -k i,2,*,5,e -F n -m kaplan | antiview
+symmetro -k i,2,*,5,v -F n -m kaplan | antiview
+symmetro -k i,*,2,3,e -F n -m kaplan | antiview
+symmetro -k i,*,2,3,v -F n -m kaplan | antiview
+</pre><br /><br />
+
+Near miss models from Kaplan-Hart paper Figure 9 in order of appearance
+<br /><pre class="cmds">
+symmetro -k o,*,3,*,e -F n -m kaplan | antiview
+symmetro -k i,1,2,*,v -F n -m kaplan -r 1.07046626932,1 | antiview
+symmetro -k i,2,*,3,e -F n -m kaplan | antiview
+</pre><br /><br />
+
+Appealing models from Kaplan-Hart paper Figure 10 in order of appearance
+<br /><pre class="cmds">
+symmetro -k i,2,2,*,1 -F n -m kaplan -r 2.03614784182,1 | antiview -v 0.03
+symmetro -k i,2,1,*,1 -F n -m kaplan -r 1.9021130325885 | antiview -v 0.03
+symmetro -k i,2,2,*,1 -F n -m kaplan | antiview -v 0.05
+symmetro -k i,4,3,*,e -F n -m kaplan | antiview -v 0.07
+symmetro -k i,2,3,*,1 -F n -m kaplan | antiview -v 0.05
+symmetro -k i,2,3,*,1 -F n -m kaplan -r 1.583841856265,1 | antiview -v 0.05
+symmetro -k i,2,4,*,e -F n -m kaplan | antiview -v 0.07
+symmetro -k i,2,4,*,1 -F n -m kaplan -r 1.05398768021455,1 | antiview -v 0.07
+symmetro -k i,3,1,*,1 -F n -m kaplan | antiview -v 0.07
+symmetro -k i,3,2,*,1 -F n -m kaplan | antiview -v 0.07
+symmetro -k i,*,2,2,1 -F n -m kaplan | antiview -v 0.07
+symmetro -k i,*,1,4,e -F n -m kaplan | antiview -v 0.06
+symmetro -k i,3,4,*,v -F n -m kaplan -r 1.5665309813,1 -l 8 | antiview -v 0.03
+symmetro -k i,3,4,*,e -F n -m kaplan | antiview -v 0.06
+symmetro -k i,3,5,0,v -F n -m kaplan -r 1.3159206178527,1 | antiview -v 0.03 
+symmetro -k i,4,2,*,e -F n -m kaplan | antiview -v 0.06
+symmetro -k i,*,1,4,1 -F n -m kaplan | antiview -v 0.06
+symmetro -k i,1,*,2,1 -F n -m kaplan | antiview -v 0.06
+symmetro -k i,1,*,3,e -F n -m kaplan | antiview -v 0.06
+symmetro -k i,2,*,3,1 -F n -m kaplan | antiview -v 0.06
+</pre><br /><br />
+
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+<i>symmetro</i> was written by
+<a href="http://www.interocitors.com/polyhedra/">Roger Kaufman</a>.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/kcycle.html">kcycle - kaleidocycle rings of polyhedron</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

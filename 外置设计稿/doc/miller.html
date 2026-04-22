@@ -1,0 +1,168 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - miller - Miller's stellations of the icosahedron</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/tetra59.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->miller - Miller's stellations of the icosahedron<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: miller [options] input
+
+Millers 59 Icosahedra Stellations. Plus additional stellations since discovered
+input may be Miller list number from 1 to 75. Or m_string where string consists
+of one or more cell names: A,B,C,D,E,F,G,H,e1,f1,f1',g1,e2,f2,g2  e.g m_De1f1g1
+model string can be followed by I or Ih symmetry. e.g. m_e1f1',I
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -L        list models only
+  -l &lt;lim&gt;  minimum distance for unique vertex locations as negative exponent
+              (default: 12 giving 1e-12)
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+Program Options
+  -M        merge stellation facelets (for cell name strings only)
+  -r        rebuild compound model to separate vertices
+
+Scene Options
+  -O &lt;args&gt; output s - stellation, d - diagram (default: s)
+
+Coloring Options (run 'off_util -H color' for help on color formats)
+keyword: none - sets no color
+  -F &lt;col&gt;  color the faces according to: (default: 255,193,37, if compound, k)
+              a color value - apply to all faces
+              k - sets of faces connected by face edges (compounds)
+              s - symmetric colouring [,sub_group,conj_type]
+              q - from stellation diagram
+              h - face/face connection count (model is altered with kis)
+  -E &lt;col&gt;  color the edges according to: (default: invisible)
+              a color value - apply to all edges
+              f - color with average adjacent face color
+              q - from stellation diagram
+              n - colour by number of faces connected to each edge
+  -V &lt;col&gt;  color the vertices according to: (default: invisible)
+              a color value - apply to all vertices
+              e - color with average adjacent edge color
+              f - color with average adjacent face color
+              q - from stellation diagram
+              n - color by order of vertex
+  -T &lt;t,e&gt;  transparency. from 0 (invisible) to 255 (opaque). element is any
+            or all of, v - vertices, e - edges, f - faces, a - all (default: f)
+  -m &lt;maps&gt; a comma separated list of color maps used to transform color
+            indexes (default: compound), a part consisting of letters from
+            v, e, f, selects the element types to apply the map list to
+            (default 'vef'). use map name of 'index' to output index numbers
+              compound:   yellow,red,darkgreen,blue,magenta,cyan,darkorange1
+            
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+View stellation number 9 in the list
+<br /><pre class="cmds">
+miller 9 | antiview
+</pre><br /><br />
+
+View the E shell with face and edge connectivity by color
+<br /><pre class="cmds">
+miller m_E -F h -E n -V e | antiview -v 0.05
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+<i>miller</i> was written by
+<a href="http://www.interocitors.com/polyhedra/">Roger Kaufman</a>.
+<p>
+It is based on Miller's 59 stellations of the icosahedron. But
+it also adds further discoveries and possibilities.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/tetra59.html">tetra59 - 59 tetrahedra with rational dihedral angles</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

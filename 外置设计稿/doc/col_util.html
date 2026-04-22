@@ -1,0 +1,219 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - col_util - colour utilities including plots and blends</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/lat_util.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->col_util - colour utilities including plots and blends<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: col_util [options]
+
+various plots of maps, colors and blendings
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -o &lt;file&gt; write output to file (default: write to standard output)
+  -f &lt;type&gt; for output type 4, map is output instead of OFF file
+               map type: rgb=1, antiprism=2, decimal=3 (default: 1)
+
+Scene Options
+  -M &lt;mode&gt; color system mode. HSV=1, HSL=2, RGB=3 (default: 2)
+  -d &lt;int&gt;  output type. plot=1, wheel=2, grid=3, map=4 (default: 1)
+  -y        RYB mode. Blend colors as in Red-Yellow-Blue color wheel
+  -c        CMY mode. Complementary colors.  RGB-&gt;(RYB/GMO)-&gt;CMY-&gt;blend
+  -b &lt;val&gt;  brightness adjustment. valid values -1.0 to +1.0 (default: 0)
+               negative for darker, positive for lighter, 0 for no change
+            (-y also affects location of color on plot. -c and -b affect
+             all colors in all output types)
+
+Output for grid (-d 3) Options
+  -w &lt;int&gt;  width of grid. positive integer. (default: automatic)
+              keyword: b - display as color bars
+  -I        exclude map indexes on grid
+
+Output for plot (-d 1) Options 
+  -r &lt;int&gt;  HSV/HSL container (default: 4)
+              cylinder=1, conic=2, hexagonal=3, cube=4
+  -S        HSV/HSL distribute colors heptagonally, 7 ways, as in the rainbow
+  -k &lt;int&gt;  container visibility (default: 2)
+               0 - suppress, 1 - no facets (-r 3),  2 - full
+  -z &lt;int&gt;  1 - show model upright, 2 - upright, don't rotate cube (RGB -M 3)
+  -q &lt;int&gt;  height of cone or pyramid (-M 2, -r 2,3) (default: no change)
+               1 - double, 2 - make perimeter angle 90 degrees dihedral
+  -R        show reference primary and secondary colors on containers
+
+Color Blending Options (-d 1, -M 1,2, -p)
+  -p        plot color centroid (or multiple centroids -s, -v)
+  -V        verbose output. show color blend RGBA components 
+  -s &lt;sat&gt;  HSV/HSL saturation curve. Greater than 0 (default: 1)
+               1.0 - no curve. lower than 1.0 makes blends more pastel
+               4 numbers can be entered separated by commas
+  -t &lt;val&gt;  HSV/HSL threshold to use average saturation (default: 1)
+               between 0.0 (all averaging) and 1.0 (no averaging)
+  -v &lt;val&gt;  HSV/HSL value curve. Positive integer (default: 0)
+               simulates subtractive coloring for blending 3 or more colors
+               RGB: Red+Green+Blue = White   Cyan+Magenta+Yellow = Black
+               RYB: Red+Yellow+Blue = Black  Green+Magenta+Orange = White
+               1.0 - no curve. lower than 1.0 number makes blends lighter
+               0.0 - use average value instead
+               4 numbers can be entered separated by commas
+  -u &lt;val&gt;  HSV/HSL value advance. Rotates meaning of blend to white and black
+               valid values 0.0 to 120.0 degrees (default: 0)
+  -a &lt;int&gt;  alpha for blend. average=1, minimum=2, maximum=3 (default: 3)
+
+Coloring Options (run 'off_util -H color' for help on color formats)
+  -m &lt;map&gt;  get colors from a color map, or multiple maps separated by commas
+  -O &lt;file&gt; get colors from an OFF file
+               note: -m and -O may be used together
+  -U &lt;opt&gt;  sort colors. s - simple,  u - unique  (by hue, saturation, value)
+  -Z &lt;int&gt;  maximum entries to read from open ended maps (default: 256)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+RGB cube centroid of blue and yellow
+<br /><pre class="cmds">
+col_util -d plot -m map_blue:yellow -M rgb | antiview -v 0.05
+</pre><br /><br />
+
+HSV cylinder centroid of blue and yellow
+<br /><pre class="cmds">
+col_util -d plot -m map_blue:yellow -M hsv -r cylinder | antiview -v 0.05
+</pre><br /><br />
+
+Blend in conic container in HSL mode and RYB mode
+<br /><pre class="cmds">
+col_util -d plot -m map_blue:yellow -M hsl -p -y -r conic | antiview -v 0.05
+</pre><br /><br />
+
+Blend in cubic contain in HSL model and  RYB mode with different saturation modifiers
+<br /><pre class="cmds">
+col_util -d plot -m map_blue:yellow -M hsl -p -y -s 0.8,1.01,2,3 -r cube | antiview -v 0.05
+</pre><br /><br />
+
+Compare additive and subtractive colouring in cubic container
+<br /><pre class="cmds">
+col_util -d plot -m map_red:green:blue -M hsl -p -v 1,2,3,4 | antiview -v 0.05
+col_util -d plot -m map_red:green:blue -M hsl -p -v 1,2,3,4 -c | antiview -v 0.05
+</pre><br /><br />
+
+Plot rainbow colour map in RGB cube
+<br /><pre class="cmds">
+col_util -m rainbow -M rgb | antiview -v 0.03
+</pre><br /><br />
+
+Plot rainbow colour map in HSL cylinder, hexagonal dipyramid, or
+heptagonal dipyramid
+<br /><pre class="cmds">
+col_util -m rainbow -M hsl -r cylinder | antiview -v 0.03
+col_util -m rainbow -M hsl -r hexagonal | antiview -v 0.03
+col_util -m rainbow -M hsl -r hexagonal -S | antiview -v 0.03
+</pre><br /><br />
+
+Display a color wheel of red green and blue
+<br /><pre class="cmds">
+col_util -d wheel -m map_red:green:blue | antiview
+</pre><br /><br />
+
+Display rainbow colour map as a grid or as a color bars
+<br /><pre class="cmds">
+col_util -d grid -m rainbow | antiview
+col_util -d grid -m rainbow*10 -I -w b | antiview
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+<i>col_util</i> was written by
+<a href="http://www.interocitors.com/polyhedra/">Roger Kaufman</a>.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/lat_util.html">lat_util - lattice utilities</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

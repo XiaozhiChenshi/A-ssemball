@@ -1,0 +1,222 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - geodesic - geodesic spheres</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/zono.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->geodesic - geodesic spheres<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: geodesic [options] [input_file]
+
+Read a file in OFF format and make a higher frequency, plane-faced
+polyhedron or geodesic sphere. If input_file is not given the program
+reads from standard input
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -f &lt;freq&gt; pattern frequency, a positive integer (default: 1) giving the
+            number of repeats of the specified pattern along an edge
+  -F &lt;freq&gt; final step frequency, minimum number of edges to move between
+            base vertices in the geodesic model. For a pattern m,n the
+            step frequency is pattern_frequency/(m+n)
+  -c &lt;clss&gt; face division pattern,  1 (Class I, default), 2 (Class II), or
+            two numbers separated by a comma to determine the pattern
+            (Class III, but n,0 or 0,n is Class I, and n,n is Class II)
+  -M &lt;mthd&gt; Method of applying the frequency pattern:
+            s - geodesic sphere (default). The pattern grid is formed
+                from divisions along each edge that make an equal angle
+                at the centre. The geodesic vertices are centred at the
+                origin and projected on to a unit sphere.
+            p - planar. The pattern grid is formed from equal length
+                divisions along each edge, the new vertices lie on the
+                surface of the original polyhedron.
+  -C &lt;cent&gt; centre of points, in form \"x_val,y_val,z_val\" (default: 0,0,0)
+            used for geodesic spheres
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+See also,
+<a href="http://www.antiprism.com/examples/200_programs/650_geodesic/imagelist.html">geodesic examples with images</a>.
+<p>
+A Class II icosahedral geodesic sphere with a pattern frequency of 4
+<br /><pre class="cmds">
+geodesic -c 2 -f 4 ico | antiview
+</pre><br /><br />
+
+A Class II icosahedral geodesic sphere with a final step frequency of 4
+<br /><pre class="cmds">
+geodesic -c 2 -F 4 ico | antiview
+</pre><br /><br />
+
+A planar octahedron with a Class III 1,2 pattern repeated 3 times along
+an edge
+<br /><pre class="cmds">
+geodesic -M p -c 1,2 -f 3 oct | antiview
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+When an input file is specified the geodesic faces are coloured
+the same as the base polyhedron face they corespond to.
+<p>
+Geodesic faces may bridge across an edge of the base polyhedron.
+If the edge belongs to only one face, or is shared by faces with
+opposite orientations, the geodesic faces that bridge the edge
+will not be included in the output.
+<p>
+All the patterns may be specified by a pair of integers. If the
+integers are <i>a</i> and <i>b</i>, a triangular grid is laid out on
+the polyhedron face, having
+<i>(a&sup2;&nbsp;+&nbsp;ab&nbsp;+&nbsp;b&sup2;)/highest&nbsp;common&nbsp;factor(a,&nbsp;b)</i>
+divisions. Taking the faces in order it is posible, starting
+at a face vertex, to step <i>a</i> units in a direction between the edges, then
+turn left and step another <i>b</i> units and, if the point lies on the
+face, this point will be a geodesic vertex. The process can be repeated
+three times from this geodesic vertex, finding the original face vertex
+and up to two new geodesic vertices. The process is continued until all
+the geodesic vertices covering the face have been found.
+<p>
+
+<table border=0 cellspacing="5">
+<tr>
+<td align="center"><b>0,6</b></td>
+    <td align="center"><b>1,5</b></td>
+    <td align="center"><b>2,4</b></td>
+    <td align="center"><b>3,3</b></td>
+    <td align="center"><b>4,2</b></td>
+    <td align="center"><b>5,1</b></td>
+    <td align="center"><b>6,0</b></td>
+</tr>
+<tr>
+    <td><img src="images/geo_T06.gif" alt="" border=0 width=70 height=70></td>
+    <td><img src="images/geo_T15.gif" alt="" border=0 width=70 height=70></td>
+    <td><img src="images/geo_T24.gif" alt="" border=0 width=70 height=70></td>
+    <td><img src="images/geo_T33.gif" alt="" border=0 width=70 height=70></td>
+    <td><img src="images/geo_T42.gif" alt="" border=0 width=70 height=70></td>
+    <td><img src="images/geo_T51.gif" alt="" border=0 width=70 height=70></td>
+    <td><img src="images/geo_T60.gif" alt="" border=0 width=70 height=70></td>
+</tr>
+<tr>
+    <td align="center"><i><small>F6 Class I</small></i></td>
+    <td align="center"><i><small>1x 1,5 Class III</small></i></td>
+    <td align="center"><i><small>2x 1,2 Class III</small></i></td>
+    <td align="center"><i><small>F6 Class II</small></i></td>
+    <td align="center"><i><small>2x 2,1 Class III</small></i></td>
+    <td align="center"><i><small>1x 5,1 Class III</small></i></td>
+    <td align="center"><i><small>F6 Class I</small></i></td>
+</tr>
+</table>
+    
+<p>
+In terms of the general pattern, the Class I pattern is equivalent to
+<i>0,1</i> and the Class II pattern is equivalent to <i>1,1</i>.
+Any pattern <i>a,b</i> with <i>a,&nbsp;b&nbsp;&gt;&nbsp;0</i>
+and <i>a&nbsp;&ne;&nbsp;b</i>
+is a Class III pattern. Class III patterns are chieral, with <i>a,b</i>
+and <i>b,a</i> being mirror images of each other.
+<p>
+A pattern given by a general integer pair has the property that if the
+pattern repeat frequency is <i>f</i> then it is possible to move between
+base vertices by moving <i>fa</i> vertices along one line of edges, then
+turning and moving <i>fb</i> along another line of edges. This establishes
+the relationship <i>F&nbsp;=&nbsp;f(a+b)</i> between the
+<i>-f</i> and <i>-F</i> options.
+<p>
+For some patterns there will be geodesic vertices lying on the polyhedron
+edges between the face vertices. There will be
+<i>f x Highest&nbsp;Common&nbsp;Factor(a,&nbsp;b)</i>
+steps between these geodesic vertices along each polyhedron edge.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/zono.html">zono - zonohedra from OFF files</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

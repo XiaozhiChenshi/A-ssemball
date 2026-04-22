@@ -1,0 +1,209 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - off_align - alignment of OFF files</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/off_util.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->off_align - alignment of OFF files<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: off_align [options] [input_file]
+
+Read a base file and brick file in OFF format, and use vertices or faces
+to position the brick with respect to the base. The brick may be repeated
+symmetrically and/or merged with the base. If input_file is not given the
+program reads from standard input.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -v &lt;arg&gt;  align by vertices, arg is a comma separated list of a brick
+            geometry (if empty use base) optionally followed by 'r' (reverse
+            brick orientation) followed by two, four or six points given as
+            the vertex index number in the OFF files (starting at 0). The base
+            points are all given first and then the brick points.
+            Formats:
+               u1,v1 - point alignment
+                  translation u1-v1 (so v1 of brick moves to u1 of base)
+               u1,u2,v1,v2 - line alignment
+                  point alignment as above followed by rotation through
+                  u1 perpendicular to u1u2 and v1v2 to align u1u2 and v1v2.
+               u1,u2,u3,v1,v2,v3 - face alignment
+                  line alignment as above followed by a rotation
+                  around u1,u2 so v3 lies in plane of u1u2u3.
+  -f &lt;arg&gt;  align by face index, arg is a comma separated list of a brick
+            geometry (if empty use base) followed by up to three numbers
+            separated by commas: base face index, brick face index
+            (default: 0), polygon alignment selection number (default: 0)
+  -F &lt;arg&gt;  align and combine polyhedra by face index, arg is a comma
+            separated list of a brick geometry (if empty use base) followed
+            by up to three numbers: base face index, brick face index
+            (default: 0), polygon alignment selection number (default: 0).
+            Brick is after base, bond vertices are merged, bond faces are
+            removed
+  -M &lt;val&gt;  merge parts, select and order parts in the output, val may be:
+               default (0):    any combined part (-F) followed by any brick
+                               parts (-v, -f)
+               brick (1):      brick parts only
+               base_brick (2): base part, possibly combined (-F). followed
+                               any brick parts (-v, -f)
+               brick_base (3): brick parts (-v, -f), followed by base part
+  -y &lt;sub&gt;  repeat bricks according to symmetry of base. sub is symmetry
+            subgroup (Schoenflies notation) or 'full' optionally followed
+            by a ',' and conjugation type (integer)
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+See also,
+<a href="http://www.antiprism.com/examples/200_programs/630_off_align/imagelist.html">off_align examples with images</a>.
+<p>
+Bond vertices 0,2,4 of an octahedron brick to vertices 0,1,2 of a
+tetrahedron base, and output both parts in the order brick (octahedron)
+followed by base (tetrahedron)
+<br /><pre class="cmds">
+   off_align -M brick_base -v oct,0,1,2,0,2,4 tet | antiview
+</pre><br /><br />
+
+Augment face 1 of an icosahedron, making a polyhedron with 22 faces
+<br /><pre class="cmds">
+   off_align -F tet,1 icosa | antiview
+</pre><br /><br />
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+This can be used to build larger structures using polyhedra
+as bricks.
+<p>
+When using <i>-F</i> the specified faces are deleted from the
+output. Faces in the base polyhderon that come after the bonding
+face will have their index numbers decreased by one in the output.
+<p>
+When aligning models into a collection one at a time with repeated
+calls of off_align, -M brick_base will preserve the brick index
+numbers (useful for a helix), and -M base_brick will preserve
+the base index numbers (useful to add new parts to the same base).
+<p>
+Parts aligned to have coincident faces (in pairs) can have these faces
+removed later with <i>off_util -M b</i>.
+<p>
+Options <i>-f</i> and <i>-F</i> must take an option argument. If the
+argument should be empty then give the argument as a comma <i>','</i>.
+This will indicate that the brick geometry is empty (use the base geometry
+for the brick) and all following parameters are defaults.
+<p>
+For <i>-f</i> and <i>-v</i>, option <i>-y</i> repeats the aligned
+brick with the specified symmetry group. For <i>-F</i>, <i>-y</i> selects a
+face set on the base model to bond to, and there is only one bond for each of
+these faces. If the aligned brick model is not fixed by the same symmetry
+subgroup that fixes the bond face (i.e. maps it onto itself),
+then the final model won't have the symmetry given in -y.
+<p>
+Here is an example aligning the side of a triangular prism with a cube
+face, the result has Oh symmetry
+<br /><pre class="cmds">
+    off_align -f pri3,0,2 -y full cube | antiview
+</pre><br /><br />
+And the same example using bonding, the warning is triggered and the
+result does not have Oh symmetry
+<br /><pre class="cmds">
+    off_align -F pri3,0,2 -y full cube | antiview
+</pre><br /><br />
+
+Sometimes the warning will be redundant
+<br /><pre class="cmds">
+    off_align -F pri3 -y full oct | antiview
+</pre><br /><br />
+Models with coincident vertices will have those vertices merged when
+using option <i>-F</i>.
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/off_util.html">off_util - utilities for OFF files</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>

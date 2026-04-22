@@ -1,0 +1,197 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="styleSheet" href="./css/antiprism_doc.css" type="text/css">
+<link rel="icon" href="./favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+
+<meta name="author" content="Adrian Rossiter">
+<meta HTTP-EQUIV="reply-to" content="adrian@antiprism.com">
+
+
+<meta name="keywords" content="
+        polyhedron, polyhedra, sphere, 3d, vertex, ball, packing, OFF, model, geometry, lattice
+">
+ 
+<title>Antiprism - EXTRA: mmop_origami - multimodular polyhedron origami</title>
+</head>
+
+<body>
+<div class="header surround">
+<div style="float: right; text-align: right;">
+<b>antiprism-0.32</b>
+<br />
+<br />
+<small>
+<a href="./.././doc/index.html">Up</a>
+&nbsp;&nbsp;&nbsp;<a href="./.././doc/poly_weave.html">Next</a>
+</small>
+</div>
+<a href="./index.html"><img src="./css/logo_ant01.gif" alt="Antiprism" border="0" width="251" height="55"></a>
+</div>
+
+
+<h1><!-- TITLE_START -->EXTRA: mmop_origami - multimodular polyhedron origami<!-- TITLE_END --></h1>
+
+
+<center>
+<table class="contbox" width="80%" cellpadding="2" border="0">
+<tr>
+<td>
+<center>
+
+<small><a href="#usage">Usage</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#examples">Examples</a></small>
+<small>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</small>
+<small><a href="#notes">Notes</a></small>
+</center>
+</td>
+</tr>
+</table>
+</center>
+
+<br>
+
+
+
+
+<h2><a name="usage">Usage</a></h2>
+<!-- USAGE_START -->
+
+<pre class="prog_help">
+
+
+Usage: mmop_origami [options] [input_file]
+
+Read a file in OFF format containing an oriented polyhedron, and try to
+convert to a multimodular origami polyhedron form with unit-edged polygons.
+The form is described in Multimodular Origami Polyhedra: Archimedeans,
+Buckyballs and Duality by Rona Gurkewitz, Bennett Arnstein
+http://store.doverpublications.com/0486423174.html
+If input_file is not given the program reads from standard input.
+
+Options
+  -h,--help this help message (run 'off_util -H help' for general help)
+  --version version information
+  -t &lt;val&gt;  truncate polygon edge to this length (default: no truncation
+  -k        keep orientation, affects face centre offset direction (default:
+            set positive orientation)
+  -p &lt;ht&gt;   set initial height of face centres (default: -0.5)
+  -V        colour units with base model vertex colour
+  -m &lt;maps&gt; a comma separated list of colour maps used to transform colour
+            indexes (default: rand), a part consisting of letters from
+            v, e, f, selects the element types to apply the map list to
+            (default 'vef'). The 'compound' map should give useful results.
+  -s &lt;perc&gt; percentage to adjust corrections on iteration (default: 100)
+  -n &lt;itrs&gt; maximum number of iterations, -1 for unlimited (default: 10000)
+  -l &lt;lim&gt;  minimum change of distance/width_of_model to
+            terminate, as negative exponent (default: 15 giving 1e-15)
+  -z &lt;nums&gt; number of iterations between status reports (implies termination
+            check) (0 for final report only, -1 for no report), optionally
+            followed by a comma and the number of iterations between
+            termination checks (0 for report checks only) (default: 1000,1)
+  -o &lt;file&gt; write output to file (default: write to standard output)
+
+</pre>
+<!-- USAGE_END -->
+
+
+
+<h2><a name="examples">Examples</a></h2>
+<!-- EXAMPLES_START -->
+
+See also,
+<a href="http://www.antiprism.com/examples/200_programs/720_mmop_origami/imagelist.html">mmop_origami examples with images</a>.
+<p>
+Cuboctahedron dual
+<br /><pre class="cmds">
+mmop_origami cubo_d | antiview
+</pre><br /><br />
+
+Cuboctahedron dual, preserve base vertex colours
+<br /><pre class="cmds">
+mmop_origami -V cubo_d | antiview
+</pre><br /><br />
+
+Cuboctahedron dual, preserve base vertex colours, 'pop' face centres
+a little
+<br /><pre class="cmds">
+mmop_origami -V -p 0.1 cubo_d | antiview
+</pre><br /><br />
+
+Cuboctahedron dual, preserve base vertex colours, 'pop' face centres
+a lot
+<br /><pre class="cmds">
+mmop_origami -V -p 0.5 cubo_d | antiview
+</pre><br /><br />
+
+Rhombicosidodecahedron dual, truncate modules to 1/3
+<br /><pre class="cmds">
+mmop_origami -p -0.2 -t 1/3 rhombicosid_d | antiview
+</pre><br /><br />
+
+
+<!-- EXAMPLES_END -->
+
+
+<h2><a name="notes">Notes</a></h2>
+<!-- NOTES_START -->
+
+<i>mmop_origami</i> creates models like those described in
+<a href="http://store.doverpublications.com/0486423174.html"> Multimodular
+Origami Polyhedra: Archimedeans, Buckyballs and Duality</a>
+by Rona Gurkewitz, Bennett Arnstein.
+<p>
+A solution will have vertex units made of regular polygons, which are
+creased from centre-to-vertex and centre-to-midedge. Solutions are
+found by iteration. Multiple solutions may exist, and can be found by
+raising or lowering face centres with <i>option -p</i>. Other solutions
+may exist by raising some centres and lowering others, but this is not
+currently supported.
+<p>
+Sometimes the algorithm will 'jam' on a non-solution, and some models do
+not have geometrically realisable solutions.
+Check the quality of solutions by seeing if the triangles have good angles.
+The following is close to a solution, but icreasing the number of
+iterations doesn't improve the solution, so it is probably jammed.
+<br /><pre class="cmds">
+mmop_origami -p 0.1 -s 1 -n 100000 tr_icosid_d | off_report -C F
+</pre><br /><br />
+
+The following model does not have a (symmetrical) solution
+<br /><pre class="cmds">
+mmop_origami pri7 | off_report -C F
+</pre><br /><br />
+<p>
+Convergence is slow on models with flat hexagons in the solution
+<br /><pre class="cmds">
+mmop_origami -n 200000 tr_ico | off_report -C F
+</pre><br /><br />
+<!-- NOTES_END -->
+
+
+
+<p>
+<small>
+Up:
+<a href="./.././doc/index.html">Programs and Documentation</a>
+<br>
+</small>
+
+<small>
+Next:
+<a href="./.././doc/poly_weave.html">EXTRA: poly_weave - weave based on a polyhedron</a>
+</small>
+
+<div class=footer>
+<small>
+   Antiprism Documentation -
+   <a href="http://www.antiprism.com/">http://www.antiprism.com/</a> -
+   Generated 16/6/2024
+</small>
+</div>
+
+</body>
+</html>
