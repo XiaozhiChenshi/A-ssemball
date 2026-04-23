@@ -1,7 +1,8 @@
 extends Control
-class_name Chapter1
+class_name LevelC1L1
 
 signal act_one_completed
+signal chapter_completed(chapter_index: int)
 
 const StructureShapeProviderRef = preload("res://scripts/structure/structure_shape_provider.gd")
 
@@ -13,6 +14,8 @@ const ABNORMAL_CONE_MODE := "abnormal_cone"
 const NORMAL_STAGE_MODE := "normal"
 const ABNORMAL_RESOLVE_DURATION_SEC: float = 3.0
 const POST_CLEAR_NORMAL_HOLD_SEC: float = 5.0
+
+@export var chapter_index: int = 1
 
 @export var light_rotation_speed_deg: float = 0.0
 @export var light_energy: float = 0.85
@@ -114,7 +117,6 @@ var _transition_aftershock_strength: float = 0.0
 var _stage_texture_cache: Dictionary = {}
 
 var _panel_root: Control
-var _act_label: Label
 var _stage_title_label: Label
 var _stage_desc_label: Label
 var _stage_image_frame: AspectRatioContainer
@@ -667,11 +669,11 @@ func _create_stage_image_rect(node_name: String, shader: Shader, transition_dire
 	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	rect.visible = false
 
-	var material := ShaderMaterial.new()
-	material.shader = shader
-	material.set_shader_parameter("transition_direction", transition_direction)
-	rect.material = material
-	_stage_image_filter_materials.append(material)
+	var image_filter_material := ShaderMaterial.new()
+	image_filter_material.shader = shader
+	image_filter_material.set_shader_parameter("transition_direction", transition_direction)
+	rect.material = image_filter_material
+	_stage_image_filter_materials.append(image_filter_material)
 	return rect
 
 
@@ -918,17 +920,17 @@ func _update_right_panel_effect(delta: float) -> void:
 	var response_speed := 4.2 if target_strength > _noise_display_strength else right_panel_filter_settle_speed
 	var smooth_t := clampf(delta * response_speed, 0.0, 1.0)
 	_noise_display_strength = lerpf(_noise_display_strength, target_strength, smooth_t)
-	for material in _stage_image_filter_materials:
-		if material == null:
+	for filter_material in _stage_image_filter_materials:
+		if filter_material == null:
 			continue
-		material.set_shader_parameter("effect_strength", _noise_display_strength)
-		material.set_shader_parameter("abnormal_strength", abnormal_visual_strength)
-		material.set_shader_parameter("click_strength", _click_feedback_strength * click_feedback_burst_strength)
-		material.set_shader_parameter("charge_strength", _stage_clear_charge_strength)
-		material.set_shader_parameter("aftershock_strength", _transition_aftershock_strength)
-		material.set_shader_parameter("burst_strength", _noise_burst_strength)
-		material.set_shader_parameter("image_transition_strength", _stage_image_transition_strength)
-		material.set_shader_parameter("image_transition_progress", _stage_image_transition_progress)
+		filter_material.set_shader_parameter("effect_strength", _noise_display_strength)
+		filter_material.set_shader_parameter("abnormal_strength", abnormal_visual_strength)
+		filter_material.set_shader_parameter("click_strength", _click_feedback_strength * click_feedback_burst_strength)
+		filter_material.set_shader_parameter("charge_strength", _stage_clear_charge_strength)
+		filter_material.set_shader_parameter("aftershock_strength", _transition_aftershock_strength)
+		filter_material.set_shader_parameter("burst_strength", _noise_burst_strength)
+		filter_material.set_shader_parameter("image_transition_strength", _stage_image_transition_strength)
+		filter_material.set_shader_parameter("image_transition_progress", _stage_image_transition_progress)
 	if _noise_material != null:
 		_noise_material.set_shader_parameter("effect_strength", _noise_display_strength)
 		_noise_material.set_shader_parameter("abnormal_strength", abnormal_visual_strength)
@@ -1038,6 +1040,7 @@ func _play_final_transition_to_act_two_entry() -> void:
 	_set_status_text("Act 1 complete. Holding on G(1,4).")
 	_update_hint_and_progress_text()
 	act_one_completed.emit()
+	chapter_completed.emit(chapter_index)
 	await flash.finished
 
 

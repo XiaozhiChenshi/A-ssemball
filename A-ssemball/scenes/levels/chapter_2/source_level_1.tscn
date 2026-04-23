@@ -1,7 +1,7 @@
-[gd_scene load_steps=7 format=3 uid="uid://dt4ehhivf84pd"]
+[gd_scene load_steps=7 format=3]
 
-[ext_resource type="Script" uid="uid://cnq42wsm8d17y" path="res://scripts/chapter_1.gd" id="1_7338h"]
-[ext_resource type="Script" uid="uid://dgpdnfijmh76q" path="res://scripts/line_canvas_2d.gd" id="2_6pf0a"]
+[ext_resource type="Script" path="res://scripts/levels/chapter_2/level_1.gd" id="1_7338h"]
+[ext_resource type="Script" path="res://scripts/line_canvas_2d.gd" id="2_6pf0a"]
 
 [sub_resource type="Environment" id="Environment_black_bg"]
 background_mode = 1
@@ -30,8 +30,6 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_7338h")
-polyhedron_edge_color = Color(1, 1, 1, 1)
-polyhedron_edge_thickness_scale = 1.01
 
 [node name="Chapter1Split" type="HSplitContainer" parent="."]
 layout_mode = 1
@@ -58,15 +56,10 @@ render_target_update_mode = 4
 environment = SubResource("Environment_black_bg")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="Chapter1Split/Left3D/LeftViewport/World3D"]
-transform = Transform3D(0.5557487, -0.48444647, 0.67561454, 0.20931953, 0.86802953, 0.45023376, -0.8045675, -0.1087973, 0.5838104, 1.9191732, 2, 2.2687242)
+transform = Transform3D(-0.5265298, 0.67744875, 0.5136435, -0.27470785, -0.7073374, 0.65131354, 0.80455077, 0.20183402, 0.5585348, 1.9191732, 2, 2.2687242)
 light_energy = 0.7
 light_angular_distance = 2.2
 shadow_enabled = true
-
-[node name="DirectionalLight3D2" type="DirectionalLight3D" parent="Chapter1Split/Left3D/LeftViewport/World3D"]
-transform = Transform3D(0.69644785, -0.56522423, 0.4421335, 0.37965378, 0.81305045, 0.44137517, -0.60895276, -0.13953714, 0.7808367, 1.7796009, 3.489261, 3.0154767)
-light_color = Color(0.87, 0.91, 1, 1)
-light_energy = 0.35
 
 [node name="Camera3D" type="Camera3D" parent="Chapter1Split/Left3D/LeftViewport/World3D"]
 transform = Transform3D(1, 0, 0, 0, 0.961262, 0.275637, 0, -0.275637, 0.961262, 0, 1.2, 4.5)
@@ -75,13 +68,18 @@ fov = 60.0
 
 [node name="ModelRoot" type="Node3D" parent="Chapter1Split/Left3D/LeftViewport/World3D"]
 
-[node name="Dodecahedron" type="MeshInstance3D" parent="Chapter1Split/Left3D/LeftViewport/World3D/ModelRoot"]
+[node name="Sphere" type="MeshInstance3D" parent="Chapter1Split/Left3D/LeftViewport/World3D/ModelRoot"]
 mesh = SubResource("SphereMesh_c6h16")
 
-[node name="Marker" type="MeshInstance3D" parent="Chapter1Split/Left3D/LeftViewport/World3D/ModelRoot/Dodecahedron"]
+[node name="Marker" type="MeshInstance3D" parent="Chapter1Split/Left3D/LeftViewport/World3D/ModelRoot/Sphere"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 0, 0)
 material_override = SubResource("StandardMaterial3D_marker_red")
 mesh = SubResource("SphereMesh_marker")
+
+[node name="DirectionalLight3D2" type="DirectionalLight3D" parent="Chapter1Split/Left3D/LeftViewport/World3D"]
+transform = Transform3D(0.84506905, -0.35203052, 0.40240878, 0.42052916, 0.9024309, -0.09366846, -0.33017194, 0.24838094, 0.9106555, 4.198159, 1.5561981, 4.231961)
+light_color = Color(0.87, 0.91, 1, 1)
+light_energy = 0.35
 
 [node name="RightPanel" type="ColorRect" parent="Chapter1Split"]
 custom_minimum_size = Vector2(320, 0)

@@ -1,8 +1,12 @@
-﻿extends Control
-class_name Chapter2
+extends Control
+class_name LevelC2L1
+
+signal chapter_completed(chapter_index: int)
 
 @export var light_rotation_speed_deg: float = 0.0
 @export var light_energy: float = 0.85
+@export var chapter_index: int = 3
+@export var complete_key: Key = KEY_ENTER
 @export_range(4, 256, 1) var left_sphere_face_count: int = 12
 @export_range(1, 64, 1) var left_sphere_gp_m: int = 1
 @export_range(0, 64, 1) var left_sphere_gp_n: int = 0
@@ -40,6 +44,8 @@ var _right_art_base_size: Vector2 = Vector2.ZERO
 var _vertical_preview_phase: int = 0 # 0 none, 1 holding, 2 returning
 var _vertical_preview_return_at_ms: int = 0
 var _vertical_preview_saved_rotation: Vector3 = Vector3.ZERO
+var _chapter_completed_once: bool = false
+var _chapter_hint_label: Label
 
 
 func _ready() -> void:
@@ -52,6 +58,7 @@ func _ready() -> void:
 	left_3d.resized.connect(_on_layout_changed)
 	chapter_1_split.dragged.connect(_on_chapter_1_split_dragged)
 	_on_layout_changed()
+	_ensure_chapter_hint_label()
 	call_deferred("_sync_right_scene_with_rotation")
 
 
@@ -69,7 +76,7 @@ func set_left_sphere_face_count(face_count: int) -> void:
 
 	# SphereMesh uses radial_segments/rings to control visible polygon density.
 	sphere_mesh.radial_segments = left_sphere_face_count
-	sphere_mesh.rings = maxi(2, int(left_sphere_face_count / 2))
+	sphere_mesh.rings = maxi(2, int(float(left_sphere_face_count) / 2.0))
 
 
 func set_left_sphere_gp(m: int, n: int) -> void:
@@ -112,9 +119,9 @@ func _build_dodecahedron_mesh(target_radius: float) -> ArrayMesh:
 	var max_len := 0.0
 	for v in verts:
 		max_len = maxf(max_len, v.length())
-	var scale := target_radius / maxf(0.0001, max_len)
+	var mesh_scale := target_radius / maxf(0.0001, max_len)
 	for i in range(verts.size()):
-		verts[i] *= scale
+		verts[i] *= mesh_scale
 
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -200,6 +207,15 @@ func _input(event: InputEvent) -> void:
 			var step_dir := 1 if _drag_accum_x > 0.0 else -1
 			_try_rotate_sphere_step(step_dir)
 			_drag_accum_x = 0.0
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _chapter_completed_once:
+		return
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == complete_key:
+		_chapter_completed_once = true
+		get_viewport().set_input_as_handled()
+		chapter_completed.emit(chapter_index)
 
 
 func _setup_default_sphere_material() -> void:
@@ -459,3 +475,21 @@ func _setup_fixed_right_canvas() -> void:
 	line_canvas.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	line_canvas.position = Vector2.ZERO
 	line_canvas.size = _right_art_base_size
+
+
+func _ensure_chapter_hint_label() -> void:
+	if _chapter_hint_label != null:
+		return
+	_chapter_hint_label = Label.new()
+	_chapter_hint_label.name = "ChapterFlowHint"
+	_chapter_hint_label.text = "Chapter 3 ready. Press Enter to continue."
+	_chapter_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_chapter_hint_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_chapter_hint_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_chapter_hint_label.offset_left = 0.0
+	_chapter_hint_label.offset_right = 0.0
+	_chapter_hint_label.offset_top = -40.0
+	_chapter_hint_label.offset_bottom = -10.0
+	_chapter_hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_chapter_hint_label)
+

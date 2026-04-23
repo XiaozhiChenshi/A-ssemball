@@ -1,0 +1,7 @@
+res://scripts/chapter_1.gd
+res://scripts/chapter_2.gd
+res://scripts/chapter_3.gd
+res://scripts/main_entry.gd
+res://scenes/levels/chapter_1/level_1.tscn
+res://scenes/levels/chapter_1/level_2.tscn
+res://scripts/levels/chapter_1/level_2.gd
