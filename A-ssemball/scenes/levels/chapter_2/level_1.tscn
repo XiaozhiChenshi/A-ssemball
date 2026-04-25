@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/levels/level_bridge.gd" id="1_bridge"]
+[ext_resource type="PackedScene" path="res://scenes/levels/chapter_2/source_level_1.tscn" id="2_source"]
 
 [node name="Chapter2Level1" type="Control"]
 layout_mode = 3
@@ -10,9 +11,10 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_bridge")
+source_scene = ExtResource("2_source")
 chapter_number = 2
 level_number = 1
-placeholder_note = "Chapter 2 - Level 1 placeholder."
+placeholder_note = "Chapter 2 - Level 1 (implemented)."
 
 [node name="Background" type="ColorRect" parent="."]
 layout_mode = 1

@@ -37,6 +37,21 @@ signal intro_finished
 @export var shake_amplitude_px: float = 28.0
 @export var shake_amplitude_randomness: float = 0.3
 @export var shake_speed_randomness: float = 0.24
+@export var goal_white_spread_duration_sec: float = 1.45
+@export var goal_white_hold_sec: float = 0.16
+@export var goal_spread_curve: float = 1.6
+@export var goal_charge_start_frequency_hz: float = 0.6
+@export var goal_charge_peak_frequency_hz: float = 8.8
+@export var goal_charge_shake_offset_max: float = 0.9
+@export var goal_charge_shake_rotation_deg_max: float = 26.0
+@export var goal_collapse_duration_sec: float = 1.35
+@export var goal_collapse_shake_start_frequency_hz: float = 5.0
+@export var goal_collapse_shake_peak_frequency_hz: float = 18.0
+@export var goal_collapse_shake_offset_start: float = 0.38
+@export var goal_collapse_shake_offset_peak: float = 1.32
+@export var goal_collapse_shake_rotation_deg_start: float = 12.0
+@export var goal_collapse_shake_rotation_deg_peak: float = 42.0
+@export var goal_vanish_scale_end: float = 0.04
 @export var blackout_duration_sec: float = 0.9
 @export var transition_line_width_px: float = 4.0
 @export var line_rise_duration_sec: float = 0.62
@@ -95,6 +110,8 @@ var _awaiting_goal_click: bool = false
 var _transition_started: bool = false
 var _viewport_base_position: Vector2 = Vector2.ZERO
 var _transition_layer: Control
+var _transition_scatter: ColorRect
+var _transition_scatter_material: ShaderMaterial
 var _transition_black: ColorRect
 var _transition_line: ColorRect
 var _transition_line_glow: ColorRect
@@ -102,6 +119,16 @@ var _move_speed_factor_current: float = 1.0
 var _move_speed_factor_target: float = 1.0
 var _move_speed_random_timer: float = 0.0
 var _goal_base_scale: Vector3 = Vector3.ONE
+var _goal_base_position: Vector3 = Vector3.ZERO
+var _goal_base_rotation: Vector3 = Vector3.ZERO
+var _goal_material: ShaderMaterial
+var _goal_base_color: Color = Color(0.95, 0.95, 0.96, 1.0)
+var _goal_base_fresnel_strength: float = 0.07
+var _goal_vanish_start_position: Vector3 = Vector3.ZERO
+var _goal_vanish_start_rotation: Vector3 = Vector3.ZERO
+var _goal_vanish_start_scale: Vector3 = Vector3.ONE
+var _goal_vanish_start_color: Color = Color(1.0, 1.0, 1.0, 1.0)
+var _goal_transition_time: float = 0.0
 var _board_1_target_y: float = 0.0
 var _board_2_target_y: float = 0.0
 var _board_1_triggered: bool = false
@@ -115,6 +142,7 @@ func _ready() -> void:
 	_base_fov = camera_3d.fov
 	_base_camera_rotation = camera_3d.rotation
 	_goal_base_scale = goal_sphere.scale
+	_capture_goal_visual_baseline()
 	_setup_material_boards()
 	_vignette_material = vignette_overlay.material as ShaderMaterial
 	_vignette_radius_current = vignette_radius_base
@@ -218,6 +246,8 @@ func _update_hint_text() -> void:
 
 func _update_goal_sphere_scale() -> void:
 	if goal_sphere == null:
+		return
+	if _transition_started:
 		return
 	if not goal_progressive_scale_enabled:
 		goal_sphere.scale = _goal_base_scale * maxf(0.001, goal_scale_end)
@@ -545,11 +575,228 @@ func start_post_goal_effect_from_menu() -> void:
 
 
 func _run_goal_transition_sequence() -> void:
+	_restore_goal_visual_baseline()
+	await _play_goal_charge_and_whiteout()
+	vignette_dynamic_enabled = false
+	await _collapse_white_to_black_with_intense_shake()
 	await _play_screen_shake()
 	vignette_dynamic_enabled = false
-	await _tween_black_overlay_alpha(1.0, blackout_duration_sec)
 	await _play_line_rise_and_glow()
 	intro_finished.emit()
+
+
+func _play_goal_charge_and_whiteout() -> void:
+	var duration := maxf(0.01, goal_white_spread_duration_sec)
+	var elapsed := 0.0
+	_goal_transition_time = 0.0
+	while elapsed < duration:
+		var raw_progress := clampf(elapsed / duration, 0.0, 1.0)
+		var spread_progress := pow(raw_progress, maxf(0.1, goal_spread_curve))
+		_apply_goal_charge_state(spread_progress)
+		_update_scatter_overlay(spread_progress, 0.0, 1.0)
+		await get_tree().process_frame
+		var dt := get_process_delta_time()
+		elapsed += dt
+		_goal_transition_time += dt
+	_apply_goal_charge_state(1.0)
+	_update_scatter_overlay(1.0, 0.0, 1.0)
+
+	var hold_duration := maxf(0.0, goal_white_hold_sec)
+	if hold_duration <= 0.0:
+		return
+	var hold_elapsed := 0.0
+	while hold_elapsed < hold_duration:
+		_apply_goal_charge_state(1.0)
+		_update_scatter_overlay(1.0, 0.0, 1.0)
+		await get_tree().process_frame
+		var dt_hold := get_process_delta_time()
+		hold_elapsed += dt_hold
+		_goal_transition_time += dt_hold
+
+
+func _apply_goal_charge_state(progress: float) -> void:
+	var p := clampf(progress, 0.0, 1.0)
+	if goal_sphere != null:
+		goal_sphere.visible = true
+		var charge_freq := lerpf(
+			goal_charge_start_frequency_hz,
+			goal_charge_peak_frequency_hz,
+			pow(p, 1.45)
+		)
+		var charge_phase := TAU * charge_freq * _goal_transition_time
+		var charge_amp := goal_charge_shake_offset_max * (0.22 + pow(p, 1.55) * 0.78)
+		var charge_rot_amp := goal_charge_shake_rotation_deg_max * (0.18 + pow(p, 1.45) * 0.82)
+		goal_sphere.position = _goal_base_position + Vector3(
+			sin(charge_phase * 1.08) * charge_amp + randf_range(-1.0, 1.0) * charge_amp * 0.16,
+			cos(charge_phase * 0.93 + 0.4) * charge_amp * 0.76 + randf_range(-1.0, 1.0) * charge_amp * 0.14,
+			sin(charge_phase * 1.33 + 1.2) * charge_amp * 0.52 + randf_range(-1.0, 1.0) * charge_amp * 0.12
+		)
+		goal_sphere.rotation = _goal_base_rotation + Vector3(
+			deg_to_rad(cos(charge_phase * 1.14) * charge_rot_amp),
+			deg_to_rad(sin(charge_phase * 0.89 + 0.3) * charge_rot_amp),
+			deg_to_rad(sin(charge_phase * 1.28 + 1.0) * charge_rot_amp * 0.68)
+		)
+		goal_sphere.scale = _goal_base_scale * (1.0 + p * 0.28)
+
+	_set_goal_glow_strength(p)
+
+
+func _collapse_white_to_black_with_intense_shake() -> void:
+	if goal_sphere != null:
+		_goal_vanish_start_position = goal_sphere.position
+		_goal_vanish_start_rotation = goal_sphere.rotation
+		_goal_vanish_start_scale = goal_sphere.scale
+
+	_goal_vanish_start_color = _goal_base_color
+	if _goal_material != null:
+		var current_color: Variant = _goal_material.get_shader_parameter("base_color")
+		if current_color is Color:
+			_goal_vanish_start_color = current_color
+
+	var duration := maxf(0.01, maxf(goal_collapse_duration_sec, blackout_duration_sec))
+	var elapsed := 0.0
+	while elapsed < duration:
+		var p := clampf(elapsed / duration, 0.0, 1.0)
+		_apply_goal_collapse_state(p)
+		_update_scatter_overlay(1.0, p, 1.0)
+		if _transition_black != null:
+			_transition_black.color.a = pow(p, 1.35)
+		await get_tree().process_frame
+		var dt := get_process_delta_time()
+		elapsed += dt
+		_goal_transition_time += dt
+	_apply_goal_collapse_state(1.0)
+	_update_scatter_overlay(1.0, 1.0, 0.0)
+	if _transition_black != null:
+		_transition_black.color.a = 1.0
+
+	if goal_sphere != null:
+		goal_sphere.visible = false
+		goal_sphere.position = _goal_base_position
+		goal_sphere.rotation = _goal_base_rotation
+		goal_sphere.scale = _goal_base_scale * maxf(0.001, goal_vanish_scale_end)
+
+
+func _apply_goal_collapse_state(progress: float) -> void:
+	var p := clampf(progress, 0.0, 1.0)
+	if goal_sphere != null:
+		var collapse_freq := lerpf(
+			goal_collapse_shake_start_frequency_hz,
+			goal_collapse_shake_peak_frequency_hz,
+			pow(p, 1.2)
+		)
+		var collapse_phase := TAU * collapse_freq * _goal_transition_time
+		var collapse_amp := lerpf(
+			goal_collapse_shake_offset_start,
+			goal_collapse_shake_offset_peak,
+			pow(p, 1.3)
+		)
+		var collapse_rot_amp := lerpf(
+			goal_collapse_shake_rotation_deg_start,
+			goal_collapse_shake_rotation_deg_peak,
+			pow(p, 1.2)
+		)
+		var collapse_offset := Vector3(
+			sin(collapse_phase * 1.09 + 0.2) * collapse_amp,
+			cos(collapse_phase * 0.97 + 0.9) * collapse_amp * 0.74,
+			sin(collapse_phase * 1.41 + 1.6) * collapse_amp * 0.46
+		) + Vector3(
+			randf_range(-1.0, 1.0),
+			randf_range(-1.0, 1.0),
+			randf_range(-1.0, 1.0)
+		) * (collapse_amp * 0.38)
+		goal_sphere.position = _goal_base_position + collapse_offset
+		goal_sphere.rotation = _goal_base_rotation + Vector3(
+			deg_to_rad(cos(collapse_phase * 1.09) * collapse_rot_amp),
+			deg_to_rad(sin(collapse_phase * 0.91 + 0.5) * collapse_rot_amp),
+			deg_to_rad(sin(collapse_phase * 1.28 + 1.1) * collapse_rot_amp * 0.65)
+		)
+		var end_scale := _goal_base_scale * maxf(0.001, goal_vanish_scale_end)
+		goal_sphere.scale = _goal_vanish_start_scale.lerp(end_scale, p)
+
+	if _goal_material != null:
+		var c := _goal_vanish_start_color
+		c.a = lerpf(_goal_vanish_start_color.a, 0.0, p)
+		_goal_material.set_shader_parameter("base_color", c)
+		_goal_material.set_shader_parameter("fresnel_strength", lerpf(2.15, _goal_base_fresnel_strength, p))
+
+
+func _set_goal_glow_strength(strength: float) -> void:
+	var s := clampf(strength, 0.0, 1.0)
+	if _goal_material != null:
+		var c := Color(1.0, 1.0, 1.0, lerpf(_goal_base_color.a, 1.0, s * 0.85))
+		_goal_material.set_shader_parameter("base_color", c)
+		_goal_material.set_shader_parameter("fresnel_strength", lerpf(_goal_base_fresnel_strength, 2.2, s))
+
+
+func _update_scatter_overlay(spread_progress: float, contract_progress: float, overlay_alpha: float) -> void:
+	if _transition_scatter_material == null:
+		return
+	_transition_scatter_material.set_shader_parameter("spread_progress", clampf(spread_progress, 0.0, 1.0))
+	_transition_scatter_material.set_shader_parameter("contract_progress", clampf(contract_progress, 0.0, 1.0))
+	_transition_scatter_material.set_shader_parameter("overlay_alpha", clampf(overlay_alpha, 0.0, 1.0))
+	_transition_scatter_material.set_shader_parameter("time_sec", _goal_transition_time)
+	_transition_scatter_material.set_shader_parameter("collapse_center", _get_goal_screen_uv())
+
+
+func _get_goal_screen_uv() -> Vector2:
+	if goal_sphere == null:
+		return Vector2(0.5, 0.5)
+	if camera_3d.is_position_behind(goal_sphere.global_position):
+		return Vector2(0.5, 0.5)
+	var projected_center: Vector2 = camera_3d.unproject_position(goal_sphere.global_position)
+	var container_rect := viewport_container.get_global_rect()
+	var screen_center := _subviewport_to_screen_position(projected_center, container_rect)
+	var self_rect := get_global_rect()
+	var uv := Vector2(
+		(screen_center.x - self_rect.position.x) / maxf(1.0, self_rect.size.x),
+		(screen_center.y - self_rect.position.y) / maxf(1.0, self_rect.size.y)
+	)
+	uv.x = clampf(uv.x, 0.0, 1.0)
+	uv.y = clampf(uv.y, 0.0, 1.0)
+	return uv
+
+
+func _capture_goal_visual_baseline() -> void:
+	if goal_sphere == null:
+		return
+	_goal_base_position = goal_sphere.position
+	_goal_base_rotation = goal_sphere.rotation
+	_goal_base_scale = goal_sphere.scale
+	_goal_material = goal_sphere.material_override as ShaderMaterial
+	if _goal_material == null:
+		return
+
+	var base_color: Variant = _goal_material.get_shader_parameter("base_color")
+	if base_color is Color:
+		_goal_base_color = base_color
+	var fresnel: Variant = _goal_material.get_shader_parameter("fresnel_strength")
+	if fresnel is float:
+		_goal_base_fresnel_strength = fresnel
+
+
+func _restore_goal_visual_baseline() -> void:
+	if goal_sphere != null:
+		goal_sphere.visible = true
+		goal_sphere.position = _goal_base_position
+		goal_sphere.rotation = _goal_base_rotation
+		goal_sphere.scale = _goal_base_scale
+	if _goal_material != null:
+		_goal_material.set_shader_parameter("base_color", _goal_base_color)
+		_goal_material.set_shader_parameter("fresnel_strength", _goal_base_fresnel_strength)
+	if _transition_scatter_material != null:
+		_transition_scatter_material.set_shader_parameter("spread_progress", 0.0)
+		_transition_scatter_material.set_shader_parameter("contract_progress", 0.0)
+		_transition_scatter_material.set_shader_parameter("overlay_alpha", 0.0)
+		_transition_scatter_material.set_shader_parameter("time_sec", 0.0)
+		_transition_scatter_material.set_shader_parameter("collapse_center", Vector2(0.5, 0.5))
+	if _transition_black != null:
+		_transition_black.color = Color(0.0, 0.0, 0.0, 0.0)
+	if _transition_line != null:
+		_transition_line.color = Color(1.0, 1.0, 1.0, 0.0)
+	if _transition_line_glow != null:
+		_transition_line_glow.color = Color(1.0, 1.0, 1.0, 0.0)
+	_goal_transition_time = 0.0
 
 
 func _play_screen_shake() -> void:
@@ -616,6 +863,76 @@ func _ensure_transition_nodes() -> void:
 	_transition_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_transition_layer)
 
+	_transition_scatter = ColorRect.new()
+	_transition_scatter.name = "TransitionScatter"
+	_transition_scatter.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_transition_scatter.color = Color(1.0, 1.0, 1.0, 1.0)
+	var scatter_shader := Shader.new()
+	scatter_shader.code = """
+shader_type canvas_item;
+render_mode unshaded;
+
+uniform float spread_progress : hint_range(0.0, 1.0) = 0.0;
+uniform float contract_progress : hint_range(0.0, 1.0) = 0.0;
+uniform float overlay_alpha : hint_range(0.0, 1.0) = 0.0;
+uniform float time_sec = 0.0;
+uniform vec2 collapse_center = vec2(0.5, 0.5);
+
+float hash12(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+vec2 hash22(vec2 p) {
+	float x = hash12(p + vec2(17.13, 4.71));
+	float y = hash12(p + vec2(31.77, 9.23));
+	return vec2(x, y);
+}
+
+float spot_layer(vec2 uv, vec2 grid, float seed_bias, float spread, float t) {
+	vec2 gv = uv * grid;
+	vec2 cell = floor(gv);
+	vec2 f = fract(gv);
+	float h = hash12(cell + seed_bias);
+	vec2 center = hash22(cell + seed_bias * 7.31);
+	float pulse = sin(t * (2.0 + h * 4.5) + h * 19.0) * 0.5 + 0.5;
+	float active = smoothstep(h * 0.95 - 0.08, h * 0.95 + 0.22, spread + pulse * 0.12);
+	float radius = mix(0.08, 0.95, pow(spread, 1.12));
+	float d = distance(f, center);
+	float core = 1.0 - smoothstep(radius * 0.35, radius, d);
+	return core * active;
+}
+
+void fragment() {
+	float spread = clamp(spread_progress, 0.0, 1.0);
+	float contract = clamp(contract_progress, 0.0, 1.0);
+	float t = time_sec;
+
+	float layer = 0.0;
+	layer += spot_layer(UV, vec2(10.0, 6.0), 3.1, spread, t) * 0.35;
+	layer += spot_layer(UV, vec2(17.0, 10.0), 7.4, spread, t) * 0.42;
+	layer += spot_layer(UV, vec2(29.0, 18.0), 11.8, spread, t) * 0.38;
+	layer = clamp(layer, 0.0, 1.0);
+
+	float full_white = smoothstep(0.72, 1.0, spread);
+	float alpha = clamp(layer * 0.75 + full_white, 0.0, 1.0);
+
+	vec2 centered = UV - collapse_center;
+	centered.x *= SCREEN_PIXEL_SIZE.y / SCREEN_PIXEL_SIZE.x;
+	float d = length(centered);
+	float collapse_radius = mix(1.15, 0.08, pow(contract, 0.95));
+	float edge_noise = (hash12(floor(UV * vec2(80.0, 45.0)) + t * 6.0) - 0.5) * 0.12;
+	float retain = 1.0 - smoothstep(collapse_radius + edge_noise, collapse_radius + 0.18 + edge_noise, d);
+	alpha *= retain;
+	alpha *= clamp(overlay_alpha, 0.0, 1.0);
+
+	COLOR = vec4(vec3(1.0), alpha);
+}
+"""
+	_transition_scatter_material = ShaderMaterial.new()
+	_transition_scatter_material.shader = scatter_shader
+	_transition_scatter.material = _transition_scatter_material
+	_transition_layer.add_child(_transition_scatter)
+
 	_transition_black = ColorRect.new()
 	_transition_black.name = "TransitionBlack"
 	_transition_black.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -651,6 +968,13 @@ func _layout_transition_nodes() -> void:
 	_transition_black.offset_top = 0.0
 	_transition_black.offset_right = 0.0
 	_transition_black.offset_bottom = 0.0
+
+	if _transition_scatter != null:
+		_transition_scatter.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_transition_scatter.offset_left = 0.0
+		_transition_scatter.offset_top = 0.0
+		_transition_scatter.offset_right = 0.0
+		_transition_scatter.offset_bottom = 0.0
 
 	var line_width := maxf(1.0, transition_line_width_px)
 	if _transition_line != null:

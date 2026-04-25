@@ -49,6 +49,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			_start_sequence(true, 1)
 			return
+		if event.keycode == KEY_3 or event.keycode == KEY_KP_3:
+			_is_starting = true
+			get_viewport().set_input_as_handled()
+			_start_sequence(true, 2)
+			return
 
 
 func _start_sequence(skip_intro_to_post_click_effect: bool, start_chapter_scene_index: int = 0) -> void:
