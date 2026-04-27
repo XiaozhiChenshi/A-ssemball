@@ -1,12 +1,29 @@
+@tool
 extends Control
 class_name LevelC2L1
 
 signal chapter_completed(chapter_index: int)
 
+const RIGHT_SCENE_TEXTURES: Array[Texture2D] = [
+	preload("res://assets/materials/room2-1-1.png"),
+	preload("res://assets/materials/room2-1-2.png"),
+	preload("res://assets/materials/room2-1-3.png"),
+	preload("res://assets/materials/room2-1-4.png"),
+]
+const SECOND_CUBE_UV_TEXTURE: Texture2D = preload("res://assets/textures/uv1.png")
+const THIRD_CUBE_UV_TEXTURE: Texture2D = preload("res://assets/textures/uv2.png")
+const NOTE_TEXTURES: Array[Texture2D] = [
+	preload("res://assets/textures/note1.png"),
+	preload("res://assets/textures/note2.png"),
+	preload("res://assets/textures/note3.png"),
+	preload("res://assets/textures/note4.png"),
+	preload("res://assets/textures/note5.png"),
+	preload("res://assets/textures/note6.png"),
+]
+
 @export var light_rotation_speed_deg: float = 0.0
 @export var light_energy: float = 0.85
 @export var chapter_index: int = 2
-@export var complete_key: Key = KEY_ENTER
 @export_range(4, 256, 1) var left_sphere_face_count: int = 12
 @export_range(1, 64, 1) var left_sphere_gp_m: int = 1
 @export_range(0, 64, 1) var left_sphere_gp_n: int = 0
@@ -31,6 +48,14 @@ signal chapter_completed(chapter_index: int)
 @export_range(0.0, 0.6, 0.01) var moire_noise_strength: float = 0.16
 @export_range(0.0, 12.0, 0.1) var moire_noise_speed: float = 2.1
 @export_range(120.0, 2200.0, 10.0) var moire_noise_density: float = 1250.0
+@export_range(0.0, 1.0, 0.01) var left_moire_intensity_scale: float = 0.38
+@export_range(0.0, 0.2, 0.001) var camera_frag_shift: float = 0.003
+@export_range(0.0, 0.2, 0.001) var camera_frag_chroma: float = 0.001
+@export_range(0.0, 1.0, 0.01) var camera_frag_noise: float = 0.02
+@export_range(0.0, 1.0, 0.01) var camera_frag_line_mix: float = 0.08
+@export_range(0.0, 4.0, 0.01) var camera_frag_speed: float = 0.6
+@export_range(2.0, 128.0, 1.0) var camera_frag_quantize_steps: float = 32.0
+@export_range(0.0, 1.0, 0.01) var camera_frag_quantize_mix: float = 0.05
 @export_range(0.2, 2.0, 0.01) var orbit_radius: float = 1.08
 @export_range(2.0, 30.0, 0.1) var orbit_period_sec: float = 16.0
 @export_range(-0.5, 0.5, 0.01) var orbit_height: float = 0.0
@@ -48,6 +73,48 @@ signal chapter_completed(chapter_index: int)
 @export_range(0.0, 1.0, 0.01) var final_black_hold_sec: float = 0.2
 @export var anchor_frame_y_offset: float = -1.43
 @export_range(0.1, 20.0, 0.1) var anchor_frame_spin_speed_deg: float = 1.8
+@export_range(0.1, 3.0, 0.01) var intro_frame_fade_in_sec: float = 0.35
+@export_range(0.1, 4.0, 0.01) var intro_split_push_sec: float = 1.0
+@export_range(0.1, 4.0, 0.01) var intro_sphere_appear_sec: float = 1.15
+@export_range(0.05, 2.0, 0.01) var intro_orbit_cube_step_sec: float = 0.14
+@export_range(0.05, 2.0, 0.01) var intro_orbit_cube_scale_sec: float = 0.30
+@export_range(0.1, 3.0, 0.01) var intro_right_panel_fade_in_sec: float = 0.45
+@export_range(0.1, 3.0, 0.01) var intro_anchor_frame_appear_sec: float = 0.36
+@export var start_as_post_intro_scene: bool = false
+@export var preview_post_intro_in_editor: bool = true
+@export_range(0.1, 0.9, 0.01) var locked_left_panel_width_ratio: float = 0.25
+@export var lock_split_dragging: bool = true
+@export var camera_frag_region_use_scene_stage: bool = true
+@export var camera_frag_region_left_px: float = 26.0
+@export var camera_frag_region_top_px: float = 74.0
+@export var camera_frag_region_right_px: float = 26.0
+@export var camera_frag_region_bottom_px: float = 26.0
+@export var camera_frag_region_inset_left_px: float = 0.0
+@export var camera_frag_region_inset_top_px: float = 0.0
+@export var camera_frag_region_inset_right_px: float = 0.0
+@export var camera_frag_region_inset_bottom_px: float = 0.0
+@export var camera_focus_region_use_ratio: bool = true
+@export_range(0.0, 0.49, 0.001) var camera_focus_region_left_ratio: float = 0.073
+@export_range(0.0, 0.49, 0.001) var camera_focus_region_top_ratio: float = 0.113
+@export_range(0.0, 0.49, 0.001) var camera_focus_region_right_ratio: float = 0.098
+@export_range(0.0, 0.49, 0.001) var camera_focus_region_bottom_ratio: float = 0.095
+@export var camera_focus_region_use_absolute_rect: bool = false
+@export var camera_focus_region_x_px: float = 202.0
+@export var camera_focus_region_y_px: float = 22.0
+@export var camera_focus_region_width_px: float = 554.0
+@export var camera_focus_region_height_px: float = 338.0
+@export var camera_focus_region_use_scene_flash_overlay: bool = true
+@export var camera_focus_region_after_intro_only: bool = true
+@export var right_scene_stage_left_px: float = 0.0
+@export var right_scene_stage_top_px: float = 0.0
+@export var right_scene_stage_right_px: float = 0.0
+@export var right_scene_stage_bottom_px: float = 0.0
+@export var right_scene_image_left_px: float = 0.0
+@export var right_scene_image_top_px: float = 0.0
+@export var right_scene_image_right_px: float = 0.0
+@export var right_scene_image_bottom_px: float = 0.0
+@export_range(0.0, 0.8, 0.01) var right_scene_dim_alpha: float = 0.20
+@export_range(1.0, 20.0, 1.0) var split_divider_width_px: float = 5.0
 
 @onready var chapter_1_split: HSplitContainer = $Chapter1Split
 @onready var left_3d: SubViewportContainer = $Chapter1Split/Left3D
@@ -76,9 +143,11 @@ var _vertical_preview_return_at_ms: int = 0
 var _vertical_preview_saved_rotation: Vector3 = Vector3.ZERO
 var _chapter_completed_once: bool = false
 var _chapter_hint_label: Label
+var _continue_button: Button
 var _right_placeholder_root: Control
 var _left_moire_overlay: ColorRect
 var _right_moire_overlay: ColorRect
+var _camera_data_overlay: ColorRect
 var _right_scene_root: Control
 var _right_scene_cards: Array[Control] = []
 var _right_scene_current_index: int = -1
@@ -87,6 +156,7 @@ var _right_scene_transition_id: int = 0
 var _right_scene_status_labels: Array[Label] = []
 var _right_scene_completed: Array[bool] = []
 var _right_scene_flash_overlay: ColorRect
+var _right_scene_dim_overlay: ColorRect
 var _right_scene_flash_tween: Tween
 var _orbit_root: Node3D
 var _orbit_cube_entries: Array[Dictionary] = []
@@ -98,16 +168,41 @@ var _final_transition_running: bool = false
 var _final_curtain_layer: Control
 var _final_curtain_left: ColorRect
 var _final_curtain_right: ColorRect
+var _intro_sequence_running: bool = true
+var _intro_overlay: Control
+var _intro_left_frame: Panel
+var _intro_right_frame: Panel
+var _intro_divider_line: ColorRect
+var _split_programmatic_motion: bool = false
+var _right_frag_region_hint: Control
+var _right_frag_hint_outer_lines: Array[ColorRect] = []
+var _right_frag_hint_inner_lines: Array[ColorRect] = []
+var _right_frag_hint_corner_marks: Array[ColorRect] = []
+var _right_frag_hint_scan_line: ColorRect
+var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+var _orbit_particles_enabled: bool = true
+var _camera_focus_intensity_baseline: Dictionary = {}
+var _camera_focus_intensity_captured: bool = false
+var _camera_focus_intensity_boost_active: bool = false
 
 
 func _ready() -> void:
+	_rng.randomize()
+	if Engine.is_editor_hint():
+		_ready_editor_preview()
+		return
+
 	_validate_input_actions()
+	chapter_1_split.add_theme_constant_override("separation", int(split_divider_width_px))
 	set_left_sphere_gp(left_sphere_gp_m, left_sphere_gp_n)
 	_setup_default_sphere_material()
+	chapter_1_split.dragger_visibility = 1
 	_setup_anchor_frame_cube()
 	_setup_orbit_cubes()
 	_setup_right_placeholder()
 	_setup_moire_overlays()
+	_setup_camera_data_fragment_overlay()
+	_setup_right_fragment_region_hint()
 	_setup_final_curtains()
 	dir_light.light_energy = light_energy
 	right_panel.clip_contents = true
@@ -116,7 +211,40 @@ func _ready() -> void:
 	chapter_1_split.dragged.connect(_on_chapter_1_split_dragged)
 	_on_layout_changed()
 	_ensure_chapter_hint_label()
+	_setup_intro_overlay()
+	if start_as_post_intro_scene:
+		_apply_post_intro_state()
+	else:
+		_apply_intro_hidden_state()
+		call_deferred("_play_intro_sequence")
 	call_deferred("_sync_right_scene_with_rotation")
+
+
+func _ready_editor_preview() -> void:
+	_rng.randomize()
+	set_process(false)
+	set_process_input(false)
+	_validate_input_actions()
+	chapter_1_split.add_theme_constant_override("separation", int(split_divider_width_px))
+	set_left_sphere_gp(left_sphere_gp_m, left_sphere_gp_n)
+	_setup_default_sphere_material()
+	chapter_1_split.dragger_visibility = 1
+	# Keep editor preview lightweight and avoid runtime-only mesh/material warnings.
+	_setup_right_placeholder()
+	_setup_moire_overlays()
+	_setup_camera_data_fragment_overlay()
+	_setup_right_fragment_region_hint()
+	_setup_final_curtains()
+	dir_light.light_energy = light_energy
+	right_panel.clip_contents = true
+	_on_layout_changed()
+	_ensure_chapter_hint_label()
+	_setup_intro_overlay()
+	if preview_post_intro_in_editor:
+		_apply_post_intro_state()
+	else:
+		_apply_intro_hidden_state()
+	_sync_right_scene_with_rotation()
 
 
 func set_left_sphere_face_count(face_count: int) -> void:
@@ -218,6 +346,8 @@ func _process(delta: float) -> void:
 	_update_orbit_cubes(delta)
 	_update_vertical_preview_state()
 	_update_hold_rotation(delta)
+	_update_intro_overlay_geometry()
+	_update_right_fragment_region_hint()
 
 	if light_rotation_speed_deg == 0.0:
 		return
@@ -225,6 +355,9 @@ func _process(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if _intro_sequence_running:
+		return
+
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
 			_try_begin_orbit_cube_drag(event.position)
@@ -247,15 +380,6 @@ func _input(event: InputEvent) -> void:
 			return
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if _chapter_completed_once:
-		return
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == complete_key:
-		_chapter_completed_once = true
-		get_viewport().set_input_as_handled()
-		chapter_completed.emit(chapter_index)
-
-
 func _setup_default_sphere_material() -> void:
 	var shader := Shader.new()
 	shader.code = """
@@ -264,77 +388,93 @@ render_mode depth_draw_opaque, cull_back;
 
 uniform vec4 base_color : source_color = vec4(0.46, 0.30, 0.18, 1.0);
 uniform float roughness : hint_range(0.0, 1.0) = 0.76;
-uniform float specular : hint_range(0.0, 1.0) = 0.16;
-uniform float relief_strength : hint_range(0.0, 0.25) = 0.075;
+uniform float specular_strength : hint_range(0.0, 1.0) = 0.16;
+uniform float relief_strength : hint_range(0.0, 0.25) = 0.048;
 uniform float emission_strength : hint_range(0.0, 1.0) = 0.18;
 uniform float emission_pulse : hint_range(0.0, 1.0) = 0.08;
+uniform float fracture_line_strength : hint_range(0.0, 1.0) = 0.12;
+uniform float fracture_density : hint_range(0.5, 12.0) = 4.6;
+uniform float drift_speed : hint_range(0.0, 2.0) = 0.14;
 
-float hash(vec3 p) {
-	return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453123);
+float hash21(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
 }
 
-float value_noise(vec3 p) {
-	vec3 i = floor(p);
-	vec3 f = fract(p);
+float value_noise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
 	f = f * f * (3.0 - 2.0 * f);
-
-	float n000 = hash(i + vec3(0.0, 0.0, 0.0));
-	float n100 = hash(i + vec3(1.0, 0.0, 0.0));
-	float n010 = hash(i + vec3(0.0, 1.0, 0.0));
-	float n110 = hash(i + vec3(1.0, 1.0, 0.0));
-	float n001 = hash(i + vec3(0.0, 0.0, 1.0));
-	float n101 = hash(i + vec3(1.0, 0.0, 1.0));
-	float n011 = hash(i + vec3(0.0, 1.0, 1.0));
-	float n111 = hash(i + vec3(1.0, 1.0, 1.0));
-
-	float nx00 = mix(n000, n100, f.x);
-	float nx10 = mix(n010, n110, f.x);
-	float nx01 = mix(n001, n101, f.x);
-	float nx11 = mix(n011, n111, f.x);
-	float nxy0 = mix(nx00, nx10, f.y);
-	float nxy1 = mix(nx01, nx11, f.y);
-	return mix(nxy0, nxy1, f.z);
+	float a = hash21(i + vec2(0.0, 0.0));
+	float b = hash21(i + vec2(1.0, 0.0));
+	float c = hash21(i + vec2(0.0, 1.0));
+	float d = hash21(i + vec2(1.0, 1.0));
+	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
-float fbm(vec3 p) {
+float fbm(vec2 p) {
 	float v = 0.0;
 	float a = 0.5;
 	float freq = 1.0;
 	for (int i = 0; i < 5; i++) {
 		v += value_noise(p * freq) * a;
-		freq *= 2.03;
+		freq *= 1.98;
 		a *= 0.5;
 	}
 	return v;
 }
 
+float voronoi_soft(vec2 p, out float edge) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	float md = 10.0;
+	float sd = 10.0;
+	for (int y = -1; y <= 1; y++) {
+		for (int x = -1; x <= 1; x++) {
+			vec2 g = vec2(float(x), float(y));
+			vec2 o = vec2(hash21(i + g), hash21(i + g + vec2(13.1, 7.3)));
+			vec2 r = g + o - f;
+			float d = dot(r, r);
+			if (d < md) {
+				sd = md;
+				md = d;
+			} else if (d < sd) {
+				sd = d;
+			}
+		}
+	}
+	edge = max(0.0, sd - md);
+	return sqrt(md);
+}
+
 void vertex() {
 	vec3 n = normalize(NORMAL);
-	vec3 p = n * 3.4;
-	float low = fbm(p + vec3(0.0, 0.0, TIME * 0.03));
-	float high = fbm(p * 2.9 + vec3(7.3, 4.1, 2.8));
-	float ridged = abs(high * 2.0 - 1.0);
-	float terrain = low * 0.72 + ridged * 0.28;
-	float signed_h = terrain * 2.0 - 1.0;
-	VERTEX += n * signed_h * relief_strength;
+	vec2 uv = UV * fracture_density + vec2(TIME * drift_speed, -TIME * drift_speed * 0.6);
+	float wav = fbm(uv) * 0.6 + fbm(uv * 2.0 + 3.1) * 0.4;
+	float h = (wav * 2.0 - 1.0) * relief_strength;
+	VERTEX += n * h;
 }
 
 void fragment() {
 	vec3 n = normalize(NORMAL);
+	vec2 uv = UV * fracture_density + vec2(TIME * drift_speed * 0.7, TIME * drift_speed * 0.35);
+	float edge;
+	float cell = voronoi_soft(uv, edge);
+	float cracks = 1.0 - smoothstep(0.012, 0.065, edge);
+	float calm_noise = fbm(uv * 0.8 + 4.7);
 	float lat = n.y * 0.5 + 0.5;
-	float bands = sin(UV.y * 24.0 + UV.x * 4.0) * 0.5 + 0.5;
-	vec3 rock = base_color.rgb;
-	vec3 bright = rock * vec3(1.15, 1.1, 1.06);
-	vec3 dark = rock * vec3(0.66, 0.62, 0.58);
-	vec3 albedo = mix(dark, bright, lat * 0.72 + bands * 0.28);
+	vec3 cool = base_color.rgb * vec3(0.78, 0.86, 1.03);
+	vec3 warm = base_color.rgb * vec3(1.05, 0.98, 0.88);
+	vec3 albedo = mix(cool, warm, lat * 0.55 + calm_noise * 0.45);
+	albedo = mix(albedo, albedo * 0.84, smoothstep(0.0, 1.0, cell));
 
 	float pulse = sin(TIME * 1.4) * 0.5 + 0.5;
 	float fres = pow(1.0 - clamp(dot(n, normalize(VIEW)), 0.0, 1.0), 2.8);
+	vec3 fracture_tint = vec3(0.66, 0.86, 1.0) * cracks * fracture_line_strength;
 
 	ALBEDO = albedo;
 	ROUGHNESS = roughness;
-	SPECULAR = specular;
-	EMISSION = albedo * (emission_strength * (0.78 + pulse * emission_pulse)) + vec3(fres * emission_strength * 0.32);
+	SPECULAR = specular_strength;
+	EMISSION = albedo * (emission_strength * (0.72 + pulse * emission_pulse)) + fracture_tint + vec3(fres * emission_strength * 0.24);
 }
 """
 	var sphere_material := ShaderMaterial.new()
@@ -346,6 +486,173 @@ void fragment() {
 	sphere.set_surface_override_material(0, sphere_material)
 	sphere.scale = Vector3.ONE * maxf(0.1, left_sphere_scale)
 	marker.visible = false
+
+
+func _create_particle_sprite_material(sprite_tex: Texture2D, tint: Color, emission_energy: float) -> ORMMaterial3D:
+	var mat := ORMMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.billboard_keep_scale = true
+	mat.albedo_texture = sprite_tex
+	mat.albedo_color = tint
+	mat.emission_enabled = true
+	mat.emission = Color(tint.r, tint.g, tint.b, 1.0)
+	mat.emission_energy_multiplier = emission_energy
+	return mat
+
+
+func _get_particle_sprite_texture(fallback_index: int = 0) -> Texture2D:
+	if NOTE_TEXTURES.is_empty():
+		return null
+	var idx := posmod(fallback_index, NOTE_TEXTURES.size())
+	return NOTE_TEXTURES[idx]
+
+
+func _build_particle_variants(
+	base_emitter: GPUParticles3D,
+	host: Node3D,
+	base_name: String,
+	tint: Color,
+	emission_energy: float
+) -> Array[GPUParticles3D]:
+	var emitters: Array[GPUParticles3D] = []
+	if base_emitter == null:
+		return emitters
+	if NOTE_TEXTURES.is_empty() or host == null:
+		emitters.append(base_emitter)
+		return emitters
+
+	var base_quad := base_emitter.draw_pass_1 as QuadMesh
+	var base_size := Vector2(0.5, 0.5)
+	if base_quad != null:
+		base_size = base_quad.size
+	base_emitter.name = "%s_1" % base_name
+	base_emitter.material_override = _create_particle_sprite_material(NOTE_TEXTURES[0], tint, emission_energy)
+	emitters.append(base_emitter)
+
+	for i in range(1, NOTE_TEXTURES.size()):
+		var emitter := base_emitter.duplicate() as GPUParticles3D
+		if emitter == null:
+			continue
+		emitter.name = "%s_%d" % [base_name, i + 1]
+		emitter.material_override = _create_particle_sprite_material(NOTE_TEXTURES[i], tint, emission_energy)
+		emitter.emitting = false
+		if emitter.draw_pass_1 is QuadMesh:
+			(emitter.draw_pass_1 as QuadMesh).size = base_size
+		host.add_child(emitter)
+		emitters.append(emitter)
+	return emitters
+
+
+func _drive_particle_variants(
+	emitters: Array,
+	active_idx: int,
+	emitting: bool,
+	amount_ratio: float,
+	speed_scale: float
+) -> void:
+	if emitters.is_empty():
+		return
+	var safe_idx := clampi(active_idx, 0, emitters.size() - 1)
+	for i in range(emitters.size()):
+		var ps := emitters[i] as GPUParticles3D
+		if ps == null:
+			continue
+		ps.emitting = emitting and i == safe_idx
+		ps.amount_ratio = amount_ratio
+		ps.speed_scale = speed_scale
+
+
+func _apply_particle_kill_bounds(particle_system: GPUParticles3D, kill_radius: float) -> void:
+	if particle_system == null:
+		return
+	# In local_coords mode particles move in emitter-local space.
+	# Cube center in emitter-local coordinates is `-particle_system.position`.
+	var center_local := -particle_system.position
+	var ext := Vector3.ONE * maxf(0.01, kill_radius)
+	particle_system.visibility_aabb = AABB(center_local - ext, ext * 2.0)
+
+
+func _compute_particle_speed_cap(max_radius: float, spawn_offset: float, lifetime: float, base_velocity_max: float) -> float:
+	var travel_cap := maxf(0.0, max_radius - spawn_offset)
+	return travel_cap / maxf(0.001, lifetime * base_velocity_max)
+
+
+func _capture_camera_focus_intensity_baseline() -> void:
+	if _camera_focus_intensity_captured:
+		return
+	if _camera_data_overlay == null or not is_instance_valid(_camera_data_overlay):
+		return
+	var frag_mat := _camera_data_overlay.material as ShaderMaterial
+	if frag_mat == null:
+		return
+	_camera_focus_intensity_baseline = {
+		"overlay_alpha": _camera_data_overlay.color.a,
+		"shift_strength": float(frag_mat.get_shader_parameter("shift_strength")),
+		"chroma_amount": float(frag_mat.get_shader_parameter("chroma_amount")),
+		"noise_amount": float(frag_mat.get_shader_parameter("noise_amount")),
+		"line_mix": float(frag_mat.get_shader_parameter("line_mix")),
+		"speed": float(frag_mat.get_shader_parameter("speed")),
+		"quantize_steps": float(frag_mat.get_shader_parameter("quantize_steps")),
+		"quantize_mix": float(frag_mat.get_shader_parameter("quantize_mix")),
+	}
+	_camera_focus_intensity_captured = true
+
+
+func _apply_camera_focus_intensity_boost() -> void:
+	if _camera_focus_intensity_boost_active:
+		return
+	_capture_camera_focus_intensity_baseline()
+	if not _camera_focus_intensity_captured:
+		return
+	if _camera_data_overlay == null or not is_instance_valid(_camera_data_overlay):
+		return
+	var frag_mat := _camera_data_overlay.material as ShaderMaterial
+	if frag_mat == null:
+		return
+
+	var base_alpha := float(_camera_focus_intensity_baseline.get("overlay_alpha", 0.35))
+	var boosted_alpha := clampf(base_alpha * 1.95 + 0.12, 0.0, 0.95)
+	_camera_data_overlay.color.a = boosted_alpha
+
+	var base_shift := float(_camera_focus_intensity_baseline.get("shift_strength", camera_frag_shift))
+	var base_chroma := float(_camera_focus_intensity_baseline.get("chroma_amount", camera_frag_chroma))
+	var base_noise := float(_camera_focus_intensity_baseline.get("noise_amount", camera_frag_noise))
+	var base_line := float(_camera_focus_intensity_baseline.get("line_mix", camera_frag_line_mix))
+	var base_speed := float(_camera_focus_intensity_baseline.get("speed", camera_frag_speed))
+	var base_quant_steps := float(_camera_focus_intensity_baseline.get("quantize_steps", camera_frag_quantize_steps))
+	var base_quant_mix := float(_camera_focus_intensity_baseline.get("quantize_mix", camera_frag_quantize_mix))
+
+	frag_mat.set_shader_parameter("shift_strength", clampf(base_shift * 2.6, 0.0, 0.2))
+	frag_mat.set_shader_parameter("chroma_amount", clampf(base_chroma * 2.8 + 0.001, 0.0, 0.2))
+	frag_mat.set_shader_parameter("noise_amount", clampf(base_noise * 2.4 + 0.03, 0.0, 1.0))
+	frag_mat.set_shader_parameter("line_mix", clampf(base_line * 2.6 + 0.18, 0.0, 1.0))
+	frag_mat.set_shader_parameter("speed", clampf(base_speed * 1.4, 0.0, 4.0))
+	frag_mat.set_shader_parameter("quantize_steps", clampf(base_quant_steps * 0.75, 2.0, 128.0))
+	frag_mat.set_shader_parameter("quantize_mix", clampf(base_quant_mix * 2.6 + 0.1, 0.0, 1.0))
+	_camera_focus_intensity_boost_active = true
+
+
+func _restore_camera_focus_intensity() -> void:
+	if not _camera_focus_intensity_captured:
+		return
+	if _camera_data_overlay == null or not is_instance_valid(_camera_data_overlay):
+		return
+	var frag_mat := _camera_data_overlay.material as ShaderMaterial
+	if frag_mat == null:
+		return
+
+	_camera_data_overlay.color.a = float(_camera_focus_intensity_baseline.get("overlay_alpha", 0.35))
+	frag_mat.set_shader_parameter("shift_strength", float(_camera_focus_intensity_baseline.get("shift_strength", camera_frag_shift)))
+	frag_mat.set_shader_parameter("chroma_amount", float(_camera_focus_intensity_baseline.get("chroma_amount", camera_frag_chroma)))
+	frag_mat.set_shader_parameter("noise_amount", float(_camera_focus_intensity_baseline.get("noise_amount", camera_frag_noise)))
+	frag_mat.set_shader_parameter("line_mix", float(_camera_focus_intensity_baseline.get("line_mix", camera_frag_line_mix)))
+	frag_mat.set_shader_parameter("speed", float(_camera_focus_intensity_baseline.get("speed", camera_frag_speed)))
+	frag_mat.set_shader_parameter("quantize_steps", float(_camera_focus_intensity_baseline.get("quantize_steps", camera_frag_quantize_steps)))
+	frag_mat.set_shader_parameter("quantize_mix", float(_camera_focus_intensity_baseline.get("quantize_mix", camera_frag_quantize_mix)))
+	_camera_focus_intensity_boost_active = false
 
 
 func _setup_orbit_cubes() -> void:
@@ -390,61 +697,222 @@ func _setup_orbit_cubes() -> void:
 	for cfg in configs:
 		var pivot := Node3D.new()
 		pivot.name = String(cfg.get("name", "CubePivot"))
+		var is_red_cube := pivot.name == "CubeOrangeRed"
+		var is_second_cube := pivot.name == "CubeLightGreen"
+		var is_third_cube := pivot.name == "CubeCyan"
+		var is_fourth_cube := pivot.name == "CubeLavender"
+		var is_piano_cube := pivot.name == "CubeOrangeRed"
 		_orbit_root.add_child(pivot)
 
 		var cube := MeshInstance3D.new()
 		cube.name = "Cube"
-		var box := BoxMesh.new()
-		box.size = Vector3.ONE * maxf(0.1, orbit_cube_size)
-		cube.mesh = box
+		if is_fourth_cube:
+			var cyl := CylinderMesh.new()
+			cyl.top_radius = maxf(0.02, orbit_cube_size * 0.5)
+			cyl.bottom_radius = maxf(0.02, orbit_cube_size * 0.5)
+			cyl.height = maxf(0.08, orbit_cube_size * 0.8)
+			cyl.radial_segments = 48
+			cube.mesh = cyl
+		else:
+			var box := BoxMesh.new()
+			box.size = Vector3.ONE * maxf(0.1, orbit_cube_size)
+			cube.mesh = box
 
-		var mat := StandardMaterial3D.new()
 		var cube_color := cfg.get("color", Color.WHITE) as Color
-		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mat.albedo_color = cube_color
-		mat.roughness = 0.46
-		mat.specular = 0.2
-		mat.emission_enabled = true
-		mat.emission = Color(cube_color.r, cube_color.g, cube_color.b, 1.0)
-		mat.emission_energy_multiplier = 0.35
-		cube.material_override = mat
+		if is_red_cube:
+			var split_shader := Shader.new()
+			split_shader.code = """
+shader_type spatial;
+render_mode depth_draw_opaque, cull_back;
+
+uniform vec4 left_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+uniform vec4 right_color : source_color = vec4(0.0, 0.0, 0.0, 1.0);
+uniform float split_softness : hint_range(0.0, 0.15) = 0.01;
+uniform float emission_strength : hint_range(0.0, 1.0) = 0.22;
+
+varying vec3 v_local_pos;
+
+void vertex() {
+	v_local_pos = VERTEX;
+}
+
+void fragment() {
+	float t = smoothstep(-split_softness, split_softness, v_local_pos.x);
+	vec3 col = mix(left_color.rgb, right_color.rgb, t);
+	ALBEDO = col;
+	ROUGHNESS = 0.58;
+	SPECULAR = 0.16;
+	EMISSION = col * emission_strength;
+}
+"""
+			var split_mat := ShaderMaterial.new()
+			split_mat.shader = split_shader
+			split_mat.set_shader_parameter("left_color", Color(1.0, 1.0, 1.0, 1.0))
+			split_mat.set_shader_parameter("right_color", Color(0.0, 0.0, 0.0, 1.0))
+			split_mat.set_shader_parameter("split_softness", 0.008)
+			split_mat.set_shader_parameter("emission_strength", 0.24)
+			cube.material_override = split_mat
+		elif is_second_cube:
+			var metal_mat := ORMMaterial3D.new()
+			metal_mat.albedo_texture = SECOND_CUBE_UV_TEXTURE
+			metal_mat.albedo_color = Color(0.95, 0.97, 1.0, 1.0)
+			metal_mat.metallic = 0.95
+			metal_mat.roughness = 0.18
+			metal_mat.emission_enabled = true
+			metal_mat.emission = Color(0.82, 0.9, 1.0, 1.0)
+			metal_mat.emission_energy_multiplier = 0.18
+			cube.material_override = metal_mat
+		elif is_third_cube:
+			var wood_mat_third := ORMMaterial3D.new()
+			wood_mat_third.albedo_texture = THIRD_CUBE_UV_TEXTURE
+			wood_mat_third.albedo_color = Color(0.88, 0.76, 0.60, 1.0)
+			wood_mat_third.metallic = 0.02
+			wood_mat_third.roughness = 0.78
+			wood_mat_third.emission_enabled = true
+			wood_mat_third.emission = Color(0.22, 0.16, 0.10, 1.0)
+			wood_mat_third.emission_energy_multiplier = 0.06
+			cube.material_override = wood_mat_third
+		elif is_fourth_cube:
+			var black_metal_mat := ORMMaterial3D.new()
+			black_metal_mat.albedo_color = Color(0.03, 0.03, 0.04, 1.0)
+			black_metal_mat.metallic = 0.96
+			black_metal_mat.roughness = 0.14
+			black_metal_mat.emission_enabled = true
+			black_metal_mat.emission = Color(0.02, 0.02, 0.025, 1.0)
+			black_metal_mat.emission_energy_multiplier = 0.05
+			cube.material_override = black_metal_mat
+		else:
+			var mat := ORMMaterial3D.new()
+			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			mat.albedo_color = cube_color
+			mat.emission_enabled = true
+			mat.emission = Color(cube_color.r, cube_color.g, cube_color.b, 1.0)
+			mat.emission_energy_multiplier = 0.35
+			cube.material_override = mat
 		pivot.add_child(cube)
 
 		var particles := GPUParticles3D.new()
 		particles.name = "PulseParticles"
-		particles.amount = 48
-		particles.lifetime = 1.15
+		particles.amount = 4
+		particles.lifetime = 1.0
 		particles.one_shot = false
 		particles.emitting = true
-		particles.explosiveness = 0.7
-		particles.randomness = 0.85
+		particles.local_coords = not is_fourth_cube
+		particles.fixed_fps = 60
+		particles.explosiveness = 0.0
+		particles.randomness = 0.55
 		particles.speed_scale = 1.0
-		particles.draw_pass_1 = SphereMesh.new()
-		var particle_mesh := particles.draw_pass_1 as SphereMesh
-		particle_mesh.radius = 0.018
-		particle_mesh.height = 0.036
-
-		var particle_mat := StandardMaterial3D.new()
-		particle_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		particle_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		particle_mat.albedo_color = Color(cube_color.r, cube_color.g, cube_color.b, 0.68)
-		particle_mat.emission_enabled = true
-		particle_mat.emission = Color(cube_color.r, cube_color.g, cube_color.b, 1.0)
-		particle_mat.emission_energy_multiplier = 1.35
-		particles.material_override = particle_mat
+		particles.draw_pass_1 = QuadMesh.new()
+		var particle_quad := particles.draw_pass_1 as QuadMesh
+		var sprite_size := maxf(0.30, orbit_cube_size * 1.08)
+		var inlet_sprite_scale := 0.82 if is_second_cube else 1.0
+		particle_quad.size = Vector2(sprite_size * inlet_sprite_scale, sprite_size * inlet_sprite_scale)
+		var particle_tint := Color(cube_color.r, cube_color.g, cube_color.b, 0.92)
+		var particle_emission := 1.22
+		if is_second_cube:
+			particle_tint = Color(0.92, 0.96, 1.0, 0.94)
+			particle_emission = 1.12
+		elif is_piano_cube:
+			particle_tint = Color(1.0, 0.82, 0.72, 0.9)
+			particle_emission = 1.08
+		particles.material_override = _create_particle_sprite_material(_get_particle_sprite_texture(0), particle_tint, particle_emission)
 
 		var proc := ParticleProcessMaterial.new()
-		proc.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-		proc.emission_sphere_radius = maxf(0.02, orbit_cube_size * 0.26)
-		proc.initial_velocity_min = 0.2
-		proc.initial_velocity_max = 1.35
+		if is_second_cube:
+			# Inlet stream: collected into the cube from one face.
+			particles.amount = 4
+			particles.lifetime = 1.0
+			particles.position = Vector3(-orbit_cube_size * 1.08, 0.0, 0.0)
+			proc.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+			proc.emission_box_extents = Vector3(maxf(0.007, orbit_cube_size * 0.018), orbit_cube_size * 0.13, orbit_cube_size * 0.13)
+			proc.initial_velocity_min = 0.72
+			proc.initial_velocity_max = 1.12
+			proc.direction = Vector3(1.0, 0.0, 0.0)
+			proc.spread = 1.6
+			proc.gravity = Vector3.ZERO
+		elif is_fourth_cube:
+			proc.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+			proc.emission_sphere_radius = maxf(0.02, orbit_cube_size * 0.24)
+			proc.initial_velocity_min = 0.26
+			proc.initial_velocity_max = 0.82
+			proc.gravity = Vector3.ZERO
+			proc.direction = Vector3.UP
+			proc.spread = 0.0
+		else:
+			proc.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+			proc.emission_sphere_radius = maxf(0.02, orbit_cube_size * 0.26)
+			proc.initial_velocity_min = 0.24
+			proc.initial_velocity_max = 0.88
+			proc.gravity = Vector3(0.0, -0.06, 0.0)
+			proc.direction = Vector3(0.0, 1.0, 0.0)
+			proc.spread = 120.0
 		proc.scale_min = 0.28
 		proc.scale_max = 0.8
-		proc.gravity = Vector3(0.0, -0.06, 0.0)
-		proc.direction = Vector3(0.0, 1.0, 0.0)
-		proc.spread = 180.0
+		if is_red_cube:
+			var grad := Gradient.new()
+			grad.add_point(0.0, Color(1.0, 1.0, 1.0, 0.85))
+			grad.add_point(0.5, Color(0.62, 0.62, 0.62, 0.78))
+			grad.add_point(1.0, Color(0.04, 0.04, 0.04, 0.70))
+			var grad_tex := GradientTexture1D.new()
+			grad_tex.gradient = grad
+			proc.color_ramp = grad_tex
 		particles.process_material = proc
-		pivot.add_child(particles)
+		cube.add_child(particles)
+
+		var particles_exit: GPUParticles3D = null
+		if is_second_cube:
+			particles_exit = GPUParticles3D.new()
+			particles_exit.name = "PulseParticlesExit"
+			particles_exit.amount = 4
+			particles_exit.lifetime = 1.0
+			particles_exit.one_shot = false
+			particles_exit.emitting = true
+			particles_exit.local_coords = true
+			particles_exit.fixed_fps = 60
+			particles_exit.explosiveness = 0.0
+			particles_exit.randomness = 0.60
+			particles_exit.speed_scale = 1.0
+			particles_exit.position = Vector3(orbit_cube_size * 0.50, 0.0, 0.0)
+			particles_exit.draw_pass_1 = QuadMesh.new()
+			var exit_quad := particles_exit.draw_pass_1 as QuadMesh
+			exit_quad.size = Vector2(sprite_size * 0.70, sprite_size * 0.70)
+			particles_exit.material_override = _create_particle_sprite_material(
+				_get_particle_sprite_texture(1),
+				Color(0.95, 0.98, 1.0, 0.9),
+				1.15
+			)
+
+			var proc_exit := ParticleProcessMaterial.new()
+			proc_exit.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+			proc_exit.emission_box_extents = Vector3(maxf(0.007, orbit_cube_size * 0.018), orbit_cube_size * 0.13, orbit_cube_size * 0.13)
+			proc_exit.initial_velocity_min = 0.52
+			proc_exit.initial_velocity_max = 0.86
+			proc_exit.scale_min = 0.26
+			proc_exit.scale_max = 0.74
+			proc_exit.gravity = Vector3.ZERO
+			proc_exit.direction = Vector3(1.0, 0.0, 0.0)
+			proc_exit.spread = 26.0
+			particles_exit.process_material = proc_exit
+			cube.add_child(particles_exit)
+
+		var cube_vertex_radius := sqrt(3.0) * orbit_cube_size * 0.5
+		var hard_kill_radius := 3.0 * cube_vertex_radius
+		_apply_particle_kill_bounds(particles, hard_kill_radius)
+		_apply_particle_kill_bounds(particles_exit, hard_kill_radius)
+		var particle_variants := _build_particle_variants(particles, cube, "PulseParticles", particle_tint, particle_emission)
+		var particle_exit_variants: Array[GPUParticles3D] = []
+		if particles_exit != null:
+			particle_exit_variants = _build_particle_variants(
+				particles_exit,
+				cube,
+				"PulseParticlesExit",
+				Color(0.95, 0.98, 1.0, 0.9),
+				1.15
+			)
+		for ps in particle_variants:
+			_apply_particle_kill_bounds(ps as GPUParticles3D, hard_kill_radius)
+		for ps in particle_exit_variants:
+			_apply_particle_kill_bounds(ps as GPUParticles3D, hard_kill_radius)
 
 		_orbit_cube_entries.append(
 			{
@@ -452,6 +920,11 @@ func _setup_orbit_cubes() -> void:
 				"pivot": pivot,
 				"cube": cube,
 				"particles": particles,
+				"particles_exit": particles_exit,
+				"particle_variants": particle_variants,
+				"particle_exit_variants": particle_exit_variants,
+				"is_second_cube": is_second_cube,
+				"is_piano_cube": is_piano_cube,
 				"phase": float(cfg.get("phase", 0.0)),
 				"spin_period": float(cfg.get("spin_period", 1.6)),
 				"particle_period": float(cfg.get("particle_period", 1.2)),
@@ -481,8 +954,14 @@ func _update_orbit_cubes(delta: float) -> void:
 		var pivot := entry.get("pivot") as Node3D
 		var cube := entry.get("cube") as MeshInstance3D
 		var particles := entry.get("particles") as GPUParticles3D
+		var particles_exit := entry.get("particles_exit") as GPUParticles3D
+		var particle_variants := entry.get("particle_variants", []) as Array
+		var particle_exit_variants := entry.get("particle_exit_variants", []) as Array
+		var is_second_cube := bool(entry.get("is_second_cube", false))
+		var is_piano_cube := bool(entry.get("is_piano_cube", false))
 		if pivot == null or cube == null or particles == null:
 			continue
+		var is_fourth_cube := pivot.name == "CubeLavender"
 
 		var phase := float(entry.get("phase", 0.0))
 		var orbit_period := maxf(0.001, orbit_period_sec)
@@ -571,13 +1050,98 @@ func _update_orbit_cubes(delta: float) -> void:
 				entry["state"] = "orbit"
 
 		var spin_speed := TAU / spin_period
-		cube.rotate_x(delta * spin_speed * 0.77)
-		cube.rotate_y(delta * spin_speed * 1.0)
-		cube.rotate_z(delta * spin_speed * 0.63)
+		if is_second_cube:
+			var slow_spin := spin_speed * 0.16
+			cube.rotate_x(delta * slow_spin * 0.35)
+			cube.rotate_y(delta * slow_spin * 0.7)
+			cube.rotate_z(delta * slow_spin * 0.22)
+		else:
+			cube.rotate_x(delta * spin_speed * 0.77)
+			cube.rotate_y(delta * spin_speed * 1.0)
+			cube.rotate_z(delta * spin_speed * 0.63)
 
-		var pulse := maxf(0.0, sin(TAU * (_orbit_time_sec / particle_period) + phase))
-		particles.amount_ratio = 0.18 + pulse * 0.82
-		particles.speed_scale = 0.7 + pulse * 1.25
+		var pulse_period := 1.0
+		var pulse := maxf(0.0, sin(TAU * (_orbit_time_sec / pulse_period) + phase))
+		var note_cycle_count: int = maxi(1, NOTE_TEXTURES.size())
+		var cycle_tick: int = int(floor(_orbit_time_sec / 0.25))
+		var cycle_idx: int = 0
+		if note_cycle_count > 0:
+			cycle_idx = int(cycle_tick % note_cycle_count)
+		# r = distance from cube rotation center to cube vertex.
+		var cube_vertex_radius := sqrt(3.0) * orbit_cube_size * 0.5
+		var max_note_radius := 2.0 * cube_vertex_radius
+		if is_fourth_cube:
+			max_note_radius = 2.7 * cube_vertex_radius
+		var hard_kill_radius := 3.0 * cube_vertex_radius
+		for ps in particle_variants:
+			_apply_particle_kill_bounds(ps as GPUParticles3D, hard_kill_radius)
+		for ps in particle_exit_variants:
+			_apply_particle_kill_bounds(ps as GPUParticles3D, hard_kill_radius)
+		var inlet_lifetime := maxf(0.001, particles.lifetime)
+		var inlet_proc := particles.process_material as ParticleProcessMaterial
+		var inlet_base_vmax := 1.0
+		if inlet_proc != null:
+			inlet_base_vmax = maxf(0.001, inlet_proc.initial_velocity_max)
+		if is_second_cube:
+			var inlet_amount := 1.0
+			var inlet_target_speed := 0.38 + pulse * 0.16
+			var inlet_offset := absf(orbit_cube_size * 1.08)
+			var inlet_soft_speed_cap := _compute_particle_speed_cap(max_note_radius, inlet_offset, inlet_lifetime, inlet_base_vmax)
+			var inlet_hard_speed_cap := _compute_particle_speed_cap(hard_kill_radius, inlet_offset, inlet_lifetime, inlet_base_vmax)
+			var inlet_speed_cap := minf(inlet_soft_speed_cap, inlet_hard_speed_cap)
+			var inlet_speed := minf(inlet_target_speed, inlet_speed_cap)
+			_drive_particle_variants(particle_variants, cycle_idx, _orbit_particles_enabled, inlet_amount, inlet_speed)
+			if particle_variants.is_empty():
+				particles.emitting = _orbit_particles_enabled
+			if particle_variants.is_empty():
+				particles.amount_ratio = inlet_amount
+				particles.speed_scale = inlet_speed
+			if particles_exit != null:
+				var outlet_lifetime := maxf(0.001, particles_exit.lifetime)
+				var outlet_proc := particles_exit.process_material as ParticleProcessMaterial
+				var outlet_base_vmax := 1.0
+				if outlet_proc != null:
+					outlet_base_vmax = maxf(0.001, outlet_proc.initial_velocity_max)
+				var outlet_amount := 1.0
+				var outlet_target_speed := 0.36 + pulse * 0.16
+				var outlet_offset := absf(orbit_cube_size * 0.50)
+				var outlet_soft_speed_cap := _compute_particle_speed_cap(max_note_radius, outlet_offset, outlet_lifetime, outlet_base_vmax)
+				var outlet_hard_speed_cap := _compute_particle_speed_cap(hard_kill_radius, outlet_offset, outlet_lifetime, outlet_base_vmax)
+				var outlet_speed_cap := minf(outlet_soft_speed_cap, outlet_hard_speed_cap)
+				var outlet_speed := minf(outlet_target_speed, outlet_speed_cap)
+				_drive_particle_variants(particle_exit_variants, cycle_idx, _orbit_particles_enabled, outlet_amount, outlet_speed)
+				if particle_exit_variants.is_empty():
+					particles_exit.emitting = _orbit_particles_enabled
+				if particle_exit_variants.is_empty():
+					particles_exit.amount_ratio = outlet_amount
+					particles_exit.speed_scale = outlet_speed
+		elif is_piano_cube:
+			var piano_amount := 1.0
+			var piano_target_speed := 0.30 + pulse * 0.18
+			var piano_soft_speed_cap := _compute_particle_speed_cap(max_note_radius, 0.0, inlet_lifetime, inlet_base_vmax)
+			var piano_hard_speed_cap := _compute_particle_speed_cap(hard_kill_radius, 0.0, inlet_lifetime, inlet_base_vmax)
+			var piano_speed_cap := minf(piano_soft_speed_cap, piano_hard_speed_cap)
+			var piano_speed := minf(piano_target_speed, piano_speed_cap)
+			_drive_particle_variants(particle_variants, cycle_idx, _orbit_particles_enabled, piano_amount, piano_speed)
+			if particle_variants.is_empty():
+				particles.emitting = _orbit_particles_enabled
+			if particle_variants.is_empty():
+				particles.amount_ratio = piano_amount
+				particles.speed_scale = piano_speed
+		else:
+			var orbit_amount := 1.0
+			var orbit_target_speed := 0.34 + pulse * 0.20
+			var orbit_soft_speed_cap := _compute_particle_speed_cap(max_note_radius, 0.0, inlet_lifetime, inlet_base_vmax)
+			var orbit_hard_speed_cap := _compute_particle_speed_cap(hard_kill_radius, 0.0, inlet_lifetime, inlet_base_vmax)
+			var orbit_speed_cap := minf(orbit_soft_speed_cap, orbit_hard_speed_cap)
+			var orbit_speed := minf(orbit_target_speed, orbit_speed_cap)
+			_drive_particle_variants(particle_variants, cycle_idx, _orbit_particles_enabled, orbit_amount, orbit_speed)
+			if particle_variants.is_empty():
+				particles.emitting = _orbit_particles_enabled
+			if particle_variants.is_empty():
+				particles.amount_ratio = orbit_amount
+				particles.speed_scale = orbit_speed
+
 		_orbit_cube_entries[i] = entry
 
 
@@ -783,6 +1347,288 @@ func _setup_final_curtains() -> void:
 	_final_curtain_layer.add_child(_final_curtain_right)
 
 
+func _setup_intro_overlay() -> void:
+	if _intro_overlay != null and is_instance_valid(_intro_overlay):
+		return
+
+	_intro_overlay = Control.new()
+	_intro_overlay.name = "IntroSplitOverlay"
+	_intro_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_intro_overlay.offset_left = 0.0
+	_intro_overlay.offset_top = 0.0
+	_intro_overlay.offset_right = 0.0
+	_intro_overlay.offset_bottom = 0.0
+	_intro_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_intro_overlay.modulate = Color(1.0, 1.0, 1.0, 0.0)
+	add_child(_intro_overlay)
+	_intro_overlay.move_to_front()
+
+	_intro_left_frame = _create_intro_frame_panel("IntroLeftFrame")
+	_intro_overlay.add_child(_intro_left_frame)
+
+	_intro_right_frame = _create_intro_frame_panel("IntroRightFrame")
+	_intro_overlay.add_child(_intro_right_frame)
+
+	_intro_divider_line = ColorRect.new()
+	_intro_divider_line.name = "IntroDividerLine"
+	_intro_divider_line.color = Color(0.95, 0.95, 0.95, 0.95)
+	_intro_divider_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_intro_overlay.add_child(_intro_divider_line)
+	_update_intro_overlay_geometry()
+
+
+func _create_intro_frame_panel(node_name: String) -> Panel:
+	var panel := Panel.new()
+	panel.name = node_name
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.0, 0.0, 0.0, 0.0)
+	style.border_width_left = 0
+	style.border_width_top = 0
+	style.border_width_right = 0
+	style.border_width_bottom = 0
+	style.border_color = Color(0.0, 0.0, 0.0, 0.0)
+	panel.add_theme_stylebox_override("panel", style)
+	return panel
+
+
+func _get_split_x() -> float:
+	var w := maxf(1.0, size.x)
+	return clampf(w * 0.5 + float(chapter_1_split.split_offset), 0.0, w)
+
+
+func _update_intro_overlay_geometry() -> void:
+	if _intro_overlay == null or not is_instance_valid(_intro_overlay):
+		return
+	if _intro_left_frame == null or _intro_right_frame == null or _intro_divider_line == null:
+		return
+
+	var split_x := _get_split_x()
+	var w := maxf(1.0, size.x)
+	var h := maxf(1.0, size.y)
+	var divider_w := maxf(1.0, split_divider_width_px)
+
+	_intro_left_frame.position = Vector2(0.0, 0.0)
+	_intro_left_frame.size = Vector2(maxf(1.0, split_x), h)
+
+	_intro_right_frame.position = Vector2(split_x, 0.0)
+	_intro_right_frame.size = Vector2(maxf(1.0, w - split_x), h)
+
+	_intro_divider_line.position = Vector2(split_x - divider_w * 0.5, 0.0)
+	_intro_divider_line.size = Vector2(divider_w, h)
+
+
+func _apply_intro_hidden_state() -> void:
+	_intro_sequence_running = true
+	_orbit_particles_enabled = false
+
+	if _right_placeholder_root != null:
+		_right_placeholder_root.visible = false
+		_right_placeholder_root.modulate.a = 0.0
+
+	if _right_moire_overlay != null:
+		_right_moire_overlay.visible = false
+
+	if _left_moire_overlay != null:
+		_left_moire_overlay.visible = true
+		_left_moire_overlay.modulate.a = 0.0
+
+	if _camera_data_overlay != null:
+		_camera_data_overlay.visible = true
+		_camera_data_overlay.color.a = 0.0
+
+	sphere.visible = false
+	sphere.scale = Vector3.ONE * 0.02
+
+	if _orbit_root != null:
+		_orbit_root.visible = false
+		for entry in _orbit_cube_entries:
+			var cube := (entry as Dictionary).get("cube") as MeshInstance3D
+			var particles := (entry as Dictionary).get("particles") as GPUParticles3D
+			var particles_exit := (entry as Dictionary).get("particles_exit") as GPUParticles3D
+			var particle_variants := (entry as Dictionary).get("particle_variants", []) as Array
+			var particle_exit_variants := (entry as Dictionary).get("particle_exit_variants", []) as Array
+			var pivot := (entry as Dictionary).get("pivot") as Node3D
+			if pivot != null:
+				pivot.visible = true
+			if cube != null:
+				cube.scale = Vector3.ONE * 0.02
+			if particles != null:
+				particles.emitting = false
+			if particles_exit != null:
+				particles_exit.emitting = false
+			_drive_particle_variants(particle_variants, 0, false, 0.0, 0.0)
+			_drive_particle_variants(particle_exit_variants, 0, false, 0.0, 0.0)
+
+	if _anchor_frame_root != null:
+		_anchor_frame_root.visible = false
+		_anchor_frame_root.scale = Vector3.ONE * 0.02
+
+	chapter_1_split.split_offset = 0
+	_update_intro_overlay_geometry()
+
+
+func _apply_post_intro_state() -> void:
+	_intro_sequence_running = false
+	_split_programmatic_motion = false
+	_orbit_particles_enabled = true
+	chapter_1_split.split_offset = _get_locked_split_offset()
+	_update_intro_overlay_geometry()
+
+	if _intro_overlay != null:
+		_intro_overlay.modulate.a = 0.0
+		_intro_overlay.visible = false
+
+	if _right_placeholder_root != null:
+		_right_placeholder_root.visible = true
+		_right_placeholder_root.modulate.a = 1.0
+
+	if _right_moire_overlay != null:
+		_right_moire_overlay.visible = true
+
+	if _left_moire_overlay != null:
+		_left_moire_overlay.visible = true
+		_left_moire_overlay.modulate.a = 1.0
+
+	if _camera_data_overlay != null:
+		_camera_data_overlay.visible = true
+		_camera_data_overlay.color.a = 0.35
+
+	sphere.visible = true
+	sphere.scale = Vector3.ONE * maxf(0.1, left_sphere_scale)
+
+	if _orbit_root != null:
+		_orbit_root.visible = true
+		for entry in _orbit_cube_entries:
+			var cube := (entry as Dictionary).get("cube") as MeshInstance3D
+			var particles := (entry as Dictionary).get("particles") as GPUParticles3D
+			var particles_exit := (entry as Dictionary).get("particles_exit") as GPUParticles3D
+			var particle_variants := (entry as Dictionary).get("particle_variants", []) as Array
+			var particle_exit_variants := (entry as Dictionary).get("particle_exit_variants", []) as Array
+			var pivot := (entry as Dictionary).get("pivot") as Node3D
+			if pivot != null:
+				pivot.visible = true
+			if cube != null:
+				cube.scale = Vector3.ONE
+			if particles != null:
+				particles.emitting = true
+				particles.amount_ratio = 1.0
+			if particles_exit != null:
+				particles_exit.emitting = true
+				particles_exit.amount_ratio = 1.0
+			_drive_particle_variants(particle_variants, 0, true, 1.0, 1.0)
+			_drive_particle_variants(particle_exit_variants, 0, true, 1.0, 1.0)
+
+	if _anchor_frame_root != null:
+		_anchor_frame_root.visible = true
+		_anchor_frame_root.scale = Vector3.ONE
+
+	_update_camera_data_overlay_region()
+	_capture_camera_focus_intensity_baseline()
+	_apply_camera_focus_intensity_boost()
+	_update_right_fragment_region_hint()
+
+
+func _play_intro_sequence() -> void:
+	_intro_overlay.visible = true
+	_orbit_particles_enabled = false
+	var frame_tween := create_tween()
+	frame_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	frame_tween.tween_property(_intro_overlay, "modulate:a", 1.0, maxf(0.01, intro_frame_fade_in_sec))
+	await frame_tween.finished
+
+	var pre_moire_tween := create_tween()
+	pre_moire_tween.set_parallel(true)
+	pre_moire_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	if _left_moire_overlay != null:
+		pre_moire_tween.tween_property(_left_moire_overlay, "modulate:a", 1.0, 0.32)
+	if _camera_data_overlay != null:
+		pre_moire_tween.tween_property(_camera_data_overlay, "color:a", 0.35, 0.36)
+	await pre_moire_tween.finished
+
+	var target_split_offset := _get_locked_split_offset()
+	var split_tween := create_tween()
+	split_tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	_split_programmatic_motion = true
+	split_tween.tween_property(chapter_1_split, "split_offset", target_split_offset, maxf(0.01, intro_split_push_sec))
+	await split_tween.finished
+	_split_programmatic_motion = false
+
+	sphere.visible = true
+	var sphere_tween := create_tween()
+	sphere_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	sphere_tween.tween_property(sphere, "scale", Vector3.ONE * maxf(0.1, left_sphere_scale), maxf(0.01, intro_sphere_appear_sec))
+	await sphere_tween.finished
+
+	if _orbit_root != null:
+		_orbit_root.visible = true
+		for i in range(_orbit_cube_entries.size()):
+			var entry := _orbit_cube_entries[i] as Dictionary
+			var cube := entry.get("cube") as MeshInstance3D
+			var particles := entry.get("particles") as GPUParticles3D
+			var particles_exit := entry.get("particles_exit") as GPUParticles3D
+			var particle_variants := entry.get("particle_variants", []) as Array
+			var particle_exit_variants := entry.get("particle_exit_variants", []) as Array
+			if cube == null:
+				continue
+			var cube_tween := create_tween()
+			cube_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			cube_tween.tween_property(cube, "scale", Vector3.ONE, maxf(0.01, intro_orbit_cube_scale_sec))
+			await cube_tween.finished
+			if particles != null:
+				particles.emitting = false
+				particles.amount_ratio = 1.0
+			if particles_exit != null:
+				particles_exit.emitting = false
+				particles_exit.amount_ratio = 1.0
+			_drive_particle_variants(particle_variants, 0, false, 1.0, 1.0)
+			_drive_particle_variants(particle_exit_variants, 0, false, 1.0, 1.0)
+			if i < _orbit_cube_entries.size() - 1:
+				await get_tree().create_timer(maxf(0.01, intro_orbit_cube_step_sec)).timeout
+
+	if _right_placeholder_root != null:
+		_right_placeholder_root.visible = true
+		var right_tween := create_tween()
+		right_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		right_tween.tween_property(_right_placeholder_root, "modulate:a", 1.0, maxf(0.01, intro_right_panel_fade_in_sec))
+		await right_tween.finished
+
+	if _right_moire_overlay != null:
+		_right_moire_overlay.visible = true
+	if _left_moire_overlay != null:
+		_left_moire_overlay.visible = true
+
+	if _anchor_frame_root != null:
+		_anchor_frame_root.visible = true
+		var anchor_tween := create_tween()
+		anchor_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		anchor_tween.tween_property(_anchor_frame_root, "scale", Vector3.ONE, maxf(0.01, intro_anchor_frame_appear_sec))
+		await anchor_tween.finished
+
+	_orbit_particles_enabled = true
+	if _orbit_root != null:
+		for entry in _orbit_cube_entries:
+			var particles := (entry as Dictionary).get("particles") as GPUParticles3D
+			var particles_exit := (entry as Dictionary).get("particles_exit") as GPUParticles3D
+			var particle_variants := (entry as Dictionary).get("particle_variants", []) as Array
+			var particle_exit_variants := (entry as Dictionary).get("particle_exit_variants", []) as Array
+			if particles != null:
+				particles.emitting = true
+			if particles_exit != null:
+				particles_exit.emitting = true
+			_drive_particle_variants(particle_variants, 0, true, 1.0, 1.0)
+			_drive_particle_variants(particle_exit_variants, 0, true, 1.0, 1.0)
+
+	var hide_frame_tween := create_tween()
+	hide_frame_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	hide_frame_tween.tween_property(_intro_overlay, "modulate:a", 0.0, 0.22)
+	await hide_frame_tween.finished
+	_intro_overlay.visible = false
+	_intro_sequence_running = false
+	_capture_camera_focus_intensity_baseline()
+	_apply_camera_focus_intensity_boost()
+
+
 func _setup_anchor_frame_cube() -> void:
 	if _anchor_frame_root != null and is_instance_valid(_anchor_frame_root):
 		return
@@ -803,13 +1649,11 @@ func _setup_anchor_frame_cube() -> void:
 	var rod_mesh_z := BoxMesh.new()
 	rod_mesh_z.size = Vector3(rod_t, rod_t, frame_size)
 
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.04, 0.04, 0.04, 1.0)
-	mat.roughness = 0.82
-	mat.specular = 0.04
+	var mat := ORMMaterial3D.new()
+	mat.albedo_color = Color(0.36, 0.38, 0.42, 1.0)
 	mat.emission_enabled = true
-	mat.emission = Color(0.05, 0.05, 0.05, 1.0)
-	mat.emission_energy_multiplier = 0.08
+	mat.emission = Color(0.40, 0.44, 0.50, 1.0)
+	mat.emission_energy_multiplier = 0.28
 
 	var x_edges := [
 		Vector3(0.0, half, half),
@@ -863,134 +1707,108 @@ func _update_anchor_frame_cube(delta: float) -> void:
 
 
 func _setup_right_placeholder() -> void:
-	line_canvas.clear_lines()
-	line_canvas.visible = false
-	if _right_placeholder_root != null and is_instance_valid(_right_placeholder_root):
-		return
+	if line_canvas != null and is_instance_valid(line_canvas):
+		if line_canvas.has_method("clear_lines"):
+			line_canvas.clear_lines()
+		line_canvas.visible = false
 
-	_right_placeholder_root = Control.new()
-	_right_placeholder_root.name = "RightPlaceholder"
-	_right_placeholder_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_right_placeholder_root.offset_left = 0.0
-	_right_placeholder_root.offset_top = 0.0
-	_right_placeholder_root.offset_right = 0.0
-	_right_placeholder_root.offset_bottom = 0.0
-	_right_placeholder_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	right_panel.add_child(_right_placeholder_root)
-	_right_placeholder_root.move_to_front()
+	_right_placeholder_root = right_panel.get_node_or_null("RightPlaceholder") as Control
+	if _right_placeholder_root == null:
+		_right_placeholder_root = Control.new()
+		_right_placeholder_root.name = "RightPlaceholder"
+		_right_placeholder_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_right_placeholder_root.offset_left = 0.0
+		_right_placeholder_root.offset_top = 0.0
+		_right_placeholder_root.offset_right = 0.0
+		_right_placeholder_root.offset_bottom = 0.0
+		_right_placeholder_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		right_panel.add_child(_right_placeholder_root)
 
-	var bg := ColorRect.new()
-	bg.name = "PlaceholderBg"
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.offset_left = 0.0
-	bg.offset_top = 0.0
-	bg.offset_right = 0.0
-	bg.offset_bottom = 0.0
-	bg.color = Color(0.09, 0.08, 0.06, 1.0)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_right_placeholder_root.add_child(bg)
+	var bg := _right_placeholder_root.get_node_or_null("PlaceholderBg") as ColorRect
+	if bg == null:
+		bg = ColorRect.new()
+		bg.name = "PlaceholderBg"
+		bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+		bg.offset_left = 0.0
+		bg.offset_top = 0.0
+		bg.offset_right = 0.0
+		bg.offset_bottom = 0.0
+		bg.color = Color(0.09, 0.08, 0.06, 1.0)
+		bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_right_placeholder_root.add_child(bg)
 
-	var title := Label.new()
-	title.name = "PlaceholderTitle"
-	title.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	title.offset_left = 0.0
-	title.offset_top = 18.0
-	title.offset_right = 0.0
-	title.offset_bottom = 58.0
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	title.text = "Chapter 2-1 场景占位（Scene 1~4）"
-	title.add_theme_font_size_override("font_size", 22)
-	title.modulate = Color(0.96, 0.93, 0.84, 1.0)
-	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_right_placeholder_root.add_child(title)
+	_right_scene_root = _right_placeholder_root.get_node_or_null("SceneStage") as Control
+	if _right_scene_root == null:
+		_right_scene_root = Control.new()
+		_right_scene_root.name = "SceneStage"
+		_right_scene_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_right_scene_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_right_placeholder_root.add_child(_right_scene_root)
+	_right_scene_root.offset_left = right_scene_stage_left_px
+	_right_scene_root.offset_top = right_scene_stage_top_px
+	_right_scene_root.offset_right = -right_scene_stage_right_px
+	_right_scene_root.offset_bottom = -right_scene_stage_bottom_px
 
-	_right_scene_root = Control.new()
-	_right_scene_root.name = "SceneStage"
-	_right_scene_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_right_scene_root.offset_left = 26.0
-	_right_scene_root.offset_top = 74.0
-	_right_scene_root.offset_right = -26.0
-	_right_scene_root.offset_bottom = -26.0
-	_right_scene_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_right_placeholder_root.add_child(_right_scene_root)
 	_right_scene_cards.clear()
 	_right_scene_status_labels.clear()
 	_right_scene_completed.clear()
 
-	var scene_cards: Array[Dictionary] = [
-		{"title": "场景1占位符", "color_name": "红色", "bg": Color(0.72, 0.20, 0.22, 1.0)},
-		{"title": "场景2占位符", "color_name": "绿色", "bg": Color(0.25, 0.60, 0.27, 1.0)},
-		{"title": "场景3占位符", "color_name": "蓝色", "bg": Color(0.20, 0.38, 0.72, 1.0)},
-		{"title": "场景4占位符", "color_name": "紫色", "bg": Color(0.54, 0.34, 0.70, 1.0)},
-	]
-	for info in scene_cards:
-		var panel := PanelContainer.new()
-		panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-		panel.offset_left = 0.0
-		panel.offset_top = 0.0
-		panel.offset_right = 0.0
-		panel.offset_bottom = 0.0
-		panel.custom_minimum_size = Vector2.ZERO
-		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var style := StyleBoxFlat.new()
-		style.bg_color = info.get("bg", Color(0.3, 0.3, 0.3, 1.0)) as Color
-		style.border_width_left = 3
-		style.border_width_top = 3
-		style.border_width_right = 3
-		style.border_width_bottom = 3
-		style.border_color = Color(1.0, 1.0, 1.0, 0.35)
-		style.corner_radius_top_left = 12
-		style.corner_radius_top_right = 12
-		style.corner_radius_bottom_right = 12
-		style.corner_radius_bottom_left = 12
-		panel.add_theme_stylebox_override("panel", style)
-		_right_scene_root.add_child(panel)
+	for i in range(RIGHT_SCENE_TEXTURES.size()):
+		var card_name := "SceneCard%d" % (i + 1)
+		var panel := _right_scene_root.get_node_or_null(card_name) as Control
+		if panel == null:
+			var created_panel := PanelContainer.new()
+			created_panel.name = card_name
+			created_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+			created_panel.offset_left = 0.0
+			created_panel.offset_top = 0.0
+			created_panel.offset_right = 0.0
+			created_panel.offset_bottom = 0.0
+			created_panel.custom_minimum_size = Vector2.ZERO
+			created_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			created_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+			created_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var style := StyleBoxFlat.new()
+			style.bg_color = Color(0.0, 0.0, 0.0, 0.0)
+			style.border_width_left = 0
+			style.border_width_top = 0
+			style.border_width_right = 0
+			style.border_width_bottom = 0
+			created_panel.add_theme_stylebox_override("panel", style)
+			_right_scene_root.add_child(created_panel)
+			panel = created_panel
+		else:
+			panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+			panel.offset_left = 0.0
+			panel.offset_top = 0.0
+			panel.offset_right = 0.0
+			panel.offset_bottom = 0.0
 
-		var text := Label.new()
-		text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		text.text = "%s\n（%s）" % [String(info.get("title", "")), String(info.get("color_name", ""))]
-		text.add_theme_font_size_override("font_size", 34)
-		text.modulate = Color(0.98, 0.98, 0.98, 1.0)
-		text.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		text.set_anchors_preset(Control.PRESET_FULL_RECT)
-		text.offset_left = 18.0
-		text.offset_top = 18.0
-		text.offset_right = -18.0
-		text.offset_bottom = -18.0
-		panel.add_child(text)
+		var image := panel.get_node_or_null("SceneImage") as TextureRect
+		if image == null:
+			image = TextureRect.new()
+			image.name = "SceneImage"
+			panel.add_child(image)
+		image.set_anchors_preset(Control.PRESET_FULL_RECT)
+		image.offset_left = right_scene_image_left_px
+		image.offset_top = right_scene_image_top_px
+		image.offset_right = -right_scene_image_right_px
+		image.offset_bottom = -right_scene_image_bottom_px
+		image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		image.stretch_mode = TextureRect.STRETCH_SCALE
+		image.texture = RIGHT_SCENE_TEXTURES[i]
+		image.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-		var subtitle := Label.new()
-		subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		subtitle.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-		subtitle.text = "按 A / D 切换场景"
-		subtitle.add_theme_font_size_override("font_size", 18)
-		subtitle.modulate = Color(0.96, 0.96, 0.96, 0.82)
-		subtitle.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		subtitle.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-		subtitle.offset_left = 0.0
-		subtitle.offset_top = -38.0
-		subtitle.offset_right = 0.0
-		subtitle.offset_bottom = -10.0
-		panel.add_child(subtitle)
-
-		var status := Label.new()
-		status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		status.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-		status.text = "未完成"
-		status.add_theme_font_size_override("font_size", 18)
-		status.modulate = Color(1.0, 1.0, 1.0, 0.88)
-		status.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		status.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-		status.offset_left = -170.0
-		status.offset_top = 14.0
-		status.offset_right = -14.0
-		status.offset_bottom = 38.0
-		panel.add_child(status)
+		var status := panel.get_node_or_null("Status") as Label
+		if status == null:
+			status = Label.new()
+			status.name = "Status"
+			status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			status.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+			status.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			panel.add_child(status)
+		status.text = "Pending"
+		status.visible = false
 
 		panel.visible = false
 		panel.modulate.a = 0.0
@@ -998,29 +1816,182 @@ func _setup_right_placeholder() -> void:
 		_right_scene_status_labels.append(status)
 		_right_scene_completed.append(false)
 
-	_right_scene_flash_overlay = ColorRect.new()
-	_right_scene_flash_overlay.name = "SceneFlashOverlay"
-	_right_scene_flash_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_right_scene_flash_overlay.offset_left = 0.0
-	_right_scene_flash_overlay.offset_top = 0.0
-	_right_scene_flash_overlay.offset_right = 0.0
-	_right_scene_flash_overlay.offset_bottom = 0.0
-	_right_scene_flash_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_right_scene_flash_overlay = _right_scene_root.get_node_or_null("SceneFlashOverlay") as ColorRect
+	if _right_scene_flash_overlay == null:
+		_right_scene_flash_overlay = ColorRect.new()
+		_right_scene_flash_overlay.name = "SceneFlashOverlay"
+		_right_scene_flash_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_right_scene_flash_overlay.offset_left = 0.0
+		_right_scene_flash_overlay.offset_top = 0.0
+		_right_scene_flash_overlay.offset_right = 0.0
+		_right_scene_flash_overlay.offset_bottom = 0.0
+		_right_scene_flash_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_right_scene_root.add_child(_right_scene_flash_overlay)
 	_right_scene_flash_overlay.color = Color(1.0, 1.0, 1.0, 0.0)
-	_right_scene_root.add_child(_right_scene_flash_overlay)
+
+	_right_scene_dim_overlay = _right_scene_root.get_node_or_null("RightSceneDimOverlay") as ColorRect
+	if _right_scene_dim_overlay == null:
+		_right_scene_dim_overlay = ColorRect.new()
+		_right_scene_dim_overlay.name = "RightSceneDimOverlay"
+		_right_scene_dim_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_right_scene_dim_overlay.offset_left = 0.0
+		_right_scene_dim_overlay.offset_top = 0.0
+		_right_scene_dim_overlay.offset_right = 0.0
+		_right_scene_dim_overlay.offset_bottom = 0.0
+		_right_scene_dim_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_right_scene_root.add_child(_right_scene_dim_overlay)
+	_right_scene_dim_overlay.color = Color(0.0, 0.0, 0.0, clampf(right_scene_dim_alpha, 0.0, 0.8))
+	_right_scene_dim_overlay.move_to_front()
+
 	_right_scene_flash_overlay.move_to_front()
+	_right_placeholder_root.move_to_front()
 
 	_switch_right_scene(0, true)
 
 
 func _setup_moire_overlays() -> void:
 	_left_moire_overlay = _create_moire_overlay("LeftMoireOverlay")
-	left_3d.add_child(_left_moire_overlay)
+	right_panel.add_child(_left_moire_overlay)
 	_left_moire_overlay.move_to_front()
+	if _left_moire_overlay.material is ShaderMaterial:
+		var left_mat := _left_moire_overlay.material as ShaderMaterial
+		left_mat.set_shader_parameter("effect_strength", moire_strength * clampf(left_moire_intensity_scale, 0.0, 1.0))
 
 	_right_moire_overlay = _create_moire_overlay("RightMoireOverlay")
-	right_panel.add_child(_right_moire_overlay)
+	left_3d.add_child(_right_moire_overlay)
 	_right_moire_overlay.move_to_front()
+
+
+func _setup_camera_data_fragment_overlay() -> void:
+	if _camera_data_overlay != null and is_instance_valid(_camera_data_overlay):
+		return
+
+	_camera_data_overlay = ColorRect.new()
+	_camera_data_overlay.name = "CameraDataFragmentOverlay"
+	_camera_data_overlay.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_camera_data_overlay.offset_left = 0.0
+	_camera_data_overlay.offset_top = 0.0
+	_camera_data_overlay.offset_right = 0.0
+	_camera_data_overlay.offset_bottom = 0.0
+	_camera_data_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_camera_data_overlay.color = Color(1.0, 1.0, 1.0, 0.0)
+
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+render_mode unshaded;
+
+uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linear_mipmap;
+uniform float shift_strength : hint_range(0.0, 0.2) = 0.012;
+uniform float chroma_amount : hint_range(0.0, 0.2) = 0.004;
+uniform float noise_amount : hint_range(0.0, 1.0) = 0.09;
+uniform float line_mix : hint_range(0.0, 1.0) = 0.22;
+uniform float speed : hint_range(0.0, 4.0) = 0.6;
+uniform float quantize_steps : hint_range(2.0, 128.0) = 32.0;
+uniform float quantize_mix : hint_range(0.0, 1.0) = 0.22;
+
+float hash21(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+void fragment() {
+	vec2 uv = SCREEN_UV;
+	float t = TIME * speed;
+	float band = floor(uv.y * 110.0 + t * 6.0);
+	float n = hash21(vec2(band, floor(t * 18.0)));
+	float s = (n - 0.5) * shift_strength;
+	vec2 suv = uv + vec2(s, 0.0);
+
+	float r = texture(screen_tex, suv + vec2(chroma_amount, 0.0)).r;
+	float g = texture(screen_tex, suv).g;
+	float b = texture(screen_tex, suv - vec2(chroma_amount, 0.0)).b;
+	vec3 base = vec3(r, g, b);
+
+	float scan = sin((uv.y + t * 0.08) * 900.0) * 0.5 + 0.5;
+	float grain = hash21(uv * vec2(1900.0, 1060.0) + t * 31.0) - 0.5;
+	vec3 glitched = base + vec3(grain * noise_amount * 0.12);
+	glitched *= mix(1.0, 0.92 + scan * 0.08, line_mix);
+	vec3 quantized = floor(glitched * quantize_steps) / quantize_steps;
+	glitched = mix(glitched, quantized, quantize_mix);
+
+	COLOR = vec4(glitched, 1.0);
+}
+"""
+
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	material.set_shader_parameter("shift_strength", camera_frag_shift)
+	material.set_shader_parameter("chroma_amount", camera_frag_chroma)
+	material.set_shader_parameter("noise_amount", camera_frag_noise)
+	material.set_shader_parameter("line_mix", camera_frag_line_mix)
+	material.set_shader_parameter("speed", camera_frag_speed)
+	material.set_shader_parameter("quantize_steps", camera_frag_quantize_steps)
+	material.set_shader_parameter("quantize_mix", camera_frag_quantize_mix)
+	_camera_data_overlay.material = material
+
+	if _right_scene_root != null and is_instance_valid(_right_scene_root):
+		_right_scene_root.add_child(_camera_data_overlay)
+	else:
+		right_panel.add_child(_camera_data_overlay)
+	_update_camera_data_overlay_region()
+	_camera_data_overlay.move_to_front()
+
+
+func _setup_right_fragment_region_hint() -> void:
+	# Intentionally disabled: user requested no fragment-region border UI.
+	if _right_frag_region_hint != null and is_instance_valid(_right_frag_region_hint):
+		_right_frag_region_hint.visible = false
+
+
+func _update_right_fragment_region_hint() -> void:
+	if _right_frag_region_hint != null and is_instance_valid(_right_frag_region_hint):
+		_right_frag_region_hint.visible = false
+
+
+func _update_right_fragment_region_hint_visuals() -> void:
+	return
+
+
+func _update_camera_data_overlay_region() -> void:
+	if _camera_data_overlay == null:
+		return
+
+	if _right_scene_root == null or not is_instance_valid(_right_scene_root):
+		_camera_data_overlay.visible = false
+		_update_right_fragment_region_hint()
+		return
+
+	if _camera_data_overlay.get_parent() != _right_scene_root:
+		if _camera_data_overlay.get_parent() != null:
+			_camera_data_overlay.get_parent().remove_child(_camera_data_overlay)
+		_right_scene_root.add_child(_camera_data_overlay)
+		_camera_data_overlay.move_to_front()
+
+	if _right_scene_flash_overlay == null or not is_instance_valid(_right_scene_flash_overlay):
+		_camera_data_overlay.visible = false
+		_update_right_fragment_region_hint()
+		return
+
+	var left_px := maxf(0.0, camera_frag_region_inset_left_px)
+	var top_px := maxf(0.0, camera_frag_region_inset_top_px)
+	var right_px := maxf(0.0, camera_frag_region_inset_right_px)
+	var bottom_px := maxf(0.0, camera_frag_region_inset_bottom_px)
+
+	var flash_pos := _right_scene_flash_overlay.position
+	var flash_size := _right_scene_flash_overlay.size
+	var x := maxf(0.0, flash_pos.x + left_px)
+	var y := maxf(0.0, flash_pos.y + top_px)
+	var w := maxf(1.0, flash_size.x - left_px - right_px)
+	var h := maxf(1.0, flash_size.y - top_px - bottom_px)
+	x = clampf(x, 0.0, maxf(0.0, _right_scene_root.size.x - 1.0))
+	y = clampf(y, 0.0, maxf(0.0, _right_scene_root.size.y - 1.0))
+	w = clampf(w, 1.0, maxf(1.0, _right_scene_root.size.x - x))
+	h = clampf(h, 1.0, maxf(1.0, _right_scene_root.size.y - y))
+	_camera_data_overlay.position = Vector2(x, y)
+	_camera_data_overlay.size = Vector2(w, h)
+	_camera_data_overlay.visible = true
+	_camera_data_overlay.move_to_front()
+	_update_right_fragment_region_hint()
 
 
 func _create_moire_overlay(node_name: String) -> ColorRect:
@@ -1078,6 +2049,7 @@ func _draw_default_line_art() -> void:
 func _on_layout_changed() -> void:
 	_enforce_chapter_1_constraints()
 	_setup_fixed_right_canvas()
+	_update_camera_data_overlay_region()
 	for card in _right_scene_cards:
 		_normalize_right_scene_card(card)
 
@@ -1197,16 +2169,17 @@ func _normalize_right_scene_card(card: Control) -> void:
 
 
 func _mark_scene_completed(scene_index: int) -> void:
+	_restore_camera_focus_intensity()
 	var idx := posmod(scene_index, _right_scene_status_labels.size())
 	if idx < 0 or idx >= _right_scene_status_labels.size():
 		return
 	_right_scene_completed[idx] = true
 	var status := _right_scene_status_labels[idx]
 	if status != null:
-		status.text = "已完成"
+		status.text = "Completed"
 		status.modulate = Color(1.0, 0.95, 0.68, 1.0)
 	if _are_all_right_scenes_completed():
-		call_deferred("_start_final_close_transition")
+		call_deferred("_show_continue_button")
 
 
 func _are_all_right_scenes_completed() -> bool:
@@ -1263,12 +2236,37 @@ func _flash_right_scene() -> void:
 	_right_scene_flash_tween.tween_property(_right_scene_flash_overlay, "color:a", 0.0, 0.36)
 
 
+func _show_continue_button() -> void:
+	if _continue_button == null:
+		_ensure_continue_button()
+	if _continue_button == null:
+		return
+	_continue_button.visible = true
+	_continue_button.disabled = false
+	_continue_button.modulate.a = 0.0
+	_continue_button.scale = Vector2(0.92, 0.92)
+	_continue_button.move_to_front()
+
+	var t := create_tween()
+	t.set_parallel(true)
+	t.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.tween_property(_continue_button, "modulate:a", 1.0, 0.24)
+	t.tween_property(_continue_button, "scale", Vector2.ONE, 0.30)
+
+
+func _on_continue_button_pressed() -> void:
+	if _continue_button != null:
+		_continue_button.disabled = true
+		_continue_button.visible = false
+	_start_final_close_transition()
+
+
 func _is_rotation_input_blocked() -> bool:
 	return Time.get_ticks_msec() < _rotation_input_block_until_ms
 
 
 func _is_sphere_input_locked() -> bool:
-	return _final_transition_running or _is_rotation_input_blocked() or _vertical_preview_phase != 0 or _is_anchor_occupied()
+	return _intro_sequence_running or _final_transition_running or _is_rotation_input_blocked() or _vertical_preview_phase != 0 or _is_anchor_occupied()
 
 
 func _try_rotate_sphere_step(step_direction: int) -> void:
@@ -1372,25 +2370,55 @@ func _sync_right_scene_with_vertical_face(is_up_face: bool) -> void:
 
 
 func _validate_input_actions() -> void:
-	if not InputMap.has_action("rotate_sphere_left"):
-		push_warning("Missing input action: rotate_sphere_left. Configure it in Project Settings > Input Map.")
-	if not InputMap.has_action("rotate_sphere_right"):
-		push_warning("Missing input action: rotate_sphere_right. Configure it in Project Settings > Input Map.")
+	_ensure_input_action("rotate_sphere_left", [KEY_A, KEY_LEFT])
+	_ensure_input_action("rotate_sphere_right", [KEY_D, KEY_RIGHT])
+
+
+func _ensure_input_action(action_name: StringName, keycodes: Array[Key]) -> void:
+	if not InputMap.has_action(action_name):
+		InputMap.add_action(action_name)
+	var events := InputMap.action_get_events(action_name)
+	if events.is_empty():
+		for keycode in keycodes:
+			var ev := InputEventKey.new()
+			ev.keycode = keycode
+			InputMap.action_add_event(action_name, ev)
 
 
 func _on_chapter_1_split_dragged(_offset: int) -> void:
+	if _split_programmatic_motion:
+		return
 	_enforce_chapter_1_constraints()
 
 
 func _enforce_chapter_1_constraints() -> void:
-	# Keep right side at least 50% of total width.
-	var min_right_width := maxf(1.0, size.x * 0.5)
-	right_panel.custom_minimum_size.x = min_right_width
-	if chapter_1_split.split_offset > 0:
-		chapter_1_split.split_offset = 0
+	if _intro_sequence_running:
+		right_panel.custom_minimum_size.x = maxf(1.0, size.x * 0.5)
+		if chapter_1_split.split_offset > 0:
+			chapter_1_split.split_offset = 0
+		return
+
+	if lock_split_dragging:
+		right_panel.custom_minimum_size.x = maxf(1.0, size.x * (1.0 - locked_left_panel_width_ratio))
+		var target := _get_locked_split_offset()
+		if chapter_1_split.split_offset != target:
+			chapter_1_split.split_offset = target
+	else:
+		# Fallback: keep right side at least 50% of total width.
+		var min_right_width := maxf(1.0, size.x * 0.5)
+		right_panel.custom_minimum_size.x = min_right_width
+		if chapter_1_split.split_offset > 0:
+			chapter_1_split.split_offset = 0
+
+
+func _get_locked_split_offset() -> int:
+	return -int(maxf(0.0, size.x * clampf(locked_left_panel_width_ratio, 0.1, 0.9)))
 
 
 func _setup_fixed_right_canvas() -> void:
+	if line_canvas == null or not is_instance_valid(line_canvas):
+		return
+
 	# Fix right 2D image size so dragging splitter reveals/clips it rather than scaling.
 	if _right_art_base_size == Vector2.ZERO and line_canvas.size.x > 1.0 and line_canvas.size.y > 1.0:
 		_right_art_base_size = line_canvas.size
@@ -1407,7 +2435,7 @@ func _ensure_chapter_hint_label() -> void:
 		return
 	_chapter_hint_label = Label.new()
 	_chapter_hint_label.name = "ChapterFlowHint"
-	_chapter_hint_label.text = "Chapter 2-1 ready. Press Enter to continue."
+	_chapter_hint_label.text = ""
 	_chapter_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_chapter_hint_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_chapter_hint_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
@@ -1416,4 +2444,29 @@ func _ensure_chapter_hint_label() -> void:
 	_chapter_hint_label.offset_top = -40.0
 	_chapter_hint_label.offset_bottom = -10.0
 	_chapter_hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_chapter_hint_label.visible = false
 	add_child(_chapter_hint_label)
+
+
+func _ensure_continue_button() -> void:
+	if _continue_button != null:
+		return
+	_continue_button = Button.new()
+	_continue_button.name = "ContinueButton"
+	_continue_button.text = "Continue"
+	_continue_button.custom_minimum_size = Vector2(180.0, 56.0)
+	_continue_button.visible = false
+	_continue_button.focus_mode = Control.FOCUS_NONE
+	_continue_button.set_anchors_preset(Control.PRESET_CENTER)
+	_continue_button.anchor_left = 0.5
+	_continue_button.anchor_top = 0.5
+	_continue_button.anchor_right = 0.5
+	_continue_button.anchor_bottom = 0.5
+	_continue_button.offset_left = -90.0
+	_continue_button.offset_top = -28.0
+	_continue_button.offset_right = 90.0
+	_continue_button.offset_bottom = 28.0
+	_continue_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_continue_button.pressed.connect(_on_continue_button_pressed)
+	add_child(_continue_button)
+	_continue_button.move_to_front()

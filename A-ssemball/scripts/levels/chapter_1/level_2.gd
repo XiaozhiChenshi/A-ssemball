@@ -366,7 +366,7 @@ render_mode depth_draw_opaque, cull_disabled;
 
 uniform vec4 base_color : source_color = vec4(0.82, 0.87, 0.96, 1.0);
 uniform float roughness : hint_range(0.0, 1.0) = 0.4;
-uniform float specular : hint_range(0.0, 1.0) = 0.18;
+uniform float specular_strength : hint_range(0.0, 1.0) = 0.18;
 uniform float emission_strength : hint_range(0.0, 1.0) = 0.08;
 uniform float pulse_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float rim_strength : hint_range(0.0, 1.0) = 0.16;
@@ -487,7 +487,7 @@ void fragment() {
 	vec3 hit_glow = hit_tint * hit;
 	ALBEDO = clamp(lit + hit_glow * 0.08, vec3(0.0), vec3(1.0));
 	ROUGHNESS = roughness;
-	SPECULAR = specular;
+	SPECULAR = specular_strength;
 	EMISSION = lit * (emission_strength + pulse_strength * 0.3) + vec3(rim * rim_strength) + abnormal_glow + hit_glow * (1.05 + pulse_strength * 0.45);
 }
 """

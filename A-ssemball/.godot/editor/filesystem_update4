@@ -1,5 +1,6 @@
-res://scripts/intro_interactive.gd
-res://scripts/main_entry.gd
-res://scenes/levels/chapter_2/level_1.tscn
+res://scripts/line_canvas_2d.gd
 res://scripts/levels/chapter_2/level_1.gd
 res://scenes/intro_interactive.tscn
+res://scenes/levels/chapter_2/level_1.tscn
+res://scripts/levels/chapter_1/level_1.gd
+res://scripts/levels/chapter_1/level_2.gd

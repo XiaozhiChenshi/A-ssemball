@@ -29,6 +29,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if _has_forwarded_source_signal:
 		return
+	if not _is_fallback_skip_enabled():
+		return
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == fallback_complete_key:
 		get_viewport().set_input_as_handled()
 		_emit_completed_once()
@@ -58,7 +60,7 @@ func _setup_placeholder_ui() -> void:
 		placeholder_ui.visible = false
 	else:
 		placeholder_ui.visible = true
-		hint_label.text = "Press Enter to continue"
+		hint_label.text = "Press Enter to continue" if _is_fallback_skip_enabled() else "Complete objective to continue"
 
 
 func _on_source_completed(_source_chapter_index: int = 0) -> void:
@@ -70,4 +72,13 @@ func _emit_completed_once() -> void:
 		return
 	_completed = true
 	chapter_completed.emit(chapter_number)
+
+
+func _is_fallback_skip_enabled() -> bool:
+	# Disable Enter-skip for implemented chapters/levels.
+	if chapter_number == 1:
+		return false
+	if chapter_number == 2 and level_number == 1:
+		return false
+	return true
 
