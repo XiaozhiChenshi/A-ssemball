@@ -5,6 +5,7 @@ signal chapter_completed(chapter_index: int)
 
 const StructureShapeProviderRef = preload("res://scripts/structure/structure_shape_provider.gd")
 const HAND_TEXTURE: Texture2D = preload("res://assets/ui/chapter_1_stage_2/Hand04.png")
+const HAND_POINTER_TEXTURE_PATH := "res://assets/ui/chapter_1_stage_2/Hand05.png"
 
 const STAGE_PATTERN_RINGS := "rings"
 const STAGE_PATTERN_CRACK := "crack"
@@ -18,6 +19,12 @@ const ACT_ONE_LOW_COLOR: Color = Color(0.17, 0.21, 0.29, 1.0)
 const ACT_ONE_HIGH_COLOR: Color = Color(0.78, 0.84, 0.92, 1.0)
 const ACT_ONE_EDGE_COLOR: Color = Color(1.0, 1.0, 1.0, 1.0)
 const ACT_ONE_BACKGROUND_COLOR: Color = Color(0.01, 0.015, 0.025, 1.0)
+const EDGE_WIDTH_FROM_LENGTH: float = 0.16
+const EDGE_DEPTH_FROM_WIDTH: float = 0.42
+const EDGE_MIN_RADIUS_RATIO: float = 0.008
+const EDGE_MAX_RADIUS_RATIO: float = 0.045
+const EDGE_SURFACE_LIFT_RATIO: float = 0.0025
+const GOLDBERG_DYNAMIC_EDGE_WIDTH_SCALE: float = 1.0 / 3.0
 
 @export var chapter_index: int = 1
 @export var light_rotation_speed_deg: float = 0.0
@@ -31,12 +38,15 @@ const ACT_ONE_BACKGROUND_COLOR: Color = Color(0.01, 0.015, 0.025, 1.0)
 @export_range(0.0, 1.0, 0.01) var goldberg_scaffold_edge_alpha: float = 0.24
 @export_range(0.0, 1.0, 0.01) var goldberg_scaffold_edge_brightness: float = 0.3
 @export var shape_radius: float = 1.0
-@export_range(0.03, 0.4, 0.01) var cell_hold_sec: float = 0.08
+@export_range(0.12, 1.0, 0.01) var cell_hold_sec: float = 0.52
 @export_range(0.0, 0.4, 0.01) var drag_grace_sec: float = 0.18
+@export_range(0.2, 2.0, 0.05) var rollback_step_sec: float = 1.0
+@export_range(0.05, 1.0, 0.01) var target_hint_fade_sec: float = 0.38
 @export_range(0.75, 0.98, 0.01) var cell_face_inset: float = 0.9
 @export_range(1.0, 1.08, 0.005) var cell_hit_scale: float = 1.02
 @export_range(0.0, 0.03, 0.001) var cell_surface_offset: float = 0.004
 @export_range(0.4, 1.2, 0.01) var cone_depth_scale: float = 0.86
+@export_range(0.0, 0.06, 0.001) var texture_motion_amplitude: float = 0.022
 @export_range(15.0, 180.0, 1.0) var rotation_yaw_speed_deg: float = 84.0
 @export_range(15.0, 180.0, 1.0) var rotation_pitch_speed_deg: float = 66.0
 @export_range(10.0, 89.0, 1.0) var pitch_limit_deg: float = 72.0
@@ -62,6 +72,8 @@ var _cells_by_id: Dictionary = {}
 var _cell_root: Node3D
 var _cell_nodes: Dictionary = {}
 var _cell_materials: Dictionary = {}
+var _cell_edge_nodes: Dictionary = {}
+var _cell_edge_materials: Dictionary = {}
 var _cell_runtime_data: Dictionary = {}
 
 var _stage_data: Array[Dictionary] = []
@@ -70,13 +82,25 @@ var _current_stage_route_ids: Array[int] = []
 var _current_stage_core_lookup: Dictionary = {}
 var _current_stage_height_map: Dictionary = {}
 var _current_preview_uvs: PackedVector2Array = PackedVector2Array()
+var _current_route_guide_uvs: PackedVector2Array = PackedVector2Array()
+var _current_route_guide_closed: bool = false
 
 var _selected_route_ids: Array[int] = []
 var _drag_active: bool = false
 var _drag_anchor_cell_id: int = -1
 var _hover_cell_id: int = -1
 var _hover_hold_elapsed: float = 0.0
+var _charging_cell_id: int = -1
+var _charge_elapsed: float = 0.0
+var _charge_start_hint_t: float = 1.0
 var _drag_grace_left: float = 0.0
+var _rollback_active: bool = false
+var _rollback_elapsed: float = 0.0
+var _rollback_fading_cell_id: int = -1
+var _rollback_fading_committed: bool = true
+var _rollback_fading_charge_t: float = 1.0
+var _rollback_fading_hint_t: float = 1.0
+var _target_hint_elapsed: float = 0.0
 var _latest_mouse_pos: Vector2 = Vector2.ZERO
 
 var _transition_running: bool = false
@@ -101,9 +125,15 @@ var _edge_overlay_instance: MeshInstance3D
 var _static_edge_overlay_instance: MeshInstance3D
 var _edge_overlay_material: StandardMaterial3D
 var _static_edge_overlay_material: StandardMaterial3D
+var _stage_elapsed: float = 0.0
 
 var _panel_root: Control
 var _panel_backdrop: ColorRect
+var _stage_image_rect: TextureRect
+var _stage_image_material: ShaderMaterial
+var _stage_image_next_rect: TextureRect
+var _stage_image_wipe_material: ShaderMaterial
+var _suppress_stage_image_refresh: bool = false
 var _stage_badge_label: Label
 var _title_label: Label
 var _desc_label: Label
@@ -111,6 +141,13 @@ var _progress_label: Label
 var _hint_label: Label
 var _status_label: Label
 var _hand_rect: TextureRect
+var _pointer_hand_rect: TextureRect
+var _route_guide_canvas: LineCanvas2D
+var _pointer_hand_target_pos: Vector2 = Vector2.ZERO
+var _pointer_hand_visible_target: bool = false
+var _pointer_hand_alpha: float = 0.0
+var _hand_pointer_texture: Texture2D
+var _hand_pointer_material: ShaderMaterial
 
 
 func _ready() -> void:
@@ -140,9 +177,19 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_stage_elapsed += delta
+	if not _transition_running and not _rollback_active and _charging_cell_id < 0:
+		_target_hint_elapsed += delta
+		_refresh_cell_materials()
 	_update_rotation_input(delta)
 	if _drag_active and not _transition_running:
 		_update_drag_progress(delta)
+	if _rollback_active and not _transition_running:
+		_update_rollback(delta)
+	if _drag_active or _rollback_active:
+		_refresh_route_preview()
+	_update_pointer_hand(delta)
+	_update_texture_surface_motion()
 	_apply_edge_outline_style()
 	if light_rotation_speed_deg != 0.0:
 		dir_light.rotate_y(deg_to_rad(light_rotation_speed_deg) * delta)
@@ -156,9 +203,12 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		_latest_mouse_pos = event.position
 		if event.pressed:
+			if _rollback_active:
+				_try_resume_rollback()
+				return
 			_try_begin_drag()
 		elif _drag_active:
-			_cancel_drag("描摹中断，已重置。")
+			_start_rollback("描摹中断，路径开始回撤。")
 			get_viewport().set_input_as_handled()
 
 
@@ -166,59 +216,85 @@ func _build_stage_data() -> Array[Dictionary]:
 	return [
 		{
 			"title": "树木年轮",
-			"subtitle": "文字占位贴图：树木年轮",
+			"subtitle": "沿着绿色参考标出的年轮主纹理描摹",
+			"image_path": "res://assets/ui/chapter_1_stage_2/wood_rings.jpg",
 			"pattern": STAGE_PATTERN_RINGS,
 			"core_cells": [0],
 			"focus_yaw_deg": 0.0,
 			"focus_pitch_deg": -18.0,
-			"low_color": ACT_ONE_LOW_COLOR,
-			"high_color": ACT_ONE_HIGH_COLOR,
-			"route_color": Color(0.86, 0.90, 0.97, 1.0),
-			"selected_color": Color(1.0, 0.95, 0.84, 1.0),
-			"target_color": Color(0.95, 0.98, 1.0, 1.0),
+			"low_color": Color(0.16, 0.09, 0.045, 1.0),
+			"high_color": Color(0.74, 0.42, 0.18, 1.0),
+			"route_color": Color(0.98, 0.72, 0.28, 1.0),
+			"selected_color": Color(1.0, 0.92, 0.54, 1.0),
+			"target_color": Color(1.0, 0.82, 0.34, 1.0),
 			"panel_color": Color(0.04, 0.05, 0.08, 1.0),
+			"panel_tint": Color(0.02, 0.018, 0.014, 0.22),
 			"noise_axis": Vector3(0.0, 1.0, 0.2).normalized(),
+			"route_closed": false,
+			"route_span": 0.62,
+			"left_route_count": 16,
+			"left_route_scale": Vector2(0.74, 0.9),
+			"left_route_offset": Vector2(0.03, 0.02),
 			"preview_template": PackedVector2Array([
-				Vector2(0.50, 0.20),
-				Vector2(0.70, 0.30),
-				Vector2(0.78, 0.50),
-				Vector2(0.70, 0.70),
-				Vector2(0.50, 0.80),
-				Vector2(0.30, 0.70),
-				Vector2(0.22, 0.50),
-				Vector2(0.30, 0.30),
+				Vector2(0.376, 0.007),
+				Vector2(0.527, 0.076),
+				Vector2(0.635, 0.154),
+				Vector2(0.695, 0.230),
+				Vector2(0.738, 0.307),
+				Vector2(0.774, 0.383),
+				Vector2(0.793, 0.461),
+				Vector2(0.805, 0.537),
+				Vector2(0.805, 0.615),
+				Vector2(0.783, 0.691),
+				Vector2(0.745, 0.769),
+				Vector2(0.703, 0.845),
+				Vector2(0.627, 0.922),
+				Vector2(0.560, 0.991),
 			]),
 		},
 		{
 			"title": "干涸的大地",
-			"subtitle": "文字占位贴图：干涸的大地",
+			"subtitle": "沿着绿色参考标出的裂缝主纹理描摹",
+			"image_path": "res://assets/ui/chapter_1_stage_2/dry_soil.jpg",
 			"pattern": STAGE_PATTERN_CRACK,
 			"core_cells": [58, 59, 60, 61],
 			"focus_yaw_deg": -16.0,
 			"focus_pitch_deg": -22.0,
-			"low_color": ACT_ONE_LOW_COLOR,
-			"high_color": ACT_ONE_HIGH_COLOR,
-			"route_color": Color(0.88, 0.90, 0.95, 1.0),
-			"selected_color": Color(1.0, 0.95, 0.84, 1.0),
-			"target_color": Color(0.95, 0.98, 1.0, 1.0),
+			"low_color": Color(0.045, 0.04, 0.035, 1.0),
+			"high_color": Color(0.55, 0.43, 0.31, 1.0),
+			"route_color": Color(0.76, 0.86, 0.78, 1.0),
+			"selected_color": Color(0.92, 0.98, 0.82, 1.0),
+			"target_color": Color(0.78, 0.95, 0.76, 1.0),
 			"panel_color": Color(0.04, 0.05, 0.08, 1.0),
+			"panel_tint": Color(0.02, 0.02, 0.018, 0.20),
 			"noise_axis": Vector3(0.35, 0.92, -0.18).normalized(),
+			"route_closed": false,
+			"route_span": 0.72,
+			"left_route_count": 18,
+			"left_route_scale": Vector2(0.9, 1.0),
+			"left_route_offset": Vector2(0.0, 0.0),
 			"preview_template": PackedVector2Array([
-				Vector2(0.22, 0.30),
-				Vector2(0.38, 0.22),
-				Vector2(0.56, 0.30),
-				Vector2(0.72, 0.18),
-				Vector2(0.82, 0.34),
-				Vector2(0.76, 0.58),
-				Vector2(0.62, 0.74),
-				Vector2(0.42, 0.78),
-				Vector2(0.24, 0.68),
-				Vector2(0.18, 0.48),
+				Vector2(0.00, 0.00),
+				Vector2(0.01, 0.08),
+				Vector2(0.04, 0.18),
+				Vector2(0.15, 0.22),
+				Vector2(0.30, 0.19),
+				Vector2(0.48, 0.16),
+				Vector2(0.68, 0.17),
+				Vector2(0.83, 0.24),
+				Vector2(0.92, 0.35),
+				Vector2(0.94, 0.47),
+				Vector2(0.85, 0.53),
+				Vector2(0.78, 0.64),
+				Vector2(0.74, 0.74),
+				Vector2(0.66, 0.83),
+				Vector2(0.65, 0.93),
+				Vector2(0.68, 1.00),
 			]),
 		},
 		{
 			"title": "花岗岩",
-			"subtitle": "文字占位贴图：花岗岩",
+			"subtitle": "沿着晶体块面闭合",
 			"pattern": STAGE_PATTERN_FACETS,
 			"core_cells": [133, 136, 140],
 			"focus_yaw_deg": -68.0,
@@ -229,6 +305,7 @@ func _build_stage_data() -> Array[Dictionary]:
 			"selected_color": Color(0.97, 0.98, 1.0, 1.0),
 			"target_color": Color(0.95, 0.98, 1.0, 1.0),
 			"panel_color": Color(0.04, 0.05, 0.08, 1.0),
+			"panel_tint": Color(0.04, 0.05, 0.08, 0.88),
 			"noise_axis": Vector3(0.9, -0.2, 0.36).normalized(),
 			"preview_template": PackedVector2Array([
 				Vector2(0.30, 0.24),
@@ -249,6 +326,27 @@ func _setup_right_panel_ui() -> void:
 	_panel_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	right_panel.add_child(_panel_root)
 	right_panel.move_child(_panel_root, 0)
+
+	_stage_image_rect = TextureRect.new()
+	_stage_image_rect.name = "TextureImage"
+	_stage_image_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_stage_image_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_stage_image_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_stage_image_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_stage_image_material = _create_film_material()
+	_stage_image_rect.material = _stage_image_material
+	_panel_root.add_child(_stage_image_rect)
+
+	_stage_image_next_rect = TextureRect.new()
+	_stage_image_next_rect.name = "TextureImageWipeNext"
+	_stage_image_next_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_stage_image_next_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_stage_image_next_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_stage_image_next_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_stage_image_next_rect.visible = false
+	_stage_image_wipe_material = _create_wipe_material()
+	_stage_image_next_rect.material = _stage_image_wipe_material
+	_panel_root.add_child(_stage_image_next_rect)
 
 	_panel_backdrop = ColorRect.new()
 	_panel_backdrop.name = "Backdrop"
@@ -272,6 +370,7 @@ func _setup_right_panel_ui() -> void:
 	margin.add_child(layout)
 
 	_stage_badge_label = Label.new()
+	_stage_badge_label.visible = false
 	_stage_badge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_stage_badge_label.add_theme_font_size_override("font_size", 18)
 	layout.add_child(_stage_badge_label)
@@ -282,6 +381,7 @@ func _setup_right_panel_ui() -> void:
 	layout.add_child(spacer_top)
 
 	_title_label = Label.new()
+	_title_label.visible = false
 	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -289,6 +389,7 @@ func _setup_right_panel_ui() -> void:
 	layout.add_child(_title_label)
 
 	_desc_label = Label.new()
+	_desc_label.visible = false
 	_desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_desc_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -301,11 +402,13 @@ func _setup_right_panel_ui() -> void:
 	layout.add_child(spacer_mid)
 
 	_progress_label = Label.new()
+	_progress_label.visible = false
 	_progress_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_progress_label.add_theme_font_size_override("font_size", 18)
 	layout.add_child(_progress_label)
 
 	_hint_label = Label.new()
+	_hint_label.visible = false
 	_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hint_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -313,6 +416,7 @@ func _setup_right_panel_ui() -> void:
 	layout.add_child(_hint_label)
 
 	_status_label = Label.new()
+	_status_label.visible = false
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -329,13 +433,151 @@ func _setup_right_panel_ui() -> void:
 	right_panel.add_child(_hand_rect)
 	_hand_rect.move_to_front()
 
+	_pointer_hand_rect = TextureRect.new()
+	_pointer_hand_rect.name = "TracingHand"
+	_pointer_hand_rect.texture = _load_pointer_hand_texture()
+	_hand_pointer_material = _create_pointer_hand_material()
+	_pointer_hand_rect.material = _hand_pointer_material
+	_pointer_hand_rect.visible = false
+	_pointer_hand_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pointer_hand_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_pointer_hand_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	right_panel.add_child(_pointer_hand_rect)
+
+	_route_guide_canvas = LineCanvas2D.new()
+	_route_guide_canvas.name = "TextureRouteGuide"
+	_route_guide_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	right_panel.add_child(_route_guide_canvas)
+
 	line_canvas.set_anchors_preset(Control.PRESET_FULL_RECT)
 	line_canvas.offset_left = 0.0
 	line_canvas.offset_top = 0.0
 	line_canvas.offset_right = 0.0
 	line_canvas.offset_bottom = 0.0
+	line_canvas.line_shadow_color = Color(0.86, 0.84, 0.76, 0.16)
+	line_canvas.line_shadow_extra_width = 8.0
+	line_canvas.rough_pencil = true
+	line_canvas.particle_enabled = true
+	_route_guide_canvas.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_route_guide_canvas.offset_left = 0.0
+	_route_guide_canvas.offset_top = 0.0
+	_route_guide_canvas.offset_right = 0.0
+	_route_guide_canvas.offset_bottom = 0.0
+	_route_guide_canvas.rough_pencil = true
+	_route_guide_canvas.particle_enabled = false
+	_route_guide_canvas.visible = false
 	line_canvas.move_to_front()
+	_pointer_hand_rect.move_to_front()
 	_hand_rect.move_to_front()
+
+
+func _create_film_material() -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+
+uniform float saturation : hint_range(0.0, 1.0) = 0.18;
+uniform float contrast : hint_range(0.2, 2.0) = 0.78;
+uniform float lift : hint_range(0.0, 0.5) = 0.18;
+uniform float fade : hint_range(0.0, 1.0) = 0.28;
+uniform float grain_strength : hint_range(0.0, 0.2) = 0.045;
+uniform vec4 paper_tint : source_color = vec4(0.78, 0.76, 0.68, 1.0);
+
+float hash(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+void fragment() {
+	vec4 src = texture(TEXTURE, UV);
+	float luma = dot(src.rgb, vec3(0.299, 0.587, 0.114));
+	vec3 grey = vec3(luma);
+	vec3 color = mix(grey, src.rgb, saturation);
+	color = (color - vec3(0.5)) * contrast + vec3(0.5);
+	color = mix(color, paper_tint.rgb, fade);
+	color = color + vec3(lift) * (1.0 - color);
+	float grain = hash(UV * vec2(640.0, 720.0) + TIME * 0.37) - 0.5;
+	color += grain * grain_strength;
+	float vignette = smoothstep(0.98, 0.28, distance(UV, vec2(0.5)));
+	color *= mix(0.88, 1.06, vignette);
+	COLOR = vec4(clamp(color, vec3(0.0), vec3(1.0)), src.a);
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	return material
+
+
+func _create_wipe_material() -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+
+uniform float reveal_progress : hint_range(0.0, 1.0) = 0.0;
+uniform float soft_width : hint_range(0.0, 0.2) = 0.045;
+uniform float saturation : hint_range(0.0, 1.0) = 0.18;
+uniform float contrast : hint_range(0.2, 2.0) = 0.78;
+uniform float lift : hint_range(0.0, 0.5) = 0.18;
+uniform float fade : hint_range(0.0, 1.0) = 0.28;
+uniform float grain_strength : hint_range(0.0, 0.2) = 0.045;
+uniform vec4 paper_tint : source_color = vec4(0.78, 0.76, 0.68, 1.0);
+
+float hash(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+void fragment() {
+	vec4 color = texture(TEXTURE, UV);
+	float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+	vec3 grey = vec3(luma);
+	vec3 film = mix(grey, color.rgb, saturation);
+	film = (film - vec3(0.5)) * contrast + vec3(0.5);
+	film = mix(film, paper_tint.rgb, fade);
+	film = film + vec3(lift) * (1.0 - film);
+	float grain = hash(UV * vec2(640.0, 720.0) + TIME * 0.37) - 0.5;
+	film += grain * grain_strength;
+	float vignette = smoothstep(0.98, 0.28, distance(UV, vec2(0.5)));
+	film *= mix(0.88, 1.06, vignette);
+	float alpha = 1.0 - smoothstep(reveal_progress, reveal_progress + soft_width, UV.x);
+	COLOR = vec4(clamp(film, vec3(0.0), vec3(1.0)), color.a * alpha);
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	material.set_shader_parameter("reveal_progress", 0.0)
+	material.set_shader_parameter("soft_width", 0.045)
+	return material
+
+
+func _create_pointer_hand_material() -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+
+uniform float shimmer : hint_range(0.0, 1.0) = 0.0;
+uniform float distort_strength : hint_range(0.0, 0.04) = 0.012;
+
+float hash(vec2 p) {
+	return fract(sin(dot(p, vec2(41.3, 289.7))) * 18531.1357);
+}
+
+void fragment() {
+	vec2 uv = UV;
+	float line_wave = sin((uv.y * 32.0) + TIME * 8.0 + sin(uv.x * 11.0));
+	float heat_wave = sin((uv.x + uv.y) * 18.0 + TIME * 5.2);
+	uv.x += line_wave * distort_strength * shimmer;
+	uv.y += heat_wave * distort_strength * 0.42 * shimmer;
+	vec4 color = texture(TEXTURE, uv);
+	float flicker = (hash(floor(UV * vec2(42.0, 58.0)) + vec2(TIME * 16.0)) - 0.5) * 0.18 * shimmer;
+	color.rgb += flicker;
+	color.a *= 0.92 + sin(TIME * 18.0) * 0.035 * shimmer;
+	COLOR = color;
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	material.set_shader_parameter("shimmer", 1.0)
+	material.set_shader_parameter("distort_strength", 0.010)
+	return material
 
 
 func _rebuild_cell_lookup() -> void:
@@ -502,20 +744,19 @@ func _apply_base_goldberg_visual() -> void:
 	if _current_shape_data == null:
 		return
 
-	var body_mesh: Mesh = _current_shape_data.get("body_mesh")
-	var edge_mesh: Mesh = _current_shape_data.get("edge_mesh")
-	var static_edge_mesh: Mesh = _current_shape_data.get("static_edge_mesh")
-	sphere.mesh = body_mesh
-	sphere.visible = body_mesh != null
-	_update_edge_overlay_mesh(edge_mesh)
-	_update_static_edge_overlay_mesh(static_edge_mesh)
+	# 1-2 keeps `sphere` as the rotation parent and hides the full body mesh.
+	# Edges are rendered per cone cell so they stay attached to the displaced cones.
+	sphere.mesh = null
+	sphere.visible = true
+	_update_edge_overlay_mesh(null)
+	_update_static_edge_overlay_mesh(null)
 	if _sphere_material != null:
 		_sphere_material.set_shader_parameter("base_color", ACT_ONE_BASE_COLOR)
 	_current_stage_mode = NORMAL_STAGE_MODE
 	_current_stage_abnormal_ids.clear()
 	_abnormal_intensities.clear()
 	_update_goldberg_wave_shader_state()
-	_set_polyhedron_edge_outline_enabled(true)
+	_set_polyhedron_edge_outline_enabled(false)
 
 
 func _update_goldberg_wave_shader_state() -> void:
@@ -959,12 +1200,25 @@ func _refresh_scaffold_shell_style() -> void:
 
 func _apply_stage(stage_index: int, animate_focus: bool) -> void:
 	_current_stage_index = clampi(stage_index, 0, _stage_data.size() - 1)
+	_stage_elapsed = 0.0
 	_selected_route_ids.clear()
 	_drag_active = false
 	_drag_anchor_cell_id = -1
 	_hover_cell_id = -1
 	_hover_hold_elapsed = 0.0
+	_charging_cell_id = -1
+	_charge_elapsed = 0.0
+	_charge_start_hint_t = 1.0
 	_drag_grace_left = 0.0
+	_rollback_active = false
+	_rollback_elapsed = 0.0
+	_rollback_fading_cell_id = -1
+	_rollback_fading_committed = true
+	_rollback_fading_charge_t = 1.0
+	_rollback_fading_hint_t = 1.0
+	_target_hint_elapsed = target_hint_fade_sec
+	_pointer_hand_visible_target = true
+	_pointer_hand_alpha = 0.0
 
 	var stage := _stage_data[_current_stage_index]
 	_current_stage_core_lookup = {}
@@ -977,10 +1231,21 @@ func _apply_stage(stage_index: int, animate_focus: bool) -> void:
 		float(stage.get("focus_yaw_deg", 0.0)),
 		float(stage.get("focus_pitch_deg", -18.0))
 	)
+	_current_route_guide_closed = bool(stage.get("route_closed", true))
+	if _current_route_guide_closed:
+		_current_stage_route_ids = _apply_route_span(
+			_current_stage_route_ids,
+			float(stage.get("route_span", 1.0)),
+			true
+		)
+	else:
+		_current_stage_route_ids = _derive_visible_texture_route(stage)
 	_current_stage_height_map = _build_stage_height_map(stage)
-	_current_preview_uvs = _sample_closed_template(
+	_current_route_guide_uvs = stage.get("preview_template", PackedVector2Array()) as PackedVector2Array
+	_current_preview_uvs = _sample_route_template(
 		stage.get("preview_template", PackedVector2Array()) as PackedVector2Array,
-		_current_stage_route_ids.size()
+		_current_stage_route_ids.size(),
+		_current_route_guide_closed
 	)
 
 	_apply_base_goldberg_visual()
@@ -988,12 +1253,176 @@ func _apply_stage(stage_index: int, animate_focus: bool) -> void:
 	_refresh_stage_labels()
 	_refresh_route_preview()
 	_refresh_cell_materials()
-	_set_status_text("按住鼠标，从高亮单元开始连续拖拽整条回路。")
+	_set_status_text("按住鼠标，从高亮单元开始沿纹理路径拖拽。")
 	_apply_focus_rotation(
 		float(stage.get("focus_yaw_deg", 0.0)),
 		float(stage.get("focus_pitch_deg", -18.0)),
 		animate_focus
 	)
+
+
+func _apply_route_span(route: Array[int], span: float, closed: bool) -> Array[int]:
+	if closed or route.size() <= 2:
+		return route
+
+	var clamped_span: float = clampf(span, 0.05, 1.0)
+	var keep_count: int = clampi(roundi(float(route.size()) * clamped_span), 2, route.size())
+	if keep_count >= route.size():
+		return route
+
+	var start_index: int = maxi(0, int(floor(float(route.size() - keep_count) * 0.5)))
+	var result: Array[int] = []
+	for i in range(keep_count):
+		result.append(route[start_index + i])
+	return result
+
+
+func _derive_visible_texture_route(stage: Dictionary) -> Array[int]:
+	var template := stage.get("preview_template", PackedVector2Array()) as PackedVector2Array
+	if template.size() < 2:
+		return _current_stage_route_ids
+
+	var route_count: int = int(stage.get("left_route_count", 16))
+	route_count = clampi(route_count, 6, 26)
+	var sampled_uvs := _sample_route_template(template, route_count, false)
+	var focus_basis := Basis.from_euler(Vector3(
+		deg_to_rad(float(stage.get("focus_pitch_deg", -18.0))),
+		deg_to_rad(float(stage.get("focus_yaw_deg", 0.0))),
+		0.0
+	))
+	var route_scale := stage.get("left_route_scale", Vector2.ONE) as Vector2
+	var route_offset := stage.get("left_route_offset", Vector2.ZERO) as Vector2
+
+	var candidates: Array[Dictionary] = []
+	for cell_id_variant in _cells_by_id.keys():
+		var cell_id := int(cell_id_variant)
+		var rotated := focus_basis * _get_cell_center(cell_id)
+		if rotated.z < -0.08:
+			continue
+		candidates.append({
+			"id": cell_id,
+			"screen": Vector2(rotated.x, -rotated.y),
+			"front": rotated.z,
+		})
+
+	if candidates.is_empty():
+		return _current_stage_route_ids
+
+	var min_x := INF
+	var max_x := -INF
+	var min_y := INF
+	var max_y := -INF
+	for candidate in candidates:
+		var screen := candidate["screen"] as Vector2
+		min_x = minf(min_x, screen.x)
+		max_x = maxf(max_x, screen.x)
+		min_y = minf(min_y, screen.y)
+		max_y = maxf(max_y, screen.y)
+
+	var picked_lookup: Dictionary = {}
+	var anchors: Array[int] = []
+	for uv in sampled_uvs:
+		var centered := (uv - Vector2(0.5, 0.5)) * route_scale + Vector2(0.5, 0.5) + route_offset
+		var target := Vector2(
+			lerpf(min_x, max_x, clampf(centered.x, 0.0, 1.0)),
+			lerpf(min_y, max_y, clampf(centered.y, 0.0, 1.0))
+		)
+
+		var best_id := -1
+		var best_score := INF
+		for candidate in candidates:
+			var candidate_id := int(candidate["id"])
+			if picked_lookup.has(candidate_id):
+				continue
+			var screen := candidate["screen"] as Vector2
+			var front := float(candidate["front"])
+			var score := screen.distance_squared_to(target) - front * 0.025
+			if score < best_score:
+				best_score = score
+				best_id = candidate_id
+		if best_id >= 0:
+			picked_lookup[best_id] = true
+			anchors.append(best_id)
+
+	var route := _stitch_anchor_cells_to_neighbor_route(anchors)
+	return route if route.size() >= 2 else _current_stage_route_ids
+
+
+func _stitch_anchor_cells_to_neighbor_route(anchors: Array[int]) -> Array[int]:
+	if anchors.size() <= 1:
+		return anchors
+
+	var route: Array[int] = [anchors[0]]
+	var used: Dictionary = {anchors[0]: true}
+	for anchor_index in range(1, anchors.size()):
+		var start_id := route[route.size() - 1]
+		var goal_id := anchors[anchor_index]
+		if start_id == goal_id:
+			continue
+
+		var blocked := used.duplicate()
+		blocked.erase(start_id)
+		blocked.erase(goal_id)
+		var path := _find_cell_path(start_id, goal_id, blocked)
+		if path.size() < 2:
+			continue
+
+		for path_index in range(1, path.size()):
+			var next_id := path[path_index]
+			if route.size() >= 2 and next_id == route[route.size() - 2]:
+				continue
+			if used.has(next_id) and next_id != goal_id:
+				continue
+			route.append(next_id)
+			used[next_id] = true
+
+	return route
+
+
+func _find_cell_path(start_id: int, goal_id: int, blocked: Dictionary) -> Array[int]:
+	if start_id == goal_id:
+		return [start_id]
+
+	var queue: Array[int] = [start_id]
+	var previous: Dictionary = {start_id: -1}
+	var read_index := 0
+	while read_index < queue.size():
+		var current_id := queue[read_index]
+		read_index += 1
+		var cell: Object = _cells_by_id.get(current_id) as Object
+		if cell == null:
+			continue
+		var neighbors: PackedInt32Array = cell.get("neighbors") as PackedInt32Array
+		for neighbor_id_variant in neighbors:
+			var neighbor_id := int(neighbor_id_variant)
+			if blocked.has(neighbor_id) and neighbor_id != goal_id:
+				continue
+			if previous.has(neighbor_id):
+				continue
+			previous[neighbor_id] = current_id
+			if neighbor_id == goal_id:
+				return _reconstruct_cell_path(previous, start_id, goal_id)
+			queue.append(neighbor_id)
+
+	return []
+
+
+func _reconstruct_cell_path(previous: Dictionary, start_id: int, goal_id: int) -> Array[int]:
+	var reversed_path: Array[int] = []
+	var current_id := goal_id
+	while current_id != -1:
+		reversed_path.append(current_id)
+		if current_id == start_id:
+			break
+		current_id = int(previous.get(current_id, -1))
+
+	if reversed_path.is_empty() or reversed_path[reversed_path.size() - 1] != start_id:
+		return []
+
+	var path: Array[int] = []
+	for i in range(reversed_path.size() - 1, -1, -1):
+		path.append(reversed_path[i])
+	return path
 
 
 func _derive_route_from_core(core_cells_variant: Variant) -> Array[int]:
@@ -1109,8 +1538,13 @@ func _build_stage_height_map(stage: Dictionary) -> Dictionary:
 		core_cells.append(int(cell_id_variant))
 	var core_distance_map := _build_distance_map(core_cells)
 	var route_lookup: Dictionary = {}
+	var route_index_map: Dictionary = {}
+	var route_index := 0
 	for cell_id in _current_stage_route_ids:
 		route_lookup[cell_id] = true
+		route_index_map[cell_id] = route_index
+		route_index += 1
+	var route_distance_map := _build_distance_map(_current_stage_route_ids)
 
 	var axis := stage.get("noise_axis", Vector3.UP) as Vector3
 	if axis.length_squared() < 0.000001:
@@ -1121,29 +1555,30 @@ func _build_stage_height_map(stage: Dictionary) -> Dictionary:
 	for cell_id_variant in _cells_by_id.keys():
 		var cell_id := int(cell_id_variant)
 		var dist := int(core_distance_map.get(cell_id, 999))
+		var route_dist := int(route_distance_map.get(cell_id, 999))
 		var axis_wave := _get_cell_normal(cell_id).dot(axis)
 		var cell_hash := _hash_cell(cell_id)
 		var height := -0.03
 
 		match pattern:
 			STAGE_PATTERN_RINGS:
-				height = -0.055 + axis_wave * 0.01
-				if dist == 0:
-					height = 0.18
-				elif route_lookup.has(cell_id):
-					height = 0.055
-				elif dist == 2:
-					height = 0.01
-				elif dist == 3:
-					height = -0.015
+				var ring_band := sin((axis_wave + 1.0) * 18.0 + cell_hash * 2.4)
+				height = -0.035 + ring_band * 0.035 + axis_wave * 0.018
+				if route_lookup.has(cell_id):
+					var t := float(route_index_map.get(cell_id, 0)) / maxf(1.0, float(_current_stage_route_ids.size() - 1))
+					height = 0.095 + sin(t * TAU * 1.15) * 0.025
+				elif route_dist == 1:
+					height += 0.035
+				elif route_dist == 2:
+					height += 0.015
 			STAGE_PATTERN_CRACK:
-				height = -0.045 - minf(float(dist), 5.0) * 0.012 + (cell_hash - 0.5) * 0.025
-				if dist == 0:
-					height = -0.17
-				elif route_lookup.has(cell_id):
-					height = 0.032
-				elif dist == 1:
-					height = -0.082
+				height = 0.015 + (cell_hash - 0.5) * 0.055 + axis_wave * 0.025
+				if route_lookup.has(cell_id):
+					height = -0.125 + (cell_hash - 0.5) * 0.018
+				elif route_dist == 1:
+					height = -0.055 + (cell_hash - 0.5) * 0.028
+				elif route_dist == 2:
+					height -= 0.018
 			STAGE_PATTERN_FACETS:
 				height = clampf(axis_wave * 0.055 + (cell_hash - 0.5) * 0.035 - minf(float(dist), 4.0) * 0.012, -0.09, 0.09)
 				if dist == 0:
@@ -1193,6 +1628,8 @@ func _rebuild_cell_geometry() -> void:
 
 	_cell_nodes.clear()
 	_cell_materials.clear()
+	_cell_edge_nodes.clear()
+	_cell_edge_materials.clear()
 	_cell_runtime_data.clear()
 
 	var sorted_ids := _cells_by_id.keys()
@@ -1239,12 +1676,29 @@ func _rebuild_cell_geometry() -> void:
 		_cell_root.add_child(cell_node)
 		_cell_nodes[cell_id] = cell_node
 		_cell_materials[cell_id] = material
+
+		var edge_node := MeshInstance3D.new()
+		edge_node.name = "Cell_%d_Edge" % cell_id
+		edge_node.mesh = _build_cell_edge_mesh(render_base_center, apex, render_polygon)
+		edge_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+		var edge_material := StandardMaterial3D.new()
+		edge_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		edge_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+		edge_material.emission_enabled = true
+		edge_material.no_depth_test = false
+		edge_node.material_override = edge_material
+
+		_cell_root.add_child(edge_node)
+		_cell_edge_nodes[cell_id] = edge_node
+		_cell_edge_materials[cell_id] = edge_material
 		_cell_runtime_data[cell_id] = {
 			"base_center": base_center,
 			"apex": apex,
 			"polygon": inset_polygon,
 			"hit_polygon": hit_polygon,
 			"normal": normal,
+			"base_height": float(_current_stage_height_map.get(cell_id, 0.0)),
 		}
 
 
@@ -1261,6 +1715,130 @@ func _build_cell_mesh(base_center: Vector3, apex: Vector3, polygon: PackedVector
 		_append_triangle(st, apex, polygon[(i + 1) % polygon.size()], polygon[i])
 
 	return st.commit()
+
+
+func _build_cell_edge_mesh(_base_center: Vector3, apex: Vector3, polygon: PackedVector3Array) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	if polygon.size() < 3:
+		return st.commit()
+
+	var segments: Array[Dictionary] = []
+	for i in range(polygon.size()):
+		segments.append({
+			"a": polygon[i],
+			"b": polygon[(i + 1) % polygon.size()],
+		})
+		segments.append({
+			"a": polygon[i],
+			"b": apex,
+		})
+
+	var average_edge_length := 0.0
+	for segment in segments:
+		average_edge_length += (segment["a"] as Vector3).distance_to(segment["b"] as Vector3)
+	average_edge_length /= float(segments.size())
+
+	var edge_width := clampf(
+		average_edge_length * EDGE_WIDTH_FROM_LENGTH * GOLDBERG_DYNAMIC_EDGE_WIDTH_SCALE,
+		shape_radius * EDGE_MIN_RADIUS_RATIO * GOLDBERG_DYNAMIC_EDGE_WIDTH_SCALE,
+		shape_radius * EDGE_MAX_RADIUS_RATIO * GOLDBERG_DYNAMIC_EDGE_WIDTH_SCALE
+	)
+	var half_width := edge_width * 0.5
+	var half_depth := half_width * EDGE_DEPTH_FROM_WIDTH
+	var lift := half_depth + shape_radius * EDGE_SURFACE_LIFT_RATIO
+	for segment in segments:
+		_append_cell_edge_prism(
+			st,
+			segment["a"] as Vector3,
+			segment["b"] as Vector3,
+			half_width,
+			half_depth,
+			lift
+		)
+
+	return st.commit()
+
+
+func _append_cell_edge_prism(
+	st: SurfaceTool,
+	a: Vector3,
+	b: Vector3,
+	half_width: float,
+	half_depth: float,
+	lift: float
+) -> void:
+	var tangent := b - a
+	if tangent.length_squared() < 0.000001:
+		return
+	tangent = tangent.normalized()
+
+	var outward := (a.normalized() + b.normalized()) * 0.5
+	if outward.length_squared() < 0.000001:
+		outward = a.normalized()
+	outward = outward.normalized()
+
+	var side := tangent.cross(outward)
+	if side.length_squared() < 0.000001:
+		side = tangent.cross(Vector3.UP)
+	if side.length_squared() < 0.000001:
+		side = tangent.cross(Vector3.RIGHT)
+	side = side.normalized()
+
+	var depth_axis := side.cross(tangent)
+	if depth_axis.length_squared() < 0.000001:
+		depth_axis = outward
+	depth_axis = depth_axis.normalized()
+
+	var width_offset := side * half_width
+	var depth_offset := depth_axis * half_depth
+	var start_center := a + depth_axis * lift
+	var end_center := b + depth_axis * lift
+
+	var start_ring := PackedVector3Array([
+		start_center + width_offset + depth_offset,
+		start_center - width_offset + depth_offset,
+		start_center - width_offset - depth_offset,
+		start_center + width_offset - depth_offset,
+	])
+	var end_ring := PackedVector3Array([
+		end_center + width_offset + depth_offset,
+		end_center - width_offset + depth_offset,
+		end_center - width_offset - depth_offset,
+		end_center + width_offset - depth_offset,
+	])
+
+	for side_index in range(4):
+		var next_index := (side_index + 1) % 4
+		_append_edge_quad(st, start_ring[side_index], end_ring[side_index], end_ring[next_index], start_ring[next_index])
+	_append_edge_quad(st, start_ring[0], start_ring[1], start_ring[2], start_ring[3])
+	_append_edge_quad(st, end_ring[3], end_ring[2], end_ring[1], end_ring[0])
+
+
+func _append_edge_quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
+	var normal := (b - a).cross(c - a)
+	if normal.length_squared() < 0.000001:
+		return
+	normal = normal.normalized()
+
+	st.set_normal(normal)
+	st.add_vertex(a)
+	st.set_normal(normal)
+	st.add_vertex(b)
+	st.set_normal(normal)
+	st.add_vertex(c)
+
+	st.set_normal(normal)
+	st.add_vertex(a)
+	st.set_normal(normal)
+	st.add_vertex(c)
+	st.set_normal(normal)
+	st.add_vertex(d)
+
+
+func _append_quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
+	_append_triangle(st, a, b, c)
+	_append_triangle(st, a, c, d)
 
 
 func _append_triangle(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
@@ -1293,7 +1871,7 @@ func _refresh_cell_materials() -> void:
 	for cell_id in _current_stage_route_ids:
 		route_lookup[cell_id] = true
 
-	var target_id := _get_current_target_cell_id()
+	var target_id := -1 if _rollback_active else _get_current_target_cell_id()
 	for cell_id_variant in _cell_materials.keys():
 		var cell_id := int(cell_id_variant)
 		var material := _cell_materials.get(cell_id) as StandardMaterial3D
@@ -1314,43 +1892,236 @@ func _refresh_cell_materials() -> void:
 			color = color.lerp(route_color, 0.22)
 		if _current_stage_core_lookup.has(cell_id):
 			color = color.darkened(0.05)
+		var base_visual_color := color
 
 		var emission := Color.BLACK
 		var emission_energy := 0.0
+		var edge_color := polyhedron_edge_color.darkened(0.18)
+		var edge_energy := clampf(0.38 + (polyhedron_edge_line_width - 1.0) * 0.04, 0.38, 0.78)
+		var edge_depth_disabled := false
+		var glow_level := 0.0
 
-		if _selected_route_ids.has(cell_id):
-			color = selected_color
-			emission = selected_color
-			emission_energy = 1.25
+		if _rollback_active and cell_id == _rollback_fading_cell_id:
+			var fade_t := clampf(_rollback_elapsed / maxf(0.001, rollback_step_sec), 0.0, 1.0)
+			if _rollback_fading_committed:
+				glow_level = 1.0 - fade_t
+			else:
+				var rollback_hint := clampf(_rollback_fading_hint_t, 0.0, 1.0)
+				var rollback_charge := clampf(_rollback_fading_charge_t, 0.0, 1.0)
+				var smooth_rollback_hint := rollback_hint * rollback_hint * (3.0 - 2.0 * rollback_hint)
+				var smooth_rollback_charge := rollback_charge * rollback_charge * (3.0 - 2.0 * rollback_charge)
+				var start_level := lerpf(0.5 * smooth_rollback_hint, 1.0, smooth_rollback_charge)
+				glow_level = lerpf(start_level, 0.0, fade_t)
+		elif _selected_route_ids.has(cell_id):
+			glow_level = 1.0
+		elif _drag_active and cell_id == _charging_cell_id:
+			var charge_t := clampf(_charge_elapsed / maxf(0.001, cell_hold_sec), 0.0, 1.0)
+			var smooth_charge := charge_t * charge_t * (3.0 - 2.0 * charge_t)
+			var start_hint_t := clampf(_charge_start_hint_t, 0.0, 1.0)
+			var smooth_start_hint := start_hint_t * start_hint_t * (3.0 - 2.0 * start_hint_t)
+			glow_level = lerpf(0.5 * smooth_start_hint, 1.0, smooth_charge)
 		elif cell_id == target_id:
-			color = target_color
-			emission = target_color
-			emission_energy = 0.92
-		elif _hover_cell_id == cell_id and _drag_active:
-			color = target_color.lerp(selected_color, clampf(_hover_hold_elapsed / maxf(0.001, cell_hold_sec), 0.0, 1.0))
-			emission = target_color
-			emission_energy = 0.7
+			var hint_t := clampf(_target_hint_elapsed / maxf(0.001, target_hint_fade_sec), 0.0, 1.0)
+			var smooth_hint := hint_t * hint_t * (3.0 - 2.0 * hint_t)
+			glow_level = 0.5 * smooth_hint
 		elif route_lookup.has(cell_id):
 			emission = route_color
-			emission_energy = 0.14
+			emission_energy = 0.16
+			edge_color = route_color
+			edge_energy = 0.72
+
+		if glow_level > 0.0:
+			glow_level = clampf(glow_level, 0.0, 1.0)
+			if glow_level <= 0.5:
+				var hint_mix := glow_level / 0.5
+				color = base_visual_color.lerp(target_color, 0.42 * hint_mix)
+				emission = target_color
+				emission_energy = 0.46 * hint_mix
+				edge_color = target_color
+				edge_energy = lerpf(0.42, 1.08, hint_mix)
+			else:
+				var full_mix := (glow_level - 0.5) / 0.5
+				var half_color := base_visual_color.lerp(target_color, 0.42)
+				color = half_color.lerp(selected_color, full_mix)
+				emission = target_color.lerp(selected_color, full_mix)
+				emission_energy = lerpf(0.46, 1.35, full_mix)
+				edge_color = target_color.lerp(selected_color, full_mix)
+				edge_energy = lerpf(1.08, 2.05, full_mix)
+		elif route_lookup.has(cell_id):
+			emission = route_color
+			emission_energy = 0.16
+			edge_color = route_color
+			edge_energy = 0.72
 
 		material.albedo_color = color
 		material.emission = emission
 		material.emission_energy_multiplier = emission_energy
+		var edge_material := _cell_edge_materials.get(cell_id) as StandardMaterial3D
+		if edge_material != null:
+			edge_material.no_depth_test = edge_depth_disabled
+			edge_material.albedo_color = edge_color
+			edge_material.emission = edge_color
+			edge_material.emission_energy_multiplier = edge_energy
+		var runtime := _cell_runtime_data.get(cell_id, {}) as Dictionary
+		if not runtime.is_empty():
+			runtime["visual_color"] = color
+			runtime["visual_emission"] = emission
+			runtime["visual_emission_energy"] = emission_energy
+			runtime["edge_color"] = edge_color
+			runtime["edge_energy"] = edge_energy
+			runtime["edge_depth_disabled"] = edge_depth_disabled
+			runtime["glow_level"] = glow_level
+
+
+func _update_texture_surface_motion() -> void:
+	if _cell_nodes.is_empty():
+		return
+
+	var stage := _stage_data[_current_stage_index]
+	var pattern := String(stage.get("pattern", STAGE_PATTERN_RINGS))
+	var route_color := stage.get("route_color", Color(0.9, 0.9, 0.9, 1.0)) as Color
+	var selected_color := stage.get("selected_color", route_color) as Color
+	var route_lookup: Dictionary = {}
+	for cell_id in _current_stage_route_ids:
+		route_lookup[cell_id] = true
+
+	for cell_id_variant in _cell_nodes.keys():
+		var cell_id := int(cell_id_variant)
+		var node := _cell_nodes.get(cell_id) as Node3D
+		var edge_node := _cell_edge_nodes.get(cell_id) as Node3D
+		var material := _cell_materials.get(cell_id) as StandardMaterial3D
+		var edge_material := _cell_edge_materials.get(cell_id) as StandardMaterial3D
+		var runtime := _cell_runtime_data.get(cell_id, {}) as Dictionary
+		if node == null or material == null or runtime.is_empty():
+			continue
+
+		var normal := runtime.get("normal", Vector3.UP) as Vector3
+		var base_height := float(runtime.get("base_height", 0.0))
+		var hash := _hash_cell(cell_id)
+		var route_weight := 1.0 if route_lookup.has(cell_id) else 0.0
+		var phase := hash * TAU * 2.0
+		var motion := 0.0
+
+		match pattern:
+			STAGE_PATTERN_RINGS:
+				motion = sin(_stage_elapsed * 5.6 + phase + base_height * 9.0) * texture_motion_amplitude * 0.68
+				motion += sin(_stage_elapsed * 8.2 + phase * 0.73) * texture_motion_amplitude * 0.32
+			STAGE_PATTERN_CRACK:
+				motion = sin(_stage_elapsed * 7.4 + phase) * texture_motion_amplitude * 0.58
+				motion += signf(sin(_stage_elapsed * 5.1 + phase * 1.7)) * texture_motion_amplitude * 0.20
+			_:
+				motion = sin(_stage_elapsed * 5.2 + phase) * texture_motion_amplitude * 0.52
+
+		if route_weight > 0.0:
+			motion += texture_motion_amplitude * (0.50 if pattern != STAGE_PATTERN_CRACK else -0.26)
+		var glow_level := clampf(float(runtime.get("glow_level", 0.0)), 0.0, 1.0)
+		if glow_level > 0.0:
+			motion += (sin(_stage_elapsed * 8.5) * texture_motion_amplitude * 0.55 + 0.006) * glow_level
+
+		node.position = normal * motion
+		if edge_node != null:
+			edge_node.position = node.position
+
+		var base_color := runtime.get("visual_color", material.albedo_color) as Color
+		var base_emission := runtime.get("visual_emission", Color.BLACK) as Color
+		var base_emission_energy := float(runtime.get("visual_emission_energy", 0.0))
+		if route_weight <= 0.0 and glow_level <= 0.0:
+			var sweep := sin(_stage_elapsed * 2.35 + phase * 2.1 + base_height * 18.0)
+			var sparkle := maxf(0.0, sweep)
+			sparkle = sparkle * sparkle * sparkle
+			var pulse_color := route_color.lerp(selected_color, 0.38 + 0.22 * sin(phase))
+			base_color = base_color.lerp(pulse_color, sparkle * 0.20)
+			base_emission = base_emission.lerp(pulse_color, sparkle * 0.18)
+			base_emission_energy += sparkle * 0.13
+		material.albedo_color = base_color
+		material.emission = base_emission
+		material.emission_energy_multiplier = base_emission_energy
+		if edge_material != null:
+			var edge_color := runtime.get("edge_color", polyhedron_edge_color) as Color
+			var edge_energy := float(runtime.get("edge_energy", 0.04))
+			edge_material.no_depth_test = bool(runtime.get("edge_depth_disabled", false))
+			if glow_level > 0.0 and _charging_cell_id < 0:
+				edge_energy += 0.18 * glow_level * maxf(0.0, sin(_stage_elapsed * 8.5))
+			elif route_weight <= 0.0:
+				var edge_sweep := maxf(0.0, sin(_stage_elapsed * 2.35 + phase * 2.1 + base_height * 18.0))
+				edge_sweep = edge_sweep * edge_sweep * edge_sweep
+				edge_color = edge_color.lerp(route_color, edge_sweep * 0.28)
+				edge_energy += edge_sweep * 0.22
+			edge_material.albedo_color = edge_color
+			edge_material.emission = edge_color
+			edge_material.emission_energy_multiplier = edge_energy
 
 
 func _refresh_stage_labels() -> void:
 	var stage := _stage_data[_current_stage_index]
-	_panel_backdrop.color = stage.get("panel_color", Color(0.15, 0.15, 0.15, 1.0)) as Color
+	_refresh_stage_image(stage)
+	_panel_backdrop.color = Color(0.72, 0.70, 0.62, 0.10)
 	_stage_badge_label.text = "场景 %d / %d" % [_current_stage_index + 1, _stage_data.size()]
 	_title_label.text = String(stage.get("title", ""))
 	_desc_label.text = String(stage.get("subtitle", ""))
-	_hint_label.text = "WASD 旋转结构，按住鼠标连续拖拽整条回路。"
-	_progress_label.text = "回路进度 %d / %d" % [_selected_route_ids.size(), _current_stage_route_ids.size()]
-	_stage_badge_label.text = "Scene %d / %d" % [_current_stage_index + 1, _stage_data.size()]
-	_hint_label.text = "WASD rotate. Hold LMB and trace the full loop."
-	_progress_label.text = "Loop progress %d / %d" % [_selected_route_ids.size(), _current_stage_route_ids.size()]
-	line_canvas.line_color = stage.get("selected_color", Color.WHITE) as Color
+	_hint_label.text = "WASD 旋转结构，按住鼠标连续拖拽纹理路径。"
+	_progress_label.text = "路径进度 %d / %d" % [_selected_route_ids.size(), _current_stage_route_ids.size()]
+	var trace_color := _get_trace_theme_color(stage, true)
+	line_canvas.line_color = trace_color
+	line_canvas.line_shadow_color = _get_trace_shadow_color(trace_color)
+	line_canvas.line_shadow_extra_width = 10.0
+	line_canvas.particle_color = Color(trace_color.r, trace_color.g, trace_color.b, 0.88)
+
+
+func _refresh_stage_image(stage: Dictionary) -> void:
+	if _stage_image_rect == null:
+		return
+	if _suppress_stage_image_refresh:
+		return
+
+	var image_path := String(stage.get("image_path", ""))
+	if image_path.is_empty():
+		_stage_image_rect.texture = null
+		_stage_image_rect.visible = false
+		return
+
+	var texture := load(image_path) as Texture2D
+	if texture == null:
+		push_warning("Missing chapter 1-2 texture image: %s" % image_path)
+		_stage_image_rect.texture = null
+		_stage_image_rect.visible = false
+		return
+
+	_stage_image_rect.texture = texture
+	_stage_image_rect.visible = true
+
+
+func _get_film_trace_color(stage: Dictionary, completed: bool) -> Color:
+	var source := stage.get("selected_color", Color(0.88, 0.84, 0.72, 1.0)) as Color
+	if not completed:
+		source = stage.get("target_color", source) as Color
+	var luma := source.r * 0.299 + source.g * 0.587 + source.b * 0.114
+	var muted := Color(
+		lerpf(luma, source.r, 0.18),
+		lerpf(luma, source.g, 0.18),
+		lerpf(luma, source.b, 0.18),
+		0.0
+	)
+	var paper := Color(0.84, 0.82, 0.73, 1.0)
+	var result := muted.lerp(paper, 0.48)
+	result.a = 0.86 if completed else 0.34
+	return result
+
+
+func _get_trace_theme_color(stage: Dictionary, completed: bool) -> Color:
+	var source := stage.get("selected_color", Color(0.95, 0.9, 0.72, 1.0)) as Color
+	if not completed:
+		source = stage.get("target_color", source) as Color
+	var result := source.lerp(Color.WHITE, 0.08)
+	result.a = 0.94 if completed else 0.42
+	return result
+
+
+func _get_trace_shadow_color(trace_color: Color) -> Color:
+	var luma := trace_color.r * 0.299 + trace_color.g * 0.587 + trace_color.b * 0.114
+	if luma > 0.72:
+		return Color(0.09, 0.075, 0.055, 0.58)
+	return Color(trace_color.r * 0.22, trace_color.g * 0.18, trace_color.b * 0.14, 0.58)
 
 
 func _set_status_text(text: String) -> void:
@@ -1360,6 +2131,8 @@ func _set_status_text(text: String) -> void:
 
 func _try_begin_drag() -> void:
 	if _transition_running:
+		return
+	if _rollback_active:
 		return
 	if not left_3d.get_global_rect().has_point(_latest_mouse_pos):
 		return
@@ -1377,16 +2150,18 @@ func _try_begin_drag() -> void:
 	_drag_anchor_cell_id = picked_id
 	_hover_cell_id = picked_id
 	_hover_hold_elapsed = 0.0
+	_charging_cell_id = picked_id
+	_charge_elapsed = 0.0
+	_charge_start_hint_t = clampf(_target_hint_elapsed / maxf(0.001, target_hint_fade_sec), 0.0, 1.0)
 	_drag_grace_left = drag_grace_sec
-	_set_status_text("保持按住，沿着回路连续拖过去。")
-	_set_status_text("Keep holding and continue into the next cell.")
+	_set_status_text("保持按住，沿着纹理路径连续拖过去。")
 	_refresh_cell_materials()
 	get_viewport().set_input_as_handled()
 
 
 func _update_drag_progress(delta: float) -> void:
 	if not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-		_cancel_drag("描摹中断，已重置。")
+		_start_rollback("描摹中断，路径开始回撤。")
 		return
 
 	var target_id := _get_current_target_cell_id()
@@ -1399,10 +2174,15 @@ func _update_drag_progress(delta: float) -> void:
 		if _hover_cell_id != picked_id:
 			_hover_cell_id = picked_id
 			_hover_hold_elapsed = 0.0
-			_refresh_cell_materials()
+		if _charging_cell_id != picked_id:
+			_charging_cell_id = picked_id
+			_charge_elapsed = 0.0
+			_charge_start_hint_t = clampf(_target_hint_elapsed / maxf(0.001, target_hint_fade_sec), 0.0, 1.0)
 		_hover_hold_elapsed += delta
+		_charge_elapsed += delta
 		_drag_grace_left = drag_grace_sec
-		if _hover_hold_elapsed >= cell_hold_sec:
+		_refresh_cell_materials()
+		if _charge_elapsed >= cell_hold_sec:
 			_commit_current_target_cell()
 		return
 
@@ -1410,6 +2190,9 @@ func _update_drag_progress(delta: float) -> void:
 		if _hover_cell_id != -1:
 			_hover_cell_id = -1
 			_hover_hold_elapsed = 0.0
+			_charging_cell_id = -1
+			_charge_elapsed = 0.0
+			_charge_start_hint_t = 1.0
 			_refresh_cell_materials()
 		_drag_grace_left = drag_grace_sec
 		return
@@ -1417,13 +2200,16 @@ func _update_drag_progress(delta: float) -> void:
 	if _hover_cell_id != -1:
 		_hover_cell_id = -1
 		_hover_hold_elapsed = 0.0
+		_charging_cell_id = -1
+		_charge_elapsed = 0.0
+		_charge_start_hint_t = 1.0
 		_refresh_cell_materials()
 	_drag_grace_left -= delta
 	if _drag_grace_left <= 0.0:
-		var reason := "光标离开回路，已重置。"
+		var reason := "光标离开路径，路径开始回撤。"
 		if picked_id != -1:
-			reason = "走错单元，已重置。"
-		_cancel_drag(reason)
+			reason = "走错单元，路径开始回撤。"
+		_start_rollback(reason)
 
 
 func _commit_current_target_cell() -> void:
@@ -1435,7 +2221,11 @@ func _commit_current_target_cell() -> void:
 	_drag_anchor_cell_id = target_id
 	_hover_cell_id = -1
 	_hover_hold_elapsed = 0.0
+	_charging_cell_id = -1
+	_charge_elapsed = 0.0
+	_charge_start_hint_t = 1.0
 	_drag_grace_left = drag_grace_sec
+	_target_hint_elapsed = 0.0
 	_refresh_stage_labels()
 	_refresh_route_preview()
 	_refresh_cell_materials()
@@ -1443,8 +2233,8 @@ func _commit_current_target_cell() -> void:
 	if _selected_route_ids.size() >= _current_stage_route_ids.size():
 		_drag_active = false
 		_transition_running = true
-		_set_status_text("回路完成。")
-		_set_status_text("Loop complete.")
+		_pointer_hand_visible_target = false
+		_set_status_text("路径完成。")
 		call_deferred("_complete_current_stage")
 
 
@@ -1453,6 +2243,9 @@ func _cancel_drag(reason: String) -> void:
 	_drag_anchor_cell_id = -1
 	_hover_cell_id = -1
 	_hover_hold_elapsed = 0.0
+	_charging_cell_id = -1
+	_charge_elapsed = 0.0
+	_charge_start_hint_t = 1.0
 	_drag_grace_left = 0.0
 	_selected_route_ids.clear()
 	_refresh_stage_labels()
@@ -1461,10 +2254,152 @@ func _cancel_drag(reason: String) -> void:
 	_set_status_text(reason)
 
 
+func _start_rollback(reason: String) -> void:
+	var unfinished_cell_id := _charging_cell_id
+	var unfinished_charge_t := clampf(_charge_elapsed / maxf(0.001, cell_hold_sec), 0.0, 1.0)
+	var unfinished_hint_t := clampf(_charge_start_hint_t, 0.0, 1.0) if unfinished_cell_id >= 0 else 0.0
+	if unfinished_cell_id < 0:
+		var hinted_target_id := _get_current_target_cell_id()
+		var hint_t := clampf(_target_hint_elapsed / maxf(0.001, target_hint_fade_sec), 0.0, 1.0)
+		if hinted_target_id >= 0 and hint_t > 0.0:
+			unfinished_cell_id = hinted_target_id
+			unfinished_charge_t = 0.0
+			unfinished_hint_t = hint_t
+	_drag_active = false
+	_drag_anchor_cell_id = -1
+	_hover_cell_id = -1
+	_hover_hold_elapsed = 0.0
+	_charging_cell_id = -1
+	_charge_elapsed = 0.0
+	_drag_grace_left = 0.0
+	if _selected_route_ids.is_empty() and unfinished_cell_id < 0:
+		_cancel_drag(reason)
+		return
+	_rollback_active = true
+	_rollback_elapsed = 0.0
+	if unfinished_cell_id >= 0:
+		_rollback_fading_cell_id = unfinished_cell_id
+		_rollback_fading_committed = false
+		_rollback_fading_charge_t = unfinished_charge_t
+		_rollback_fading_hint_t = unfinished_hint_t
+	else:
+		_rollback_fading_cell_id = _selected_route_ids[_selected_route_ids.size() - 1]
+		_rollback_fading_committed = true
+		_rollback_fading_charge_t = 1.0
+		_rollback_fading_hint_t = 1.0
+	_set_status_text(reason + " 按住正在变暗的锥体可维持进度。")
+	_refresh_cell_materials()
+	get_viewport().set_input_as_handled()
+
+
+func _update_rollback(delta: float) -> void:
+	if _selected_route_ids.is_empty() and (_rollback_fading_cell_id < 0 or _rollback_fading_committed):
+		_stop_rollback(false)
+		return
+
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and _is_pointer_on_rollback_cell():
+		_resume_rollback_progress()
+		return
+
+	_rollback_elapsed += delta
+	if _rollback_elapsed < rollback_step_sec:
+		_refresh_cell_materials()
+		return
+
+	if not _rollback_fading_committed:
+		_rollback_elapsed = 0.0
+		_rollback_fading_charge_t = 1.0
+		_rollback_fading_hint_t = 1.0
+		if _selected_route_ids.is_empty():
+			_stop_rollback(false)
+		else:
+			_rollback_fading_cell_id = _selected_route_ids[_selected_route_ids.size() - 1]
+			_rollback_fading_committed = true
+			_drag_anchor_cell_id = _rollback_fading_cell_id
+		_refresh_stage_labels()
+		_refresh_route_preview()
+		_refresh_cell_materials()
+		return
+
+	_selected_route_ids.pop_back()
+	_rollback_elapsed = 0.0
+	if _selected_route_ids.is_empty():
+		_stop_rollback(false)
+		_set_status_text("路径已回撤到起点。")
+	else:
+		_rollback_fading_cell_id = _selected_route_ids[_selected_route_ids.size() - 1]
+		_drag_anchor_cell_id = _rollback_fading_cell_id
+		_set_status_text("路径回撤中。按住正在变暗的锥体可维持进度。")
+	_refresh_stage_labels()
+	_refresh_route_preview()
+	_refresh_cell_materials()
+
+
+func _try_resume_rollback() -> void:
+	if not _rollback_active or _rollback_fading_cell_id < 0:
+		return
+
+	if not _is_pointer_on_rollback_cell():
+		return
+
+	_resume_rollback_progress()
+
+
+func _is_pointer_on_rollback_cell() -> bool:
+	if _rollback_fading_cell_id < 0:
+		return false
+	if not left_3d.get_global_rect().has_point(_latest_mouse_pos):
+		return false
+	var picked_id := _pick_cell_at_screen_position(_latest_mouse_pos, [_rollback_fading_cell_id])
+	return picked_id == _rollback_fading_cell_id
+
+
+func _resume_rollback_progress() -> void:
+	var resume_cell_id := _rollback_fading_cell_id
+	var resume_was_committed := _rollback_fading_committed
+	var resume_charge_t := _rollback_fading_charge_t
+	var resume_hint_t := _rollback_fading_hint_t
+	var resume_fade_t := clampf(_rollback_elapsed / maxf(0.001, rollback_step_sec), 0.0, 1.0)
+	_stop_rollback(true)
+	_drag_active = true
+	_drag_anchor_cell_id = _selected_route_ids[_selected_route_ids.size() - 1] if not _selected_route_ids.is_empty() else -1
+	_hover_cell_id = -1
+	_hover_hold_elapsed = 0.0
+	if resume_was_committed:
+		_charging_cell_id = -1
+		_charge_elapsed = 0.0
+	else:
+		_charging_cell_id = resume_cell_id
+		_charge_elapsed = clampf(resume_charge_t, 0.0, 1.0) * cell_hold_sec
+		_charge_start_hint_t = clampf(resume_hint_t * (1.0 - resume_fade_t), 0.0, 1.0)
+	_drag_grace_left = drag_grace_sec
+	_set_status_text("进度已维持，继续沿纹理路径拖拽。")
+	_refresh_cell_materials()
+	get_viewport().set_input_as_handled()
+
+
+func _stop_rollback(keep_progress: bool) -> void:
+	_rollback_active = false
+	_rollback_elapsed = 0.0
+	_rollback_fading_cell_id = -1
+	_rollback_fading_committed = true
+	_rollback_fading_charge_t = 1.0
+	_rollback_fading_hint_t = 1.0
+	_charging_cell_id = -1
+	_charge_elapsed = 0.0
+	_charge_start_hint_t = 1.0
+	if not keep_progress:
+		_target_hint_elapsed = 0.0
+	if not keep_progress and _selected_route_ids.is_empty():
+		_drag_anchor_cell_id = -1
+	_refresh_cell_materials()
+
+
 func _complete_current_stage() -> void:
 	_refresh_route_preview()
 	_refresh_cell_materials()
-	await get_tree().create_timer(0.18).timeout
+	_pointer_hand_visible_target = false
+	await get_tree().create_timer(0.42).timeout
 
 	var next_stage_index := _current_stage_index + 1
 	if next_stage_index < _stage_data.size():
@@ -1480,6 +2415,51 @@ func _complete_current_stage() -> void:
 
 
 func _play_hand_wipe_to_stage(next_stage_index: int) -> void:
+	var next_stage := _stage_data[next_stage_index]
+	var next_texture := _load_stage_texture(next_stage)
+	_hand_rect.visible = true
+	_place_hand_for_wipe(0.0)
+	if _stage_image_next_rect != null:
+		_stage_image_next_rect.texture = next_texture
+		_stage_image_next_rect.visible = next_texture != null
+	if _stage_image_wipe_material != null:
+		_stage_image_wipe_material.set_shader_parameter("reveal_progress", 0.0)
+
+	var switched_left := false
+	var elapsed := 0.0
+	while elapsed < hand_wipe_duration_sec:
+		var delta := get_process_delta_time()
+		elapsed = minf(hand_wipe_duration_sec, elapsed + delta)
+		var t := clampf(elapsed / maxf(0.001, hand_wipe_duration_sec), 0.0, 1.0)
+		var smooth_t := t * t * (3.0 - 2.0 * t)
+		if _stage_image_wipe_material != null:
+			_stage_image_wipe_material.set_shader_parameter("reveal_progress", smooth_t)
+		_place_hand_for_wipe(smooth_t)
+		left_3d.modulate.a = clampf(absf(smooth_t - 0.5) * 2.0, 0.0, 1.0)
+		if not switched_left and smooth_t >= 0.5:
+			switched_left = true
+			_suppress_stage_image_refresh = true
+			_apply_stage(next_stage_index, true)
+			_suppress_stage_image_refresh = false
+		await get_tree().process_frame
+
+	if not switched_left:
+		_suppress_stage_image_refresh = true
+		_apply_stage(next_stage_index, true)
+		_suppress_stage_image_refresh = false
+	left_3d.modulate.a = 1.0
+	if _stage_image_rect != null:
+		_stage_image_rect.texture = next_texture
+		_stage_image_rect.visible = next_texture != null
+	if _stage_image_next_rect != null:
+		_stage_image_next_rect.visible = false
+		_stage_image_next_rect.texture = null
+	if _stage_image_wipe_material != null:
+		_stage_image_wipe_material.set_shader_parameter("reveal_progress", 0.0)
+	_hand_rect.visible = false
+	_set_status_text("擦除完成，进入下一张纹理。")
+	return
+
 	_hand_rect.visible = true
 	_place_hand_at_start()
 
@@ -1519,7 +2499,7 @@ func _play_final_hand_wipe() -> void:
 	await tween.finished
 
 	_hand_rect.visible = false
-	_set_status_text("三段回路完成，准备进入下一关。")
+	_set_status_text("三段路径完成，准备进入下一关。")
 
 
 func _place_hand_at_start() -> void:
@@ -1530,30 +2510,228 @@ func _place_hand_at_start() -> void:
 	_hand_rect.rotation_degrees = -28.0
 
 
+func _place_hand_for_wipe(progress: float) -> void:
+	var panel_size := right_panel.size
+	var t := clampf(progress, 0.0, 1.0)
+	_hand_rect.size = Vector2(panel_size.x * 0.72, panel_size.y * 1.05)
+	_hand_rect.pivot_offset = _hand_rect.size * 0.5
+	var x := lerpf(-panel_size.x * 0.42, panel_size.x * 1.08, t)
+	var y := panel_size.y * 0.52 + sin(t * PI) * panel_size.y * 0.06
+	_hand_rect.position = Vector2(x, y - _hand_rect.size.y * 0.52)
+	_hand_rect.rotation_degrees = lerpf(-8.0, 10.0, t)
+
+
+func _update_pointer_hand(delta: float) -> void:
+	if _pointer_hand_rect == null:
+		return
+	var pointer_texture := _load_pointer_hand_texture()
+	if pointer_texture == null:
+		_pointer_hand_rect.visible = false
+		return
+	if _pointer_hand_rect.texture == null:
+		_pointer_hand_rect.texture = pointer_texture
+
+	var panel_size := right_panel.size
+	var hand_width := clampf(panel_size.x * 0.30, 120.0, 260.0)
+	var texture_size := pointer_texture.get_size()
+	var aspect := texture_size.y / maxf(1.0, texture_size.x)
+	_pointer_hand_rect.size = Vector2(hand_width, hand_width * aspect)
+	_pointer_hand_rect.pivot_offset = _pointer_hand_rect.size * 0.5
+
+	var tip_local := _pointer_hand_rect.size
+	var tip_point := _get_current_preview_pointer_point()
+	if tip_point != Vector2.INF:
+		_pointer_hand_target_pos = tip_point
+
+	var target_alpha := 1.0 if _pointer_hand_visible_target and _pointer_hand_target_pos != Vector2.ZERO else 0.0
+	_pointer_hand_alpha = move_toward(_pointer_hand_alpha, target_alpha, delta * 3.4)
+
+	if _pointer_hand_alpha <= 0.01 and target_alpha <= 0.0:
+		_pointer_hand_rect.visible = false
+		return
+
+	_pointer_hand_rect.visible = true
+	var target_rotation := _get_pointer_hand_rotation_for_target(_pointer_hand_target_pos, _pointer_hand_rect.size)
+	var rotation_follow_t := 1.0 - pow(0.0008, delta)
+	_pointer_hand_rect.rotation = lerp_angle(_pointer_hand_rect.rotation, target_rotation, rotation_follow_t)
+	var pivot := _pointer_hand_rect.pivot_offset
+	var base_position := _pointer_hand_target_pos - pivot - (tip_local - pivot).rotated(_pointer_hand_rect.rotation)
+	var enter_offset := Vector2(0.0, (1.0 - _pointer_hand_alpha) * panel_size.y * 0.34)
+	var exit_offset := Vector2(0.0, (1.0 - target_alpha) * panel_size.y * 0.62)
+	var desired_position := base_position + enter_offset + exit_offset
+	_pointer_hand_rect.position = desired_position
+	_pointer_hand_rect.modulate = Color(1.0, 1.0, 1.0, _pointer_hand_alpha)
+	if _hand_pointer_material != null:
+		_hand_pointer_material.set_shader_parameter("shimmer", _pointer_hand_alpha)
+
+
+func _get_pointer_hand_rotation_for_target(target: Vector2, hand_size: Vector2) -> float:
+	var panel_size := right_panel.size
+	if panel_size.x <= 1.0 or panel_size.y <= 1.0:
+		return deg_to_rad(-4.0)
+	var x_ratio := clampf(target.x / panel_size.x, 0.0, 1.0)
+	var y_ratio := clampf(target.y / panel_size.y, 0.0, 1.0)
+	var preferred_deg := lerpf(-24.0, 16.0, x_ratio)
+	if target.y < hand_size.y * 0.34:
+		preferred_deg += lerpf(18.0, -12.0, x_ratio)
+	elif y_ratio > 0.78:
+		preferred_deg -= 10.0
+
+	var best_rotation := deg_to_rad(preferred_deg)
+	var best_score := INF
+	for offset_deg in [-48.0, -36.0, -24.0, -12.0, 0.0, 12.0, 24.0, 36.0, 48.0]:
+		var rotation := deg_to_rad(clampf(preferred_deg + offset_deg, -62.0, 42.0))
+		var overflow := _get_pointer_hand_overflow_score(target, hand_size, rotation)
+		var preference_penalty := absf(offset_deg) * 0.002
+		var score := overflow + preference_penalty
+		if score < best_score:
+			best_score = score
+			best_rotation = rotation
+	return best_rotation
+
+
+func _get_pointer_hand_overflow_score(target: Vector2, hand_size: Vector2, rotation: float) -> float:
+	var panel_size := right_panel.size
+	var pivot := hand_size * 0.5
+	var tip := hand_size
+	var top_left := target - pivot - (tip - pivot).rotated(rotation)
+	var corners: Array[Vector2] = [
+		Vector2.ZERO,
+		Vector2(hand_size.x, 0.0),
+		hand_size,
+		Vector2(0.0, hand_size.y),
+	]
+	var min_point := Vector2(INF, INF)
+	var max_point := Vector2(-INF, -INF)
+	for corner in corners:
+		var point: Vector2 = top_left + pivot + (corner - pivot).rotated(rotation)
+		min_point.x = minf(min_point.x, point.x)
+		min_point.y = minf(min_point.y, point.y)
+		max_point.x = maxf(max_point.x, point.x)
+		max_point.y = maxf(max_point.y, point.y)
+	var margin := 10.0
+	var overflow_left := maxf(0.0, margin - min_point.x)
+	var overflow_top := maxf(0.0, margin - min_point.y)
+	var overflow_right := maxf(0.0, max_point.x - (panel_size.x - margin))
+	var overflow_bottom := maxf(0.0, max_point.y - (panel_size.y - margin))
+	return overflow_left + overflow_top + overflow_right + overflow_bottom
+
+
+func _load_pointer_hand_texture() -> Texture2D:
+	if _hand_pointer_texture != null:
+		return _hand_pointer_texture
+	var image := Image.new()
+	var error := image.load(ProjectSettings.globalize_path(HAND_POINTER_TEXTURE_PATH))
+	if error != OK:
+		push_warning("Missing Hand05 pointer texture: %s" % HAND_POINTER_TEXTURE_PATH)
+		return null
+	_hand_pointer_texture = ImageTexture.create_from_image(image)
+	return _hand_pointer_texture
+
+
+func _get_current_preview_pointer_point() -> Vector2:
+	if _current_preview_uvs.is_empty():
+		return Vector2.INF
+	var pixel_points := _preview_points_to_pixels(_current_preview_uvs)
+	if pixel_points.is_empty():
+		return Vector2.INF
+	var progress := _get_visual_route_progress()
+	return _sample_pixel_route_at_progress(pixel_points, progress)
+
+
+func _get_visual_route_progress() -> float:
+	var progress := float(_selected_route_ids.size())
+	if _rollback_active and _rollback_fading_cell_id >= 0:
+		var rollback_t := clampf(_rollback_elapsed / maxf(0.001, rollback_step_sec), 0.0, 1.0)
+		if _rollback_fading_committed:
+			progress = maxf(0.0, float(_selected_route_ids.size()) - rollback_t)
+		else:
+			progress = float(_selected_route_ids.size()) + (1.0 - rollback_t) * 0.5
+	elif _drag_active and _charging_cell_id >= 0:
+		var charge_t := clampf(_charge_elapsed / maxf(0.001, cell_hold_sec), 0.0, 1.0)
+		progress = float(_selected_route_ids.size()) + charge_t
+	return clampf(progress, 0.0, float(maxi(0, _current_preview_uvs.size() - 1)))
+
+
+func _sample_pixel_route_at_progress(pixel_points: PackedVector2Array, progress: float) -> Vector2:
+	if pixel_points.size() == 1:
+		return pixel_points[0]
+	var clamped_progress := clampf(progress, 0.0, float(pixel_points.size() - 1))
+	var from_index := clampi(int(floor(clamped_progress)), 0, pixel_points.size() - 1)
+	var to_index := clampi(from_index + 1, 0, pixel_points.size() - 1)
+	var frac := clamped_progress - float(from_index)
+	return pixel_points[from_index].lerp(pixel_points[to_index], frac)
+
+
+func _load_stage_texture(stage: Dictionary) -> Texture2D:
+	var image_path := String(stage.get("image_path", ""))
+	if image_path.is_empty():
+		return null
+	return load(image_path) as Texture2D
+
+
 func _refresh_route_preview() -> void:
-	if _current_preview_uvs.is_empty() or _selected_route_ids.is_empty():
+	if _current_preview_uvs.is_empty() and _current_route_guide_uvs.is_empty():
+		if _route_guide_canvas != null:
+			_route_guide_canvas.clear_lines()
 		line_canvas.clear_lines()
 		return
 
+	if _route_guide_canvas != null:
+		_route_guide_canvas.clear_lines()
+
 	var pixel_points := _preview_points_to_pixels(_current_preview_uvs)
+	var active_points := _build_active_preview_points(pixel_points)
+	if active_points.size() < 2:
+		line_canvas.clear_lines()
+		return
+
+	var closed := _current_route_guide_closed and _selected_route_ids.size() == _current_stage_route_ids.size()
+	line_canvas.set_line_points(active_points, closed, 5.6)
+
+
+func _build_active_preview_points(pixel_points: PackedVector2Array) -> PackedVector2Array:
+	if pixel_points.size() < 2:
+		return PackedVector2Array()
+
+	var progress := float(_selected_route_ids.size())
+	if _rollback_active and _rollback_fading_cell_id >= 0:
+		var rollback_t := clampf(_rollback_elapsed / maxf(0.001, rollback_step_sec), 0.0, 1.0)
+		if _rollback_fading_committed:
+			progress = maxf(0.0, float(_selected_route_ids.size()) - rollback_t)
+		else:
+			progress = float(_selected_route_ids.size()) + (1.0 - rollback_t) * 0.5
+	elif _drag_active and _charging_cell_id >= 0:
+		var charge_t := clampf(_charge_elapsed / maxf(0.001, cell_hold_sec), 0.0, 1.0)
+		progress = float(_selected_route_ids.size()) + charge_t
+
+	progress = clampf(progress, 0.0, float(pixel_points.size()))
+	var full_count := clampi(int(floor(progress)), 0, pixel_points.size())
+	var frac := progress - float(full_count)
 	var active_points := PackedVector2Array()
-	for i in range(_selected_route_ids.size()):
-		if i >= pixel_points.size():
-			break
+	for i in range(full_count):
 		active_points.append(pixel_points[i])
 
-	var closed := _selected_route_ids.size() == _current_stage_route_ids.size()
-	line_canvas.set_line_points(active_points, closed, 6.0)
+	if frac > 0.001 and full_count < pixel_points.size():
+		if active_points.is_empty():
+			active_points.append(pixel_points[0])
+		var from_index := maxi(0, full_count - 1)
+		var to_index := full_count
+		active_points.append(pixel_points[from_index].lerp(pixel_points[to_index], frac))
+
+	return active_points
 
 
-func _sample_closed_template(template: PackedVector2Array, sample_count: int) -> PackedVector2Array:
+func _sample_route_template(template: PackedVector2Array, sample_count: int, closed: bool) -> PackedVector2Array:
 	if template.size() < 2 or sample_count <= 0:
 		return PackedVector2Array()
 
 	var segment_lengths: Array[float] = []
 	var total_length := 0.0
-	for i in range(template.size()):
-		var length := template[i].distance_to(template[(i + 1) % template.size()])
+	var segment_count := template.size() if closed else template.size() - 1
+	for i in range(segment_count):
+		var next_index := (i + 1) % template.size()
+		var length := template[i].distance_to(template[next_index])
 		segment_lengths.append(length)
 		total_length += length
 
@@ -1562,7 +2740,8 @@ func _sample_closed_template(template: PackedVector2Array, sample_count: int) ->
 
 	var result := PackedVector2Array()
 	for sample_index in range(sample_count):
-		var target_distance := total_length * float(sample_index) / float(sample_count)
+		var denominator := float(sample_count) if closed else float(maxi(1, sample_count - 1))
+		var target_distance := total_length * float(sample_index) / denominator
 		var accumulated := 0.0
 		for segment_index in range(segment_lengths.size()):
 			var segment_length := segment_lengths[segment_index]
@@ -1581,12 +2760,10 @@ func _sample_closed_template(template: PackedVector2Array, sample_count: int) ->
 func _preview_points_to_pixels(uv_points: PackedVector2Array) -> PackedVector2Array:
 	var pixel_points := PackedVector2Array()
 	var canvas_size := line_canvas.size
-	var pad_x := canvas_size.x * 0.14
-	var pad_y := canvas_size.y * 0.16
 	for uv in uv_points:
 		pixel_points.append(Vector2(
-			lerpf(pad_x, canvas_size.x - pad_x, uv.x),
-			lerpf(pad_y, canvas_size.y - pad_y, uv.y)
+			clampf(uv.x, 0.0, 1.0) * canvas_size.x,
+			clampf(uv.y, 0.0, 1.0) * canvas_size.y
 		))
 	return pixel_points
 
