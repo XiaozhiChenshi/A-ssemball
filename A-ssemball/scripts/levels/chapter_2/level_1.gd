@@ -5,10 +5,16 @@ class_name LevelC2L1
 signal chapter_completed(chapter_index: int)
 
 const RIGHT_SCENE_TEXTURES: Array[Texture2D] = [
-	preload("res://assets/materials/room2-1-1.png"),
-	preload("res://assets/materials/room2-1-2.png"),
-	preload("res://assets/materials/room2-1-3.png"),
-	preload("res://assets/materials/room2-1-4.png"),
+	preload("res://assets/materials/2-1m.png"),
+	preload("res://assets/materials/2-2m.png"),
+	preload("res://assets/materials/2-3m.png"),
+	preload("res://assets/materials/2-4m.png"),
+]
+const RIGHT_SCENE_CANVAS_PLACEHOLDER_TEXTS: Array[String] = [
+	"钢琴",
+	"长笛",
+	"大提琴",
+	"架子鼓",
 ]
 const SECOND_CUBE_UV_TEXTURE: Texture2D = preload("res://assets/textures/uv1.png")
 const THIRD_CUBE_UV_TEXTURE: Texture2D = preload("res://assets/textures/uv2.png")
@@ -20,6 +26,9 @@ const NOTE_TEXTURES: Array[Texture2D] = [
 	preload("res://assets/textures/note5.png"),
 	preload("res://assets/textures/note6.png"),
 ]
+const RIGHT_SCENE_FRAME_TEXTURE: Texture2D = preload("res://assets/materials/pictureframe.png")
+const RIGHT_SCENE_DISC_TEXTURE_A: Texture2D = preload("res://assets/materials/disc1.png")
+const RIGHT_SCENE_DISC_TEXTURE_B: Texture2D = preload("res://assets/materials/disc2.png")
 
 @export var light_rotation_speed_deg: float = 0.0
 @export var light_energy: float = 0.85
@@ -113,6 +122,13 @@ const NOTE_TEXTURES: Array[Texture2D] = [
 @export var right_scene_image_top_px: float = 0.0
 @export var right_scene_image_right_px: float = 0.0
 @export var right_scene_image_bottom_px: float = 0.0
+@export var right_scene_canvas_x_px: float = 222.0
+@export var right_scene_canvas_y_px: float = 54.0
+@export var right_scene_canvas_width_px: float = 496.0
+@export var right_scene_canvas_height_px: float = 277.0
+@export_range(0.1, 5.0, 0.1) var right_scene_disc_switch_sec: float = 1.2
+@export_range(0.05, 2.0, 0.01) var right_scene_disc_fade_sec: float = 0.28
+@export_range(0.1, 2.0, 0.01) var right_scene_switch_fade_sec: float = 0.4
 @export_range(0.0, 0.8, 0.01) var right_scene_dim_alpha: float = 0.20
 @export_range(1.0, 20.0, 1.0) var split_divider_width_px: float = 5.0
 
@@ -157,6 +173,13 @@ var _right_scene_status_labels: Array[Label] = []
 var _right_scene_completed: Array[bool] = []
 var _right_scene_flash_overlay: ColorRect
 var _right_scene_dim_overlay: ColorRect
+var _right_scene_filter_hosts: Array[Control] = []
+var _right_scene_disc_layers: Array[TextureRect] = []
+var _right_scene_disc_visible: bool = false
+var _right_scene_disc_timer_sec: float = 0.0
+var _right_scene_disc_frame: int = 0
+var _right_scene_disc_fade_tween: Tween
+var _right_scene_switch_block_until_ms: int = 0
 var _right_scene_flash_tween: Tween
 var _orbit_root: Node3D
 var _orbit_cube_entries: Array[Dictionary] = []
@@ -346,6 +369,7 @@ func _process(delta: float) -> void:
 	_update_orbit_cubes(delta)
 	_update_vertical_preview_state()
 	_update_hold_rotation(delta)
+	_update_right_scene_disc_animation(delta)
 	_update_intro_overlay_geometry()
 	_update_right_fragment_region_hint()
 
@@ -392,9 +416,8 @@ uniform float specular_strength : hint_range(0.0, 1.0) = 0.16;
 uniform float relief_strength : hint_range(0.0, 0.25) = 0.048;
 uniform float emission_strength : hint_range(0.0, 1.0) = 0.18;
 uniform float emission_pulse : hint_range(0.0, 1.0) = 0.08;
-uniform float fracture_line_strength : hint_range(0.0, 1.0) = 0.12;
-uniform float fracture_density : hint_range(0.5, 12.0) = 4.6;
-uniform float drift_speed : hint_range(0.0, 2.0) = 0.14;
+uniform float surface_density : hint_range(0.5, 10.0) = 2.6;
+uniform float drift_speed : hint_range(0.0, 1.0) = 0.06;
 
 float hash21(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
@@ -404,7 +427,7 @@ float value_noise(vec2 p) {
 	vec2 i = floor(p);
 	vec2 f = fract(p);
 	f = f * f * (3.0 - 2.0 * f);
-	float a = hash21(i + vec2(0.0, 0.0));
+	float a = hash21(i);
 	float b = hash21(i + vec2(1.0, 0.0));
 	float c = hash21(i + vec2(0.0, 1.0));
 	float d = hash21(i + vec2(1.0, 1.0));
@@ -414,67 +437,39 @@ float value_noise(vec2 p) {
 float fbm(vec2 p) {
 	float v = 0.0;
 	float a = 0.5;
-	float freq = 1.0;
+	float f = 1.0;
 	for (int i = 0; i < 5; i++) {
-		v += value_noise(p * freq) * a;
-		freq *= 1.98;
+		v += value_noise(p * f) * a;
+		f *= 2.0;
 		a *= 0.5;
 	}
 	return v;
 }
 
-float voronoi_soft(vec2 p, out float edge) {
-	vec2 i = floor(p);
-	vec2 f = fract(p);
-	float md = 10.0;
-	float sd = 10.0;
-	for (int y = -1; y <= 1; y++) {
-		for (int x = -1; x <= 1; x++) {
-			vec2 g = vec2(float(x), float(y));
-			vec2 o = vec2(hash21(i + g), hash21(i + g + vec2(13.1, 7.3)));
-			vec2 r = g + o - f;
-			float d = dot(r, r);
-			if (d < md) {
-				sd = md;
-				md = d;
-			} else if (d < sd) {
-				sd = d;
-			}
-		}
-	}
-	edge = max(0.0, sd - md);
-	return sqrt(md);
-}
-
 void vertex() {
 	vec3 n = normalize(NORMAL);
-	vec2 uv = UV * fracture_density + vec2(TIME * drift_speed, -TIME * drift_speed * 0.6);
-	float wav = fbm(uv) * 0.6 + fbm(uv * 2.0 + 3.1) * 0.4;
-	float h = (wav * 2.0 - 1.0) * relief_strength;
+	vec2 uv = UV * surface_density + vec2(TIME * drift_speed, -TIME * drift_speed * 0.37);
+	float large = fbm(uv * 1.0);
+	float mid = fbm(uv * 2.2 + 5.3);
+	float h = ((large * 0.7 + mid * 0.3) * 2.0 - 1.0) * relief_strength;
 	VERTEX += n * h;
 }
 
 void fragment() {
 	vec3 n = normalize(NORMAL);
-	vec2 uv = UV * fracture_density + vec2(TIME * drift_speed * 0.7, TIME * drift_speed * 0.35);
-	float edge;
-	float cell = voronoi_soft(uv, edge);
-	float cracks = 1.0 - smoothstep(0.012, 0.065, edge);
-	float calm_noise = fbm(uv * 0.8 + 4.7);
+	vec2 uv = UV * surface_density + vec2(TIME * drift_speed * 0.7, TIME * drift_speed * 0.23);
+	float shade_noise = fbm(uv * 1.6 + 2.7);
 	float lat = n.y * 0.5 + 0.5;
-	vec3 cool = base_color.rgb * vec3(0.78, 0.86, 1.03);
-	vec3 warm = base_color.rgb * vec3(1.05, 0.98, 0.88);
-	vec3 albedo = mix(cool, warm, lat * 0.55 + calm_noise * 0.45);
-	albedo = mix(albedo, albedo * 0.84, smoothstep(0.0, 1.0, cell));
-
+	// Keep low contrast: subtle brightness modulation only.
+	float tone = 0.96 + (shade_noise - 0.5) * 0.08 + (lat - 0.5) * 0.03;
+	vec3 albedo = base_color.rgb * tone;
 	float pulse = sin(TIME * 1.4) * 0.5 + 0.5;
 	float fres = pow(1.0 - clamp(dot(n, normalize(VIEW)), 0.0, 1.0), 2.8);
-	vec3 fracture_tint = vec3(0.66, 0.86, 1.0) * cracks * fracture_line_strength;
 
 	ALBEDO = albedo;
 	ROUGHNESS = roughness;
 	SPECULAR = specular_strength;
-	EMISSION = albedo * (emission_strength * (0.72 + pulse * emission_pulse)) + fracture_tint + vec3(fres * emission_strength * 0.24);
+	EMISSION = albedo * (emission_strength * (0.72 + pulse * emission_pulse)) + vec3(fres * emission_strength * 0.24);
 }
 """
 	var sphere_material := ShaderMaterial.new()
@@ -940,6 +935,8 @@ void fragment() {
 				"eject_dur": 0.0,
 				"eject_start": Vector3.ZERO,
 				"eject_end": Vector3.ZERO,
+				"match_glow_t": 0.0,
+				"match_glow_dur": 0.38,
 			}
 		)
 
@@ -1010,6 +1007,19 @@ func _update_orbit_cubes(delta: float) -> void:
 						entry["eject_dur"] = maxf(0.05, orbit_eject_anim_sec)
 						entry["eject_start"] = _get_anchor_snap_world_position()
 						entry["eject_end"] = _get_anchor_snap_world_position() + eject_dir * maxf(0.05, orbit_eject_distance)
+			"matched_glow":
+				pivot.global_position = _get_anchor_snap_world_position()
+				var glow_dur := maxf(0.08, float(entry.get("match_glow_dur", 0.38)))
+				var glow_t := minf(1.0, float(entry.get("match_glow_t", 0.0)) + delta / glow_dur)
+				entry["match_glow_t"] = glow_t
+				var glow_pulse := sin(glow_t * PI)
+				cube.scale = Vector3.ONE * (1.0 + glow_pulse * 0.16)
+				_apply_orbit_cube_match_glow(cube, glow_pulse)
+				if glow_t >= 1.0:
+					cube.scale = Vector3.ONE
+					_apply_orbit_cube_match_glow(cube, 0.0)
+					entry["state"] = "return_slow"
+					entry["match_glow_t"] = 0.0
 			"snap_anim":
 				var snap_dur := maxf(0.05, float(entry.get("snap_anim_dur", orbit_snap_anim_sec)))
 				var snap_t := minf(1.0, float(entry.get("snap_anim_t", 0.0)) + delta / snap_dur)
@@ -1023,8 +1033,9 @@ func _update_orbit_cubes(delta: float) -> void:
 					var cube_index := int(entry.get("index", i))
 					var pending_match := bool(entry.get("pending_match", false))
 					if pending_match:
-						entry["state"] = "snapped"
-						entry["eject_wait"] = maxf(0.0, orbit_completed_eject_delay_sec)
+						entry["state"] = "matched_glow"
+						entry["match_glow_t"] = 0.0
+						entry["eject_wait"] = -1.0
 						_mark_scene_completed(cube_index)
 						_flash_right_scene()
 					else:
@@ -1145,6 +1156,21 @@ func _update_orbit_cubes(delta: float) -> void:
 		_orbit_cube_entries[i] = entry
 
 
+func _apply_orbit_cube_match_glow(cube: MeshInstance3D, glow_amount: float) -> void:
+	if cube == null:
+		return
+	var mat := cube.material_override
+	if mat is StandardMaterial3D:
+		var std := mat as StandardMaterial3D
+		std.emission_enabled = true
+		std.emission = Color(1.0, 0.95, 0.72, 1.0)
+		std.emission_energy_multiplier = 0.25 + glow_amount * 2.2
+	elif mat is ShaderMaterial:
+		var sh := mat as ShaderMaterial
+		if sh.get_shader_parameter("global_pulse_strength") != null:
+			sh.set_shader_parameter("global_pulse_strength", glow_amount)
+
+
 func _try_begin_orbit_cube_drag(screen_pos: Vector2) -> void:
 	if _final_transition_running:
 		return
@@ -1155,7 +1181,7 @@ func _try_begin_orbit_cube_drag(screen_pos: Vector2) -> void:
 		return
 	var entry := _orbit_cube_entries[cube_index] as Dictionary
 	var state := String(entry.get("state", "orbit"))
-	if state == "snapped" or state == "snap_anim" or state == "snap_reject_wait" or state == "eject_anim":
+	if state == "snapped" or state == "snap_anim" or state == "snap_reject_wait" or state == "eject_anim" or state == "matched_glow":
 		return
 	entry["state"] = "drag"
 	entry["reject_wait"] = 0.0
@@ -1209,7 +1235,8 @@ func _end_orbit_cube_drag(screen_pos: Vector2) -> void:
 		entry["snap_anim_dur"] = maxf(0.05, orbit_snap_anim_sec)
 		entry["snap_anim_start"] = pivot.global_position
 		entry["snap_anim_end"] = _get_anchor_snap_world_position()
-		entry["pending_match"] = cube_index == _right_scene_current_index
+		var can_match_current := cube_index == _right_scene_current_index and not _is_current_scene_completed()
+		entry["pending_match"] = can_match_current
 		entry["eject_wait"] = -1.0
 	else:
 		entry["state"] = "return_fast"
@@ -1234,7 +1261,7 @@ func _pick_orbit_cube(screen_pos: Vector2) -> int:
 	for i in range(_orbit_cube_entries.size()):
 		var entry := _orbit_cube_entries[i] as Dictionary
 		var state := String(entry.get("state", "orbit"))
-		if state == "snapped" or state == "snap_anim" or state == "snap_reject_wait" or state == "eject_anim":
+		if state == "snapped" or state == "snap_anim" or state == "snap_reject_wait" or state == "eject_anim" or state == "matched_glow":
 			continue
 		var pivot := entry.get("pivot") as Node3D
 		if pivot == null:
@@ -1300,6 +1327,69 @@ func _is_anchor_occupied() -> bool:
 		if state == "snapped" or state == "snap_anim" or state == "snap_reject_wait":
 			return true
 	return false
+
+
+func _has_any_cube_on_anchor() -> bool:
+	for entry in _orbit_cube_entries:
+		var state := String((entry as Dictionary).get("state", ""))
+		if state == "snap_anim" or state == "snapped" or state == "snap_reject_wait" or state == "matched_glow":
+			return true
+	return false
+
+
+func _has_locked_match_on_anchor() -> bool:
+	for entry in _orbit_cube_entries:
+		var state := String((entry as Dictionary).get("state", ""))
+		if state == "matched_glow":
+			return true
+	return false
+
+
+func _is_current_scene_completed() -> bool:
+	if _right_scene_current_index < 0 or _right_scene_current_index >= _right_scene_completed.size():
+		return false
+	return bool(_right_scene_completed[_right_scene_current_index])
+
+
+func _set_disc_visible(visible_now: bool, force_refresh: bool = false) -> void:
+	if _right_scene_disc_visible == visible_now and not force_refresh:
+		return
+	_right_scene_disc_visible = visible_now
+	if is_instance_valid(_right_scene_disc_fade_tween):
+		_right_scene_disc_fade_tween.kill()
+	_right_scene_disc_fade_tween = create_tween()
+	_right_scene_disc_fade_tween.set_parallel(true)
+	for i in range(_right_scene_disc_layers.size()):
+		var disc_layer := _right_scene_disc_layers[i]
+		if disc_layer == null:
+			continue
+		var allow_scene := i < _right_scene_completed.size() and _right_scene_completed[i] and i == _right_scene_current_index
+		var target_alpha := 1.0 if (visible_now and allow_scene) else 0.0
+		disc_layer.texture = RIGHT_SCENE_DISC_TEXTURE_A if _right_scene_disc_frame == 0 else RIGHT_SCENE_DISC_TEXTURE_B
+		_right_scene_disc_fade_tween.tween_property(disc_layer, "modulate:a", target_alpha, maxf(0.05, right_scene_disc_fade_sec))
+
+
+func _update_right_scene_disc_animation(delta: float) -> void:
+	if _right_scene_disc_layers.is_empty():
+		return
+	var should_show := _is_current_scene_completed() or _has_locked_match_on_anchor()
+	_set_disc_visible(should_show)
+	if not _right_scene_disc_visible:
+		_right_scene_disc_timer_sec = 0.0
+		_right_scene_disc_frame = 0
+		for disc_layer in _right_scene_disc_layers:
+			if disc_layer != null:
+				disc_layer.texture = RIGHT_SCENE_DISC_TEXTURE_A
+		return
+
+	_right_scene_disc_timer_sec += delta
+	if _right_scene_disc_timer_sec >= maxf(0.1, right_scene_disc_switch_sec):
+		_right_scene_disc_timer_sec = 0.0
+		_right_scene_disc_frame = 1 - _right_scene_disc_frame
+		var tex := RIGHT_SCENE_DISC_TEXTURE_A if _right_scene_disc_frame == 0 else RIGHT_SCENE_DISC_TEXTURE_B
+		for disc_layer in _right_scene_disc_layers:
+			if disc_layer != null:
+				disc_layer.texture = tex
 
 
 func _setup_final_curtains() -> void:
@@ -1733,9 +1823,10 @@ func _setup_right_placeholder() -> void:
 		bg.offset_top = 0.0
 		bg.offset_right = 0.0
 		bg.offset_bottom = 0.0
-		bg.color = Color(0.09, 0.08, 0.06, 1.0)
+		bg.color = Color(0.04, 0.04, 0.05, 1.0)
 		bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_right_placeholder_root.add_child(bg)
+	bg.color = Color(0.04, 0.04, 0.05, 1.0)
 
 	_right_scene_root = _right_placeholder_root.get_node_or_null("SceneStage") as Control
 	if _right_scene_root == null:
@@ -1752,6 +1843,10 @@ func _setup_right_placeholder() -> void:
 	_right_scene_cards.clear()
 	_right_scene_status_labels.clear()
 	_right_scene_completed.clear()
+	_right_scene_filter_hosts.clear()
+	_right_scene_disc_layers.clear()
+
+	var focus_rect := _compute_right_scene_focus_rect()
 
 	for i in range(RIGHT_SCENE_TEXTURES.size()):
 		var card_name := "SceneCard%d" % (i + 1)
@@ -1783,21 +1878,148 @@ func _setup_right_placeholder() -> void:
 			panel.offset_top = 0.0
 			panel.offset_right = 0.0
 			panel.offset_bottom = 0.0
+		var layer_root := panel.get_node_or_null("CardLayerRoot") as Control
+		if layer_root == null:
+			push_warning("Missing static node: %s/CardLayerRoot" % card_name)
+			continue
+		layer_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+		layer_root.offset_left = 0.0
+		layer_root.offset_top = 0.0
+		layer_root.offset_right = 0.0
+		layer_root.offset_bottom = 0.0
+		layer_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-		var image := panel.get_node_or_null("SceneImage") as TextureRect
+		var white_bg := layer_root.get_node_or_null("BackgroundBoardLayer") as ColorRect
+		if white_bg == null:
+			push_warning("Missing static node: %s/CardLayerRoot/BackgroundBoardLayer" % card_name)
+			continue
+		white_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+		white_bg.color = Color(1.0, 1.0, 1.0, 1.0)
+		white_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+		var frame_layer := layer_root.get_node_or_null("FrameLayer") as TextureRect
+		if frame_layer == null:
+			push_warning("Missing static node: %s/CardLayerRoot/FrameLayer" % card_name)
+			continue
+		frame_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+		frame_layer.offset_left = 0.0
+		frame_layer.offset_top = 0.0
+		frame_layer.offset_right = 0.0
+		frame_layer.offset_bottom = 0.0
+		frame_layer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		frame_layer.stretch_mode = TextureRect.STRETCH_SCALE
+		frame_layer.texture = RIGHT_SCENE_FRAME_TEXTURE
+		frame_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+		var canvas_layer := layer_root.get_node_or_null("CanvasLayer") as PanelContainer
+		if canvas_layer == null:
+			push_warning("Missing static node: %s/CardLayerRoot/CanvasLayer" % card_name)
+			continue
+		canvas_layer.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		var canvas_size := Vector2(maxf(1.0, right_scene_canvas_width_px), maxf(1.0, right_scene_canvas_height_px))
+		canvas_layer.custom_minimum_size = canvas_size
+		canvas_layer.position = Vector2(right_scene_canvas_x_px, right_scene_canvas_y_px)
+		canvas_layer.size = canvas_size
+		canvas_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var canvas_style := StyleBoxFlat.new()
+		canvas_style.bg_color = Color(0.0, 0.0, 0.0, 1.0)
+		canvas_layer.add_theme_stylebox_override("panel", canvas_style)
+		canvas_layer.material = null
+
+		var canvas_fx := canvas_layer.get_node_or_null("CanvasFxOverlay") as ColorRect
+		if canvas_fx == null:
+			canvas_fx = ColorRect.new()
+			canvas_fx.name = "CanvasFxOverlay"
+			canvas_layer.add_child(canvas_fx)
+		canvas_fx.set_anchors_preset(Control.PRESET_FULL_RECT)
+		canvas_fx.offset_left = 0.0
+		canvas_fx.offset_top = 0.0
+		canvas_fx.offset_right = 0.0
+		canvas_fx.offset_bottom = 0.0
+		canvas_fx.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		canvas_fx.color = Color(1.0, 1.0, 1.0, 1.0)
+		canvas_fx.material = _create_overlay_scanline_shader_material(0.9)
+
+		var canvas_label := canvas_layer.get_node_or_null("CanvasText") as Label
+		if canvas_label == null:
+			push_warning("Missing static node: %s/CardLayerRoot/CanvasLayer/CanvasText" % card_name)
+			continue
+		canvas_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+		canvas_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		canvas_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		canvas_label.text = RIGHT_SCENE_CANVAS_PLACEHOLDER_TEXTS[posmod(i, RIGHT_SCENE_CANVAS_PLACEHOLDER_TEXTS.size())]
+		canvas_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 1.0))
+		canvas_label.add_theme_font_size_override("font_size", 42)
+		canvas_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+		var focus_clip := layer_root.get_node_or_null("FocusContentClip") as Control
+		if focus_clip == null:
+			push_warning("Missing static node: %s/CardLayerRoot/FocusContentClip" % card_name)
+			continue
+		focus_clip.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		focus_clip.position = focus_rect.position
+		focus_clip.size = focus_rect.size
+		focus_clip.clip_contents = true
+		focus_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# Keep focused area free of scene image layers. Only filter host is allowed here.
+		for legacy_inside_name in ["RoomImageLayer", "SceneImage", "FrameLayer"]:
+			var legacy_inside := focus_clip.get_node_or_null(legacy_inside_name)
+			if legacy_inside != null:
+				legacy_inside.queue_free()
+
+		var filter_host := focus_clip.get_node_or_null("FocusFilterHost") as Control
+		if filter_host == null:
+			push_warning("Missing static node: %s/CardLayerRoot/FocusContentClip/FocusFilterHost" % card_name)
+			continue
+		filter_host.set_anchors_preset(Control.PRESET_FULL_RECT)
+		filter_host.offset_left = 0.0
+		filter_host.offset_top = 0.0
+		filter_host.offset_right = 0.0
+		filter_host.offset_bottom = 0.0
+		filter_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_right_scene_filter_hosts.append(filter_host)
+
+		var image := layer_root.get_node_or_null("RoomImageLayer") as TextureRect
 		if image == null:
-			image = TextureRect.new()
-			image.name = "SceneImage"
-			panel.add_child(image)
+			var legacy_image := focus_clip.get_node_or_null("RoomImageLayer") as TextureRect
+			if legacy_image != null:
+				focus_clip.remove_child(legacy_image)
+				layer_root.add_child(legacy_image)
+				image = legacy_image
+		if image == null:
+			push_warning("Missing static node: %s/CardLayerRoot/RoomImageLayer" % card_name)
+			continue
 		image.set_anchors_preset(Control.PRESET_FULL_RECT)
-		image.offset_left = right_scene_image_left_px
-		image.offset_top = right_scene_image_top_px
-		image.offset_right = -right_scene_image_right_px
-		image.offset_bottom = -right_scene_image_bottom_px
+		image.offset_left = 0.0
+		image.offset_top = 0.0
+		image.offset_right = 0.0
+		image.offset_bottom = 0.0
 		image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		image.stretch_mode = TextureRect.STRETCH_SCALE
 		image.texture = RIGHT_SCENE_TEXTURES[i]
 		image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		image.material = _create_right_scene_scanline_shader_material(0.16)
+
+		var disc_layer := layer_root.get_node_or_null("DiscLayer") as TextureRect
+		if disc_layer == null:
+			disc_layer = TextureRect.new()
+			disc_layer.name = "DiscLayer"
+			layer_root.add_child(disc_layer)
+		disc_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+		disc_layer.offset_left = 0.0
+		disc_layer.offset_top = 0.0
+		disc_layer.offset_right = 0.0
+		disc_layer.offset_bottom = 0.0
+		disc_layer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		disc_layer.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		disc_layer.texture = RIGHT_SCENE_DISC_TEXTURE_A
+		disc_layer.modulate = Color(1.0, 1.0, 1.0, 0.0)
+		disc_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_right_scene_disc_layers.append(disc_layer)
+
+		canvas_layer.move_to_front()
+		image.move_to_front()
+		disc_layer.move_to_front()
 
 		var status := panel.get_node_or_null("Status") as Label
 		if status == null:
@@ -1820,13 +2042,11 @@ func _setup_right_placeholder() -> void:
 	if _right_scene_flash_overlay == null:
 		_right_scene_flash_overlay = ColorRect.new()
 		_right_scene_flash_overlay.name = "SceneFlashOverlay"
-		_right_scene_flash_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-		_right_scene_flash_overlay.offset_left = 0.0
-		_right_scene_flash_overlay.offset_top = 0.0
-		_right_scene_flash_overlay.offset_right = 0.0
-		_right_scene_flash_overlay.offset_bottom = 0.0
+		_right_scene_flash_overlay.set_anchors_preset(Control.PRESET_TOP_LEFT)
 		_right_scene_flash_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_right_scene_root.add_child(_right_scene_flash_overlay)
+	_right_scene_flash_overlay.position = focus_rect.position
+	_right_scene_flash_overlay.size = focus_rect.size
 	_right_scene_flash_overlay.color = Color(1.0, 1.0, 1.0, 0.0)
 
 	_right_scene_dim_overlay = _right_scene_root.get_node_or_null("RightSceneDimOverlay") as ColorRect
@@ -1840,13 +2060,33 @@ func _setup_right_placeholder() -> void:
 		_right_scene_dim_overlay.offset_bottom = 0.0
 		_right_scene_dim_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_right_scene_root.add_child(_right_scene_dim_overlay)
-	_right_scene_dim_overlay.color = Color(0.0, 0.0, 0.0, clampf(right_scene_dim_alpha, 0.0, 0.8))
+	_right_scene_dim_overlay.color = Color(0.0, 0.0, 0.0, 0.0)
 	_right_scene_dim_overlay.move_to_front()
-
-	_right_scene_flash_overlay.move_to_front()
 	_right_placeholder_root.move_to_front()
 
 	_switch_right_scene(0, true)
+	_update_camera_data_overlay_region()
+
+
+func _compute_right_scene_focus_rect() -> Rect2:
+	var stage_size := _right_scene_root.size if _right_scene_root != null else right_panel.size
+	if stage_size.x <= 1.0 or stage_size.y <= 1.0:
+		stage_size = Vector2(maxf(1.0, right_panel.size.x), maxf(1.0, right_panel.size.y))
+
+	if camera_focus_region_use_absolute_rect:
+		var abs_x := clampf(camera_focus_region_x_px, 0.0, maxf(0.0, stage_size.x - 1.0))
+		var abs_y := clampf(camera_focus_region_y_px, 0.0, maxf(0.0, stage_size.y - 1.0))
+		var abs_w := clampf(camera_focus_region_width_px, 1.0, maxf(1.0, stage_size.x - abs_x))
+		var abs_h := clampf(camera_focus_region_height_px, 1.0, maxf(1.0, stage_size.y - abs_y))
+		return Rect2(Vector2(abs_x, abs_y), Vector2(abs_w, abs_h))
+
+	var left := clampf(camera_focus_region_left_ratio, 0.0, 0.49) * stage_size.x
+	var top := clampf(camera_focus_region_top_ratio, 0.0, 0.49) * stage_size.y
+	var right := clampf(camera_focus_region_right_ratio, 0.0, 0.49) * stage_size.x
+	var bottom := clampf(camera_focus_region_bottom_ratio, 0.0, 0.49) * stage_size.y
+	var width := maxf(1.0, stage_size.x - left - right)
+	var height := maxf(1.0, stage_size.y - top - bottom)
+	return Rect2(Vector2(left, top), Vector2(width, height))
 
 
 func _setup_moire_overlays() -> void:
@@ -1881,7 +2121,6 @@ func _setup_camera_data_fragment_overlay() -> void:
 shader_type canvas_item;
 render_mode unshaded;
 
-uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linear_mipmap;
 uniform float shift_strength : hint_range(0.0, 0.2) = 0.012;
 uniform float chroma_amount : hint_range(0.0, 0.2) = 0.004;
 uniform float noise_amount : hint_range(0.0, 1.0) = 0.09;
@@ -1895,26 +2134,17 @@ float hash21(vec2 p) {
 }
 
 void fragment() {
-	vec2 uv = SCREEN_UV;
+	vec2 uv = UV;
 	float t = TIME * speed;
-	float band = floor(uv.y * 110.0 + t * 6.0);
+	float band = floor(uv.y * 120.0 + t * 6.0);
 	float n = hash21(vec2(band, floor(t * 18.0)));
-	float s = (n - 0.5) * shift_strength;
-	vec2 suv = uv + vec2(s, 0.0);
-
-	float r = texture(screen_tex, suv + vec2(chroma_amount, 0.0)).r;
-	float g = texture(screen_tex, suv).g;
-	float b = texture(screen_tex, suv - vec2(chroma_amount, 0.0)).b;
-	vec3 base = vec3(r, g, b);
-
+	float jitter = abs(n - 0.5) * (shift_strength + chroma_amount) * 5.0;
 	float scan = sin((uv.y + t * 0.08) * 900.0) * 0.5 + 0.5;
-	float grain = hash21(uv * vec2(1900.0, 1060.0) + t * 31.0) - 0.5;
-	vec3 glitched = base + vec3(grain * noise_amount * 0.12);
-	glitched *= mix(1.0, 0.92 + scan * 0.08, line_mix);
-	vec3 quantized = floor(glitched * quantize_steps) / quantize_steps;
-	glitched = mix(glitched, quantized, quantize_mix);
-
-	COLOR = vec4(glitched, 1.0);
+	float grain = hash21(uv * vec2(1900.0, 1060.0) + t * 31.0);
+	float raw = scan * line_mix * 0.35 + grain * noise_amount * 0.45 + jitter * 0.3;
+	float q = floor(raw * quantize_steps) / quantize_steps;
+	float alpha = clamp(mix(raw, q, quantize_mix), 0.0, 1.0) * 0.35;
+	COLOR = vec4(vec3(1.0), alpha);
 }
 """
 
@@ -1961,36 +2191,34 @@ func _update_camera_data_overlay_region() -> void:
 		_update_right_fragment_region_hint()
 		return
 
-	if _camera_data_overlay.get_parent() != _right_scene_root:
-		if _camera_data_overlay.get_parent() != null:
-			_camera_data_overlay.get_parent().remove_child(_camera_data_overlay)
-		_right_scene_root.add_child(_camera_data_overlay)
-		_camera_data_overlay.move_to_front()
-
-	if _right_scene_flash_overlay == null or not is_instance_valid(_right_scene_flash_overlay):
+	if _right_scene_current_index < 0 or _right_scene_current_index >= _right_scene_filter_hosts.size():
 		_camera_data_overlay.visible = false
 		_update_right_fragment_region_hint()
 		return
+
+	var filter_host := _right_scene_filter_hosts[_right_scene_current_index]
+	if filter_host == null or not is_instance_valid(filter_host):
+		_camera_data_overlay.visible = false
+		_update_right_fragment_region_hint()
+		return
+
+	if _camera_data_overlay.get_parent() != filter_host:
+		if _camera_data_overlay.get_parent() != null:
+			_camera_data_overlay.get_parent().remove_child(_camera_data_overlay)
+		filter_host.add_child(_camera_data_overlay)
 
 	var left_px := maxf(0.0, camera_frag_region_inset_left_px)
 	var top_px := maxf(0.0, camera_frag_region_inset_top_px)
 	var right_px := maxf(0.0, camera_frag_region_inset_right_px)
 	var bottom_px := maxf(0.0, camera_frag_region_inset_bottom_px)
-
-	var flash_pos := _right_scene_flash_overlay.position
-	var flash_size := _right_scene_flash_overlay.size
-	var x := maxf(0.0, flash_pos.x + left_px)
-	var y := maxf(0.0, flash_pos.y + top_px)
-	var w := maxf(1.0, flash_size.x - left_px - right_px)
-	var h := maxf(1.0, flash_size.y - top_px - bottom_px)
-	x = clampf(x, 0.0, maxf(0.0, _right_scene_root.size.x - 1.0))
-	y = clampf(y, 0.0, maxf(0.0, _right_scene_root.size.y - 1.0))
-	w = clampf(w, 1.0, maxf(1.0, _right_scene_root.size.x - x))
-	h = clampf(h, 1.0, maxf(1.0, _right_scene_root.size.y - y))
+	var host_size := filter_host.size
+	var x := clampf(left_px, 0.0, maxf(0.0, host_size.x - 1.0))
+	var y := clampf(top_px, 0.0, maxf(0.0, host_size.y - 1.0))
+	var w := clampf(host_size.x - left_px - right_px, 1.0, maxf(1.0, host_size.x - x))
+	var h := clampf(host_size.y - top_px - bottom_px, 1.0, maxf(1.0, host_size.y - y))
 	_camera_data_overlay.position = Vector2(x, y)
 	_camera_data_overlay.size = Vector2(w, h)
 	_camera_data_overlay.visible = true
-	_camera_data_overlay.move_to_front()
 	_update_right_fragment_region_hint()
 
 
@@ -2042,13 +2270,166 @@ void fragment() {
 	return overlay
 
 
+func _create_right_scene_scanline_shader_material(intensity: float) -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+render_mode unshaded;
+
+uniform float fx_intensity : hint_range(0.0, 1.0) = 0.2;
+uniform float line_mix : hint_range(0.0, 1.0) = 0.22;
+uniform float noise_amount : hint_range(0.0, 1.0) = 0.12;
+uniform float speed : hint_range(0.0, 4.0) = 0.65;
+
+float hash21(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+void fragment() {
+	vec4 base = texture(TEXTURE, UV);
+	float t = TIME * speed;
+	float scan = sin((UV.y + t * 0.08) * 900.0) * 0.5 + 0.5;
+	float grain = hash21(UV * vec2(1900.0, 1060.0) + t * 31.0) - 0.5;
+	float overlay = scan * line_mix * 0.7 + grain * noise_amount;
+	vec3 out_rgb = base.rgb + vec3(overlay * fx_intensity * 0.25);
+	COLOR = vec4(clamp(out_rgb, 0.0, 1.0), base.a);
+}
+"""
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	mat.set_shader_parameter("fx_intensity", clampf(intensity, 0.0, 1.0))
+	return mat
+
+
+func _create_overlay_scanline_shader_material(intensity: float) -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+render_mode unshaded;
+
+uniform float fx_intensity : hint_range(0.0, 1.0) = 0.22;
+uniform float line_mix : hint_range(0.0, 1.0) = 0.68;
+uniform float noise_amount : hint_range(0.0, 1.0) = 0.72;
+uniform float speed : hint_range(0.0, 8.0) = 2.1;
+uniform float block_mix : hint_range(0.0, 1.0) = 0.66;
+uniform float chroma_mix : hint_range(0.0, 1.0) = 0.54;
+
+float hash21(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	float a = hash21(i);
+	float b = hash21(i + vec2(1.0, 0.0));
+	float c = hash21(i + vec2(0.0, 1.0));
+	float d = hash21(i + vec2(1.0, 1.0));
+	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+void fragment() {
+	float t = TIME * speed;
+	vec2 uv = UV;
+
+	float band = floor(uv.y * 120.0 + t * 6.0);
+	float band_n = hash21(vec2(band, floor(t * 18.0)));
+	float x_jitter = (band_n - 0.5) * 0.08 * fx_intensity;
+	uv.x = clamp(uv.x + x_jitter, 0.0, 1.0);
+
+	float scan_a = sin((uv.y + t * 0.11) * 980.0) * 0.5 + 0.5;
+	float scan_b = sin((uv.y * 0.33 - t * 0.07) * 420.0) * 0.5 + 0.5;
+	float scan = mix(scan_a, scan_b, 0.35);
+
+	float grain_fine = hash21(uv * vec2(2200.0, 1280.0) + t * 43.0) - 0.5;
+	float grain_mid = noise(uv * vec2(340.0, 190.0) + vec2(t * 1.8, -t * 1.3)) - 0.5;
+
+	vec2 block_uv = floor(uv * vec2(42.0, 26.0)) + vec2(floor(t * 4.0), floor(t * 2.0));
+	float block_n = hash21(block_uv);
+	float block_gate = smoothstep(0.62, 1.0, block_n + block_mix * 0.35);
+
+	float a = 0.0;
+	a += scan * line_mix * 0.42;
+	a += abs(grain_mid) * noise_amount * 0.44;
+	a += abs(grain_fine) * noise_amount * 0.30;
+	a += block_gate * 0.52;
+	a = clamp(a * fx_intensity, 0.0, 0.95);
+
+	vec3 cool = vec3(0.55, 0.78, 1.0);
+	vec3 warm = vec3(1.0, 0.45, 0.42);
+	float hue_pick = hash21(vec2(floor(uv.y * 64.0), floor(t * 9.0)));
+	vec3 tint = mix(cool, warm, hue_pick);
+	vec3 rgb = mix(vec3(1.0), tint, chroma_mix * (0.5 + block_gate * 0.5));
+	COLOR = vec4(rgb, a);
+}
+"""
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	mat.set_shader_parameter("fx_intensity", clampf(intensity, 0.0, 1.0))
+	return mat
+
+
 func _draw_default_line_art() -> void:
 	_switch_right_scene(0, true)
+
+
+func _refresh_right_scene_layer_layout() -> void:
+	if _right_scene_cards.is_empty():
+		return
+	var focus_rect := _compute_right_scene_focus_rect()
+	for card in _right_scene_cards:
+		if card == null:
+			continue
+		var layer_root := card.get_node_or_null("CardLayerRoot") as Control
+		if layer_root == null:
+			continue
+		var frame_layer := layer_root.get_node_or_null("FrameLayer") as TextureRect
+		if frame_layer != null:
+			frame_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+			frame_layer.offset_left = 0.0
+			frame_layer.offset_top = 0.0
+			frame_layer.offset_right = 0.0
+			frame_layer.offset_bottom = 0.0
+		var focus_clip := layer_root.get_node_or_null("FocusContentClip") as Control
+		if focus_clip != null:
+			focus_clip.position = focus_rect.position
+			focus_clip.size = focus_rect.size
+		var canvas_layer := layer_root.get_node_or_null("CanvasLayer") as PanelContainer
+		if canvas_layer != null:
+			var canvas_size := Vector2(maxf(1.0, right_scene_canvas_width_px), maxf(1.0, right_scene_canvas_height_px))
+			canvas_layer.position = Vector2(right_scene_canvas_x_px, right_scene_canvas_y_px)
+			canvas_layer.size = canvas_size
+		var disc_layer := layer_root.get_node_or_null("DiscLayer") as TextureRect
+		if disc_layer != null:
+			disc_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+			disc_layer.offset_left = 0.0
+			disc_layer.offset_top = 0.0
+			disc_layer.offset_right = 0.0
+			disc_layer.offset_bottom = 0.0
+		if canvas_layer != null:
+			canvas_layer.move_to_front()
+		var room_image := layer_root.get_node_or_null("RoomImageLayer") as TextureRect
+		if room_image != null:
+			room_image.move_to_front()
+		if disc_layer != null:
+			disc_layer.move_to_front()
+		var filter_host := layer_root.get_node_or_null("FocusContentClip/FocusFilterHost") as Control
+		if filter_host != null:
+			filter_host.set_anchors_preset(Control.PRESET_FULL_RECT)
+			filter_host.offset_left = 0.0
+			filter_host.offset_top = 0.0
+			filter_host.offset_right = 0.0
+			filter_host.offset_bottom = 0.0
+	if _right_scene_flash_overlay != null and is_instance_valid(_right_scene_flash_overlay):
+		_right_scene_flash_overlay.position = focus_rect.position
+		_right_scene_flash_overlay.size = focus_rect.size
 
 
 func _on_layout_changed() -> void:
 	_enforce_chapter_1_constraints()
 	_setup_fixed_right_canvas()
+	_refresh_right_scene_layer_layout()
 	_update_camera_data_overlay_region()
 	for card in _right_scene_cards:
 		_normalize_right_scene_card(card)
@@ -2089,6 +2470,9 @@ func _sync_right_scene_with_rotation() -> void:
 func _switch_right_scene(scene_index: int, immediate: bool = false) -> void:
 	if _right_scene_cards.is_empty():
 		return
+	if not immediate and is_instance_valid(_right_scene_transition_tween):
+		# Drop switch requests during transition: no buffering/queueing.
+		return
 	var target := posmod(scene_index, _right_scene_cards.size())
 	if not immediate and _right_scene_current_index == target:
 		return
@@ -2106,6 +2490,8 @@ func _switch_right_scene(scene_index: int, immediate: bool = false) -> void:
 			card.visible = active
 			card.modulate.a = 1.0 if active else 0.0
 		_right_scene_current_index = target
+		_update_camera_data_overlay_region()
+		_set_disc_visible(_right_scene_disc_visible, true)
 		return
 
 	var old_index := _right_scene_current_index
@@ -2128,13 +2514,15 @@ func _switch_right_scene(scene_index: int, immediate: bool = false) -> void:
 	old_card.modulate.a = 1.0
 
 	_right_scene_current_index = target
+	_update_camera_data_overlay_region()
+	_set_disc_visible(_right_scene_disc_visible, true)
 	_right_scene_transition_tween = create_tween()
 	_right_scene_transition_tween.set_parallel(true)
 	_right_scene_transition_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	_right_scene_transition_tween.tween_property(old_card, "position", Vector2(-56.0 * direction, 0.0), 0.28)
-	_right_scene_transition_tween.tween_property(old_card, "modulate:a", 0.0, 0.24)
-	_right_scene_transition_tween.tween_property(new_card, "position", Vector2.ZERO, 0.30)
-	_right_scene_transition_tween.tween_property(new_card, "modulate:a", 1.0, 0.28)
+	_right_scene_transition_tween.tween_property(old_card, "position", Vector2(-56.0 * direction, 0.0), maxf(0.1, right_scene_switch_fade_sec))
+	_right_scene_transition_tween.tween_property(old_card, "modulate:a", 0.0, maxf(0.1, right_scene_switch_fade_sec))
+	_right_scene_transition_tween.tween_property(new_card, "position", Vector2.ZERO, maxf(0.1, right_scene_switch_fade_sec))
+	_right_scene_transition_tween.tween_property(new_card, "modulate:a", 1.0, maxf(0.1, right_scene_switch_fade_sec))
 	_right_scene_transition_tween.finished.connect(
 		Callable(self, "_on_right_scene_transition_finished").bind(transition_id),
 		CONNECT_ONE_SHOT
@@ -2174,10 +2562,19 @@ func _mark_scene_completed(scene_index: int) -> void:
 	if idx < 0 or idx >= _right_scene_status_labels.size():
 		return
 	_right_scene_completed[idx] = true
+	if idx >= 0 and idx < _right_scene_cards.size():
+		var card := _right_scene_cards[idx]
+		if card != null:
+			var canvas_fx := card.get_node_or_null("CardLayerRoot/CanvasLayer/CanvasFxOverlay") as ColorRect
+			if canvas_fx != null and canvas_fx.material is ShaderMaterial:
+				var fx_mat := canvas_fx.material as ShaderMaterial
+				var curr := float(fx_mat.get_shader_parameter("fx_intensity"))
+				fx_mat.set_shader_parameter("fx_intensity", clampf(curr * 0.2, 0.0, 1.0))
 	var status := _right_scene_status_labels[idx]
 	if status != null:
 		status.text = "Completed"
 		status.modulate = Color(1.0, 0.95, 0.68, 1.0)
+	_set_disc_visible(_right_scene_disc_visible, true)
 	if _are_all_right_scenes_completed():
 		call_deferred("_show_continue_button")
 
@@ -2266,7 +2663,7 @@ func _is_rotation_input_blocked() -> bool:
 
 
 func _is_sphere_input_locked() -> bool:
-	return _intro_sequence_running or _final_transition_running or _is_rotation_input_blocked() or _vertical_preview_phase != 0 or _is_anchor_occupied()
+	return _intro_sequence_running or _final_transition_running or _is_rotation_input_blocked() or _vertical_preview_phase != 0 or _is_anchor_occupied() or is_instance_valid(_right_scene_transition_tween)
 
 
 func _try_rotate_sphere_step(step_direction: int) -> void:
