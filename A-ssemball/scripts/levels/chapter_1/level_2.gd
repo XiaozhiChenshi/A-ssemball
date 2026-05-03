@@ -5,7 +5,9 @@ signal chapter_completed(chapter_index: int)
 
 const StructureShapeProviderRef = preload("res://scripts/structure/structure_shape_provider.gd")
 const HAND_TEXTURE: Texture2D = preload("res://assets/ui/chapter_1_stage_2/Hand04.png")
-const HAND_POINTER_TEXTURE_PATH := "res://assets/ui/chapter_1_stage_2/Hand05.png"
+const HAND_POINTER_TEXTURE_PATH := "res://assets/ui/chapter_1_stage_2/Hand06.png"
+const POINTER_HAND_TIP_UV := Vector2(0.3716, 0.1141)
+const POINTER_HAND_WRIST_UV := Vector2(0.5, 0.96)
 
 const STAGE_PATTERN_RINGS := "rings"
 const STAGE_PATTERN_CRACK := "crack"
@@ -25,6 +27,10 @@ const EDGE_MIN_RADIUS_RATIO: float = 0.008
 const EDGE_MAX_RADIUS_RATIO: float = 0.045
 const EDGE_SURFACE_LIFT_RATIO: float = 0.0025
 const GOLDBERG_DYNAMIC_EDGE_WIDTH_SCALE: float = 1.0 / 3.0
+const TRANSITION_LIFT_RADIUS: float = 1.5
+const TRANSITION_LIFT_OUT_SEC: float = 3.2
+const TRANSITION_FILM_SWITCH_SEC: float = 2.0
+const TRANSITION_SETTLE_IN_SEC: float = 3.2
 
 @export var chapter_index: int = 1
 @export var light_rotation_speed_deg: float = 0.0
@@ -133,6 +139,13 @@ var _stage_image_rect: TextureRect
 var _stage_image_material: ShaderMaterial
 var _stage_image_next_rect: TextureRect
 var _stage_image_wipe_material: ShaderMaterial
+var _stage_image_burn_material: ShaderMaterial
+var _transition_flash_rect: ColorRect
+var _transition_flash_material: ShaderMaterial
+var _film_overlay_rect: ColorRect
+var _film_overlay_material: ShaderMaterial
+var _burn_heat_rect: ColorRect
+var _burn_heat_material: ShaderMaterial
 var _suppress_stage_image_refresh: bool = false
 var _stage_badge_label: Label
 var _title_label: Label
@@ -143,11 +156,18 @@ var _status_label: Label
 var _hand_rect: TextureRect
 var _pointer_hand_rect: TextureRect
 var _route_guide_canvas: LineCanvas2D
+var _route_burn_canvas: LineCanvas2D
 var _pointer_hand_target_pos: Vector2 = Vector2.ZERO
 var _pointer_hand_visible_target: bool = false
 var _pointer_hand_alpha: float = 0.0
+var _pointer_hand_enter_t: float = 0.0
 var _hand_pointer_texture: Texture2D
 var _hand_pointer_material: ShaderMaterial
+var _transition_lift_offsets: Dictionary = {}
+var _transition_color_flash_strength: float = 0.0
+var _transition_burn_progress: float = 0.0
+var _transition_burn_route_points: PackedVector2Array = PackedVector2Array()
+var _transition_burn_route_closed: bool = false
 
 
 func _ready() -> void:
@@ -293,8 +313,9 @@ func _build_stage_data() -> Array[Dictionary]:
 			]),
 		},
 		{
-			"title": "花岗岩",
-			"subtitle": "沿着晶体块面闭合",
+			"title": "岩石",
+			"subtitle": "沿着绿色参考标出的岩层纹理描摹",
+			"image_path": "res://assets/ui/chapter_1_stage_2/rock.png",
 			"pattern": STAGE_PATTERN_FACETS,
 			"core_cells": [133, 136, 140],
 			"focus_yaw_deg": -68.0,
@@ -307,13 +328,32 @@ func _build_stage_data() -> Array[Dictionary]:
 			"panel_color": Color(0.04, 0.05, 0.08, 1.0),
 			"panel_tint": Color(0.04, 0.05, 0.08, 0.88),
 			"noise_axis": Vector3(0.9, -0.2, 0.36).normalized(),
+			"route_closed": false,
+			"route_span": 0.78,
+			"left_route_count": 20,
+			"left_route_scale": Vector2(0.92, 0.82),
+			"left_route_offset": Vector2(0.0, -0.03),
 			"preview_template": PackedVector2Array([
-				Vector2(0.30, 0.24),
-				Vector2(0.64, 0.18),
-				Vector2(0.82, 0.42),
-				Vector2(0.70, 0.76),
-				Vector2(0.34, 0.82),
-				Vector2(0.18, 0.54),
+				Vector2(0.005, 0.535),
+				Vector2(0.053, 0.561),
+				Vector2(0.105, 0.583),
+				Vector2(0.158, 0.597),
+				Vector2(0.211, 0.606),
+				Vector2(0.262, 0.611),
+				Vector2(0.315, 0.595),
+				Vector2(0.368, 0.542),
+				Vector2(0.420, 0.445),
+				Vector2(0.473, 0.342),
+				Vector2(0.526, 0.301),
+				Vector2(0.579, 0.271),
+				Vector2(0.630, 0.259),
+				Vector2(0.683, 0.249),
+				Vector2(0.736, 0.247),
+				Vector2(0.788, 0.249),
+				Vector2(0.841, 0.250),
+				Vector2(0.894, 0.244),
+				Vector2(0.946, 0.204),
+				Vector2(0.993, 0.149),
 			]),
 		},
 	]
@@ -347,6 +387,8 @@ func _setup_right_panel_ui() -> void:
 	_stage_image_wipe_material = _create_wipe_material()
 	_stage_image_next_rect.material = _stage_image_wipe_material
 	_panel_root.add_child(_stage_image_next_rect)
+	_panel_root.move_child(_stage_image_next_rect, 0)
+	_stage_image_burn_material = _create_burn_reveal_material()
 
 	_panel_backdrop = ColorRect.new()
 	_panel_backdrop.name = "Backdrop"
@@ -470,35 +512,93 @@ func _setup_right_panel_ui() -> void:
 	_pointer_hand_rect.move_to_front()
 	_hand_rect.move_to_front()
 
+	_transition_flash_rect = ColorRect.new()
+	_transition_flash_rect.name = "TextureTransitionExposure"
+	_transition_flash_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_transition_flash_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_transition_flash_rect.color = Color.WHITE
+	_transition_flash_rect.visible = false
+	_transition_flash_material = _create_transition_flash_material()
+	_transition_flash_rect.material = _transition_flash_material
+	right_panel.add_child(_transition_flash_rect)
+	_transition_flash_rect.move_to_front()
+
+	_film_overlay_rect = ColorRect.new()
+	_film_overlay_rect.name = "FilmProjectionOverlay"
+	_film_overlay_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_film_overlay_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_film_overlay_rect.color = Color.WHITE
+	_film_overlay_material = _create_film_overlay_material()
+	_film_overlay_rect.material = _film_overlay_material
+	right_panel.add_child(_film_overlay_rect)
+	_film_overlay_rect.move_to_front()
+
+	_burn_heat_rect = ColorRect.new()
+	_burn_heat_rect.name = "TextureBurnHeatOverlay"
+	_burn_heat_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_burn_heat_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_burn_heat_rect.color = Color.WHITE
+	_burn_heat_rect.visible = false
+	_burn_heat_material = _create_burn_heat_overlay_material()
+	_burn_heat_rect.material = _burn_heat_material
+	right_panel.add_child(_burn_heat_rect)
+	_burn_heat_rect.move_to_front()
+
+	_route_burn_canvas = LineCanvas2D.new()
+	_route_burn_canvas.name = "TextureRouteBurnFire"
+	_route_burn_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_route_burn_canvas.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_route_burn_canvas.offset_left = 0.0
+	_route_burn_canvas.offset_top = 0.0
+	_route_burn_canvas.offset_right = 0.0
+	_route_burn_canvas.offset_bottom = 0.0
+	_route_burn_canvas.rough_pencil = false
+	_route_burn_canvas.particle_enabled = false
+	_route_burn_canvas.visible = false
+	right_panel.add_child(_route_burn_canvas)
+	_route_burn_canvas.move_to_front()
+
 
 func _create_film_material() -> ShaderMaterial:
 	var shader := Shader.new()
 	shader.code = """
 shader_type canvas_item;
 
-uniform float saturation : hint_range(0.0, 1.0) = 0.18;
-uniform float contrast : hint_range(0.2, 2.0) = 0.78;
-uniform float lift : hint_range(0.0, 0.5) = 0.18;
-uniform float fade : hint_range(0.0, 1.0) = 0.28;
-uniform float grain_strength : hint_range(0.0, 0.2) = 0.045;
-uniform vec4 paper_tint : source_color = vec4(0.78, 0.76, 0.68, 1.0);
+uniform float saturation : hint_range(0.0, 1.0) = 0.22;
+uniform float contrast : hint_range(0.2, 2.0) = 0.86;
+uniform float lift : hint_range(0.0, 0.5) = 0.12;
+uniform float fade : hint_range(0.0, 1.0) = 0.34;
+uniform float grain_strength : hint_range(0.0, 0.2) = 0.065;
+uniform float weave_strength : hint_range(0.0, 0.02) = 0.006;
+uniform float flicker_strength : hint_range(0.0, 0.4) = 0.12;
+uniform vec4 paper_tint : source_color = vec4(0.83, 0.75, 0.58, 1.0);
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
 }
 
 void fragment() {
-	vec4 src = texture(TEXTURE, UV);
+	float jump = step(0.93, hash(vec2(floor(TIME * 18.0), 18.41)));
+	vec2 weave = vec2(
+		sin(TIME * 2.2) * 0.55 + sin(TIME * 5.1 + 1.7) * 0.24,
+		sin(TIME * 1.6 + 0.4) * 0.38 + jump * 2.8
+	) * weave_strength;
+	vec2 sample_uv = clamp(UV + weave, vec2(0.001), vec2(0.999));
+	vec4 src = texture(TEXTURE, sample_uv);
 	float luma = dot(src.rgb, vec3(0.299, 0.587, 0.114));
 	vec3 grey = vec3(luma);
 	vec3 color = mix(grey, src.rgb, saturation);
 	color = (color - vec3(0.5)) * contrast + vec3(0.5);
 	color = mix(color, paper_tint.rgb, fade);
 	color = color + vec3(lift) * (1.0 - color);
-	float grain = hash(UV * vec2(640.0, 720.0) + TIME * 0.37) - 0.5;
+	float shutter = sin(TIME * 38.0) * 0.5 + sin(TIME * 61.0 + 1.3) * 0.22;
+	color *= 1.0 + shutter * flicker_strength;
+	float grain = hash(UV * vec2(820.0, 960.0) + vec2(floor(TIME * 24.0), floor(TIME * 19.0))) - 0.5;
 	color += grain * grain_strength;
+	float frame_line = smoothstep(0.018, 0.0, abs(fract(UV.y * 2.0 + TIME * 0.18) - 0.018));
+	color *= 1.0 - frame_line * 0.08;
 	float vignette = smoothstep(0.98, 0.28, distance(UV, vec2(0.5)));
-	color *= mix(0.88, 1.06, vignette);
+	color *= mix(0.74, 1.08, vignette);
 	COLOR = vec4(clamp(color, vec3(0.0), vec3(1.0)), src.a);
 }
 """
@@ -514,29 +614,41 @@ shader_type canvas_item;
 
 uniform float reveal_progress : hint_range(0.0, 1.0) = 0.0;
 uniform float soft_width : hint_range(0.0, 0.2) = 0.045;
-uniform float saturation : hint_range(0.0, 1.0) = 0.18;
-uniform float contrast : hint_range(0.2, 2.0) = 0.78;
-uniform float lift : hint_range(0.0, 0.5) = 0.18;
-uniform float fade : hint_range(0.0, 1.0) = 0.28;
-uniform float grain_strength : hint_range(0.0, 0.2) = 0.045;
-uniform vec4 paper_tint : source_color = vec4(0.78, 0.76, 0.68, 1.0);
+uniform float saturation : hint_range(0.0, 1.0) = 0.22;
+uniform float contrast : hint_range(0.2, 2.0) = 0.86;
+uniform float lift : hint_range(0.0, 0.5) = 0.12;
+uniform float fade : hint_range(0.0, 1.0) = 0.34;
+uniform float grain_strength : hint_range(0.0, 0.2) = 0.065;
+uniform float weave_strength : hint_range(0.0, 0.02) = 0.006;
+uniform float flicker_strength : hint_range(0.0, 0.4) = 0.12;
+uniform vec4 paper_tint : source_color = vec4(0.83, 0.75, 0.58, 1.0);
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
 }
 
 void fragment() {
-	vec4 color = texture(TEXTURE, UV);
+	float jump = step(0.93, hash(vec2(floor(TIME * 18.0), 18.41)));
+	vec2 weave = vec2(
+		sin(TIME * 2.2) * 0.55 + sin(TIME * 5.1 + 1.7) * 0.24,
+		sin(TIME * 1.6 + 0.4) * 0.38 + jump * 2.8
+	) * weave_strength;
+	vec2 sample_uv = clamp(UV + weave, vec2(0.001), vec2(0.999));
+	vec4 color = texture(TEXTURE, sample_uv);
 	float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
 	vec3 grey = vec3(luma);
 	vec3 film = mix(grey, color.rgb, saturation);
 	film = (film - vec3(0.5)) * contrast + vec3(0.5);
 	film = mix(film, paper_tint.rgb, fade);
 	film = film + vec3(lift) * (1.0 - film);
-	float grain = hash(UV * vec2(640.0, 720.0) + TIME * 0.37) - 0.5;
+	float shutter = sin(TIME * 38.0) * 0.5 + sin(TIME * 61.0 + 1.3) * 0.22;
+	film *= 1.0 + shutter * flicker_strength;
+	float grain = hash(UV * vec2(820.0, 960.0) + vec2(floor(TIME * 24.0), floor(TIME * 19.0))) - 0.5;
 	film += grain * grain_strength;
+	float frame_line = smoothstep(0.018, 0.0, abs(fract(UV.y * 2.0 + TIME * 0.18) - 0.018));
+	film *= 1.0 - frame_line * 0.08;
 	float vignette = smoothstep(0.98, 0.28, distance(UV, vec2(0.5)));
-	film *= mix(0.88, 1.06, vignette);
+	film *= mix(0.74, 1.08, vignette);
 	float alpha = 1.0 - smoothstep(reveal_progress, reveal_progress + soft_width, UV.x);
 	COLOR = vec4(clamp(film, vec3(0.0), vec3(1.0)), color.a * alpha);
 }
@@ -548,13 +660,297 @@ void fragment() {
 	return material
 
 
+func _create_burn_reveal_material() -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+
+uniform float burn_progress : hint_range(0.0, 1.0) = 0.0;
+uniform float edge_width : hint_range(0.01, 0.24) = 0.105;
+uniform float char_width : hint_range(0.01, 0.3) = 0.15;
+uniform vec2 origin_a = vec2(0.45, 0.5);
+uniform vec2 origin_b = vec2(0.62, 0.42);
+uniform vec2 origin_c = vec2(0.52, 0.58);
+uniform vec2 origin_d = vec2(0.38, 0.55);
+uniform vec2 origin_e = vec2(0.56, 0.47);
+uniform vec2 origin_f = vec2(0.70, 0.38);
+uniform vec2 origin_g = vec2(0.48, 0.64);
+uniform vec4 hot_color : source_color = vec4(1.0, 0.72, 0.22, 1.0);
+uniform vec4 ash_color : source_color = vec4(0.06, 0.035, 0.018, 1.0);
+uniform vec4 paper_tint : source_color = vec4(0.83, 0.75, 0.58, 1.0);
+
+float hash(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	float a = hash(i);
+	float b = hash(i + vec2(1.0, 0.0));
+	float c = hash(i + vec2(0.0, 1.0));
+	float d = hash(i + vec2(1.0, 1.0));
+	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+float burn_field(vec2 uv, vec2 origin, float radius, float stretch) {
+	vec2 p = uv - origin;
+	p.x *= stretch;
+	float d = length(p);
+	float coarse = noise(uv * 7.0 + vec2(TIME * 0.08, -TIME * 0.05));
+	float fine = noise(uv * 34.0 + vec2(floor(TIME * 14.0), floor(TIME * 11.0)));
+	float tear = sin((uv.y + coarse * 0.12) * 38.0 + TIME * 4.0) * 0.018;
+	return radius - d + (coarse - 0.5) * 0.115 + (fine - 0.5) * 0.038 + tear;
+}
+
+vec3 film_grade(vec3 src, vec2 uv) {
+	float luma = dot(src, vec3(0.299, 0.587, 0.114));
+	vec3 color = mix(vec3(luma), src, 0.22);
+	color = (color - vec3(0.5)) * 0.86 + vec3(0.5);
+	color = mix(color, paper_tint.rgb, 0.34);
+	color = color + vec3(0.12) * (1.0 - color);
+	float shutter = sin(TIME * 38.0) * 0.5 + sin(TIME * 61.0 + 1.3) * 0.22;
+	color *= 1.0 + shutter * 0.12;
+	float grain = hash(uv * vec2(820.0, 960.0) + vec2(floor(TIME * 24.0), floor(TIME * 19.0))) - 0.5;
+	color += grain * 0.065;
+	float vignette = smoothstep(0.98, 0.28, distance(uv, vec2(0.5)));
+	color *= mix(0.74, 1.08, vignette);
+	return clamp(color, vec3(0.0), vec3(1.0));
+}
+
+void fragment() {
+	float jump = step(0.93, hash(vec2(floor(TIME * 18.0), 18.41)));
+	vec2 weave = vec2(
+		sin(TIME * 2.2) * 0.55 + sin(TIME * 5.1 + 1.7) * 0.24,
+		sin(TIME * 1.6 + 0.4) * 0.38 + jump * 2.8
+	) * 0.006;
+	vec2 sample_uv = clamp(UV + weave, vec2(0.001), vec2(0.999));
+	vec4 src = texture(TEXTURE, sample_uv);
+
+	float radius = mix(-0.06, 1.02, burn_progress);
+	float field = max(burn_field(UV, origin_a, radius, 0.92), burn_field(UV, origin_b, radius * 0.9, 1.12));
+	field = max(field, burn_field(UV, origin_c, radius * 1.06, 0.84));
+	field = max(field, burn_field(UV, origin_d, radius * 0.82, 1.0));
+	field = max(field, burn_field(UV, origin_e, radius * 0.88, 0.95));
+	field = max(field, burn_field(UV, origin_f, radius * 0.78, 1.08));
+	field = max(field, burn_field(UV, origin_g, radius * 0.92, 0.9));
+	field = max(field, smoothstep(0.68, 1.0, burn_progress) * 0.42 - distance(UV, vec2(0.5)) * 0.55);
+
+	float hole = smoothstep(0.0, edge_width, field);
+	float edge = smoothstep(-edge_width, edge_width, field) * (1.0 - hole);
+	float charred = smoothstep(-char_width, edge_width, field) * (1.0 - hole);
+	float sparks = step(0.985, hash(floor(UV * vec2(96.0, 64.0)) + vec2(floor(TIME * 28.0), floor(TIME * 21.0)))) * edge;
+
+	vec3 color = film_grade(src.rgb, UV);
+	color = mix(color, ash_color.rgb, charred * 0.86);
+	color = mix(color, hot_color.rgb, edge * 1.25);
+	color += hot_color.rgb * sparks * 0.85;
+	float alpha = src.a * (1.0 - hole);
+	COLOR = vec4(clamp(color, vec3(0.0), vec3(1.0)), alpha);
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	material.set_shader_parameter("burn_progress", 0.0)
+	material.set_shader_parameter("edge_width", 0.105)
+	material.set_shader_parameter("char_width", 0.15)
+	return material
+
+
+func _create_film_overlay_material() -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+
+uniform float overlay_alpha : hint_range(0.0, 1.0) = 0.88;
+uniform float scratch_strength : hint_range(0.0, 1.0) = 0.34;
+uniform float dust_strength : hint_range(0.0, 1.0) = 0.28;
+uniform float sprocket_alpha : hint_range(0.0, 1.0) = 0.62;
+uniform vec4 rail_color : source_color = vec4(0.015, 0.012, 0.010, 1.0);
+uniform vec4 dust_color : source_color = vec4(0.92, 0.86, 0.68, 1.0);
+
+float hash(vec2 p) {
+	return fract(sin(dot(p, vec2(41.31, 289.73))) * 18531.1357);
+}
+
+float rect_mask(vec2 uv, vec2 center, vec2 half_size, float softness) {
+	vec2 d = abs(uv - center) - half_size;
+	float outside = length(max(d, vec2(0.0)));
+	return 1.0 - smoothstep(0.0, softness, outside);
+}
+
+void fragment() {
+	vec2 uv = UV;
+	vec3 color = vec3(0.0);
+	float alpha = 0.0;
+
+	float rail = max(1.0 - smoothstep(0.055, 0.105, uv.x), smoothstep(0.895, 0.945, uv.x));
+	float side_shadow = max(1.0 - smoothstep(0.10, 0.18, uv.x), smoothstep(0.82, 0.90, uv.x));
+	color = mix(color, rail_color.rgb, rail);
+	alpha = max(alpha, rail * sprocket_alpha);
+	alpha = max(alpha, side_shadow * 0.18);
+
+	float hole_y = fract(uv.y * 8.0 + TIME * 0.32);
+	float hole_row = 1.0 - smoothstep(0.20, 0.34, abs(hole_y - 0.5));
+	float left_hole = rect_mask(uv, vec2(0.052, uv.y), vec2(0.023, 0.030), 0.006) * hole_row;
+	float right_hole = rect_mask(uv, vec2(0.948, uv.y), vec2(0.023, 0.030), 0.006) * hole_row;
+	float holes = max(left_hole, right_hole);
+	color = mix(color, vec3(0.74, 0.66, 0.47), holes);
+	alpha = max(alpha, holes * 0.26);
+
+	for (int i = 0; i < 7; i++) {
+		float seed = float(i) * 17.17;
+		float x = hash(vec2(seed, floor(TIME * 0.55))) * 0.78 + 0.11;
+		float drift = sin(TIME * (0.24 + seed * 0.006) + seed) * 0.018;
+		float width = 0.0014 + hash(vec2(seed, 5.2)) * 0.0032;
+		float broken = step(0.34, hash(vec2(floor(uv.y * 26.0 + TIME * 1.7), seed)));
+		float scratch = (1.0 - smoothstep(0.0, width, abs(uv.x - x - drift))) * broken;
+		alpha = max(alpha, scratch * scratch_strength * 0.42);
+		color = mix(color, dust_color.rgb, scratch * 0.55);
+	}
+
+	vec2 cell = floor(uv * vec2(72.0, 44.0));
+	float speck_seed = hash(cell + vec2(floor(TIME * 12.0), floor(TIME * 9.0)));
+	float speck = step(0.985, speck_seed);
+	float speck_shape = 1.0 - smoothstep(0.0, 0.018 + hash(cell) * 0.013, distance(fract(uv * vec2(72.0, 44.0)), vec2(0.5)));
+	float dust = speck * speck_shape * dust_strength;
+	color = mix(color, dust_color.rgb, dust);
+	alpha = max(alpha, dust * 0.75);
+
+	float scan = 1.0 - smoothstep(0.0, 0.035, abs(fract(uv.y + TIME * 0.42) - 0.48));
+	color = mix(color, vec3(0.96, 0.86, 0.62), scan * 0.25);
+	alpha = max(alpha, scan * 0.08);
+
+	float top_bottom = max(1.0 - smoothstep(0.0, 0.06, uv.y), smoothstep(0.94, 1.0, uv.y));
+	color = mix(color, rail_color.rgb, top_bottom);
+	alpha = max(alpha, top_bottom * 0.18);
+
+	COLOR = vec4(color, clamp(alpha * overlay_alpha, 0.0, 1.0));
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	return material
+
+
+func _create_burn_heat_overlay_material() -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+
+uniform float burn_progress : hint_range(0.0, 1.0) = 0.0;
+uniform float ash_peel_progress : hint_range(0.0, 1.0) = 0.0;
+uniform vec2 origin_a = vec2(0.45, 0.5);
+uniform vec2 origin_b = vec2(0.62, 0.42);
+uniform vec2 origin_c = vec2(0.52, 0.58);
+uniform vec4 ash_color : source_color = vec4(0.035, 0.032, 0.028, 1.0);
+uniform vec4 ash_lift_color : source_color = vec4(0.20, 0.19, 0.16, 1.0);
+
+float hash(vec2 p) {
+	return fract(sin(dot(p, vec2(83.13, 271.91))) * 34871.73);
+}
+
+float noise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	float a = hash(i);
+	float b = hash(i + vec2(1.0, 0.0));
+	float c = hash(i + vec2(0.0, 1.0));
+	float d = hash(i + vec2(1.0, 1.0));
+	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+float ash_mask(vec2 uv, vec2 origin, float radius) {
+	float n = noise(uv * 7.0 + vec2(TIME * 0.025, -TIME * 0.018));
+	float d = distance(uv, origin);
+	return 1.0 - smoothstep(radius, radius + 0.24, d + (n - 0.5) * 0.16);
+}
+
+void fragment() {
+	vec2 uv = UV;
+	float form = smoothstep(0.34, 0.96, burn_progress);
+	float radius = mix(0.04, 0.86, form);
+	float mask = max(ash_mask(uv, origin_a, radius), ash_mask(uv, origin_b, radius * 0.92));
+	mask = max(mask, ash_mask(uv, origin_c, radius * 1.08));
+	mask = max(mask, smoothstep(0.72, 1.0, form) * smoothstep(0.86, 0.18, distance(uv, vec2(0.5))));
+
+	float peel_noise = noise(uv * 10.0 + vec2(TIME * 0.08, TIME * 0.035));
+	float peel_wave = uv.y * 0.58 + peel_noise * 0.52 + noise(uv * 28.0) * 0.18;
+	float peeled = smoothstep(ash_peel_progress - 0.16, ash_peel_progress + 0.22, peel_wave);
+	float ash = mask * (1.0 - peeled);
+
+	float grain = hash(floor(uv * vec2(120.0, 88.0)) + vec2(floor(TIME * 6.0), floor(TIME * 4.0)));
+	vec3 color = mix(ash_color.rgb, ash_lift_color.rgb, grain * 0.28 + peel_noise * 0.18);
+	float ragged_edge = smoothstep(0.0, 0.14, ash) * (1.0 - smoothstep(0.52, 1.0, ash));
+	color += vec3(0.08, 0.075, 0.06) * ragged_edge;
+	float alpha = clamp(ash * (0.86 + grain * 0.10), 0.0, 0.92);
+	COLOR = vec4(color, alpha);
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	material.set_shader_parameter("burn_progress", 0.0)
+	material.set_shader_parameter("ash_peel_progress", 0.0)
+	return material
+
+
+func _create_transition_flash_material() -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+
+uniform float progress : hint_range(0.0, 1.0) = 0.0;
+uniform float intensity : hint_range(0.0, 2.0) = 0.0;
+uniform vec2 origin_a = vec2(0.5, 0.5);
+uniform vec2 origin_b = vec2(0.5, 0.5);
+uniform vec2 origin_c = vec2(0.5, 0.5);
+uniform vec4 burn_color : source_color = vec4(1.0, 0.88, 0.48, 1.0);
+
+float hash(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float radial(vec2 uv, vec2 origin, float radius, float softness) {
+	float d = distance(uv, origin);
+	return 1.0 - smoothstep(radius, radius + softness, d);
+}
+
+void fragment() {
+	vec2 uv = UV;
+	float local_radius = mix(0.02, 0.72, progress);
+	float soft = mix(0.05, 0.22, progress);
+	float local = max(radial(uv, origin_a, local_radius, soft), radial(uv, origin_b, local_radius * 0.88, soft));
+	local = max(local, radial(uv, origin_c, local_radius * 1.08, soft));
+	float global = smoothstep(0.45, 1.0, progress);
+	float grain = hash(floor(uv * vec2(96.0, 72.0)) + vec2(floor(TIME * 34.0), floor(TIME * 29.0)));
+	float scan = max(0.0, sin((uv.y + TIME * 0.95) * 92.0));
+	float tear = smoothstep(0.78, 1.0, hash(vec2(floor(TIME * 22.0), floor(uv.y * 18.0))));
+	float exposure = clamp((local + global * 0.85) * intensity, 0.0, 1.35);
+	exposure += grain * 0.18 * intensity * progress;
+	exposure += scan * 0.12 * intensity * progress;
+	exposure += tear * 0.18 * intensity * progress;
+	vec3 color = mix(burn_color.rgb, vec3(1.0), clamp(progress * 0.75 + grain * 0.22, 0.0, 1.0));
+	float alpha = clamp(exposure, 0.0, 0.96);
+	COLOR = vec4(color, alpha);
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	material.set_shader_parameter("progress", 0.0)
+	material.set_shader_parameter("intensity", 0.0)
+	return material
+
+
 func _create_pointer_hand_material() -> ShaderMaterial:
 	var shader := Shader.new()
 	shader.code = """
 shader_type canvas_item;
 
 uniform float shimmer : hint_range(0.0, 1.0) = 0.0;
-uniform float distort_strength : hint_range(0.0, 0.04) = 0.012;
+uniform float distort_strength : hint_range(0.0, 0.01) = 0.001;
+uniform float wrist_fade_start : hint_range(0.0, 1.0) = 0.82;
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(41.3, 289.7))) * 18531.1357);
@@ -567,16 +963,21 @@ void fragment() {
 	uv.x += line_wave * distort_strength * shimmer;
 	uv.y += heat_wave * distort_strength * 0.42 * shimmer;
 	vec4 color = texture(TEXTURE, uv);
-	float flicker = (hash(floor(UV * vec2(42.0, 58.0)) + vec2(TIME * 16.0)) - 0.5) * 0.18 * shimmer;
+	float flicker = (hash(floor(UV * vec2(42.0, 58.0)) + vec2(TIME * 16.0)) - 0.5) * 0.035 * shimmer;
+	float wrist_fade = 1.0 - smoothstep(wrist_fade_start, 1.0, UV.y) * 0.68;
+	float ragged_edge = hash(floor(UV * vec2(55.0, 90.0)) + vec2(floor(TIME * 8.0), floor(TIME * 6.0)));
+	wrist_fade -= smoothstep(wrist_fade_start + 0.04, 1.0, UV.y) * ragged_edge * 0.16;
 	color.rgb += flicker;
-	color.a *= 0.92 + sin(TIME * 18.0) * 0.035 * shimmer;
+	color.a *= clamp(wrist_fade, 0.0, 1.0);
+	color.a *= 0.96 + sin(TIME * 18.0) * 0.006 * shimmer;
 	COLOR = color;
 }
 """
 	var material := ShaderMaterial.new()
 	material.shader = shader
 	material.set_shader_parameter("shimmer", 1.0)
-	material.set_shader_parameter("distort_strength", 0.010)
+	material.set_shader_parameter("distort_strength", 0.001)
+	material.set_shader_parameter("wrist_fade_start", 0.82)
 	return material
 
 
@@ -1198,7 +1599,7 @@ func _refresh_scaffold_shell_style() -> void:
 		_static_edge_overlay_material.emission_energy_multiplier = 0.3
 
 
-func _apply_stage(stage_index: int, animate_focus: bool) -> void:
+func _apply_stage(stage_index: int, animate_focus: bool, preserve_transition_lift: bool = false, show_pointer: bool = true) -> void:
 	_current_stage_index = clampi(stage_index, 0, _stage_data.size() - 1)
 	_stage_elapsed = 0.0
 	_selected_route_ids.clear()
@@ -1217,8 +1618,12 @@ func _apply_stage(stage_index: int, animate_focus: bool) -> void:
 	_rollback_fading_charge_t = 1.0
 	_rollback_fading_hint_t = 1.0
 	_target_hint_elapsed = target_hint_fade_sec
-	_pointer_hand_visible_target = true
-	_pointer_hand_alpha = 0.0
+	_pointer_hand_visible_target = show_pointer
+	if show_pointer:
+		_pointer_hand_alpha = 0.0
+		_pointer_hand_enter_t = 0.0
+	if not preserve_transition_lift:
+		_transition_lift_offsets.clear()
 
 	var stage := _stage_data[_current_stage_index]
 	_current_stage_core_lookup = {}
@@ -2018,7 +2423,8 @@ func _update_texture_surface_motion() -> void:
 		if glow_level > 0.0:
 			motion += (sin(_stage_elapsed * 8.5) * texture_motion_amplitude * 0.55 + 0.006) * glow_level
 
-		node.position = normal * motion
+		var transition_lift := float(_transition_lift_offsets.get(cell_id, 0.0))
+		node.position = normal * (motion + transition_lift)
 		if edge_node != null:
 			edge_node.position = node.position
 
@@ -2033,6 +2439,13 @@ func _update_texture_surface_motion() -> void:
 			base_color = base_color.lerp(pulse_color, sparkle * 0.20)
 			base_emission = base_emission.lerp(pulse_color, sparkle * 0.18)
 			base_emission_energy += sparkle * 0.13
+		if _transition_color_flash_strength > 0.0:
+			var flicker := 0.55 + 0.45 * maxf(0.0, sin(_stage_elapsed * 18.0 + phase * 1.7))
+			var flash_mix := clampf(_transition_color_flash_strength * flicker, 0.0, 1.0)
+			var flash_color := Color(1.0, 0.82, 0.42, 1.0).lerp(Color.WHITE, flash_mix * 0.35)
+			base_color = base_color.lerp(flash_color, flash_mix * 0.72)
+			base_emission = base_emission.lerp(flash_color, flash_mix)
+			base_emission_energy += 0.85 * flash_mix + 0.55 * _transition_color_flash_strength
 		material.albedo_color = base_color
 		material.emission = base_emission
 		material.emission_energy_multiplier = base_emission_energy
@@ -2047,6 +2460,10 @@ func _update_texture_surface_motion() -> void:
 				edge_sweep = edge_sweep * edge_sweep * edge_sweep
 				edge_color = edge_color.lerp(route_color, edge_sweep * 0.28)
 				edge_energy += edge_sweep * 0.22
+			if _transition_color_flash_strength > 0.0:
+				var edge_flash := clampf(_transition_color_flash_strength * (0.72 + 0.28 * sin(_stage_elapsed * 22.0 + phase)), 0.0, 1.0)
+				edge_color = edge_color.lerp(Color(1.0, 0.78, 0.36, 1.0), edge_flash)
+				edge_energy += edge_flash * 1.15
 			edge_material.albedo_color = edge_color
 			edge_material.emission = edge_color
 			edge_material.emission_energy_multiplier = edge_energy
@@ -2403,15 +2820,359 @@ func _complete_current_stage() -> void:
 
 	var next_stage_index := _current_stage_index + 1
 	if next_stage_index < _stage_data.size():
-		await _play_hand_wipe_to_stage(next_stage_index)
+		await _play_texture_reassembly_transition(next_stage_index)
 		_transition_running = false
 		return
 
-	await _play_final_hand_wipe()
+	await _play_final_texture_transition()
 	_transition_running = false
 	if not _chapter_completed_once:
 		_chapter_completed_once = true
 		chapter_completed.emit(chapter_index)
+
+
+func _play_texture_reassembly_transition(next_stage_index: int) -> void:
+	_set_status_text("路径显影完成，结构正在解体。")
+	_pointer_hand_visible_target = false
+	await _wait_pointer_hand_exit()
+
+	var previous_route := _current_stage_route_ids.duplicate()
+	var next_stage := _stage_data[next_stage_index]
+	var next_texture := _load_stage_texture(next_stage)
+	if _transition_flash_rect != null:
+		_transition_flash_rect.visible = false
+	_prepare_burn_reveal(next_texture)
+	_prepare_route_burn()
+
+	await _run_transition_lift_phase(previous_route, 0.0, TRANSITION_LIFT_RADIUS, TRANSITION_LIFT_OUT_SEC, 0.0, 0.42)
+
+	await _run_transition_color_flash_phase(0.0, 1.0, 0.8, 0.42, 0.55)
+
+	var target_yaw := float(next_stage.get("focus_yaw_deg", 0.0))
+	var target_pitch := float(next_stage.get("focus_pitch_deg", -18.0))
+	_sync_rotation_state_from_model()
+	var hold_yaw := _yaw_deg
+	var hold_pitch := _pitch_deg
+	_suppress_stage_image_refresh = true
+	_apply_stage(next_stage_index, false, true, false)
+	_suppress_stage_image_refresh = false
+	_yaw_deg = hold_yaw
+	_pitch_deg = hold_pitch
+	_set_model_rotation_from_state()
+	_set_all_transition_lift_offsets(TRANSITION_LIFT_RADIUS)
+	_restore_route_burn()
+	_refresh_cell_materials()
+	_set_status_text("新纹理正在重新组合。")
+
+	_apply_focus_rotation(target_yaw, target_pitch, true)
+	await _run_transition_lift_phase(_current_stage_route_ids.duplicate(), TRANSITION_LIFT_RADIUS, 0.0, TRANSITION_SETTLE_IN_SEC, 1.0, 1.0, 1.0, 0.0, 0.0, 1.0)
+	_finish_route_burn()
+	_finish_burn_reveal(next_texture)
+	_refresh_route_preview()
+	_transition_lift_offsets.clear()
+	_transition_color_flash_strength = 0.0
+	_pointer_hand_visible_target = true
+	_pointer_hand_enter_t = 0.0
+	_pointer_hand_alpha = 0.0
+	_refresh_cell_materials()
+	_set_status_text("按住鼠标，从高亮单元开始沿纹理路径拖拽。")
+
+
+func _play_final_texture_transition() -> void:
+	_set_status_text("最后一段路径显影完成。")
+	_pointer_hand_visible_target = false
+	await _wait_pointer_hand_exit()
+	if _transition_flash_rect != null:
+		_transition_flash_rect.visible = false
+	_prepare_burn_reveal(null)
+	_prepare_route_burn()
+	await _run_transition_lift_phase(_current_stage_route_ids.duplicate(), 0.0, TRANSITION_LIFT_RADIUS, TRANSITION_LIFT_OUT_SEC, 0.0, 0.62)
+	await _run_transition_color_flash_phase(0.0, 1.0, 0.8)
+	await _run_burn_reveal_phase(0.62, 1.0, TRANSITION_FILM_SWITCH_SEC)
+
+
+func _wait_pointer_hand_exit() -> void:
+	while _pointer_hand_enter_t > 0.02:
+		await get_tree().process_frame
+
+
+func _run_transition_lift_phase(
+	priority_route: Array,
+	from_lift: float,
+	to_lift: float,
+	duration: float,
+	from_burn: float = -1.0,
+	to_burn: float = -1.0,
+	from_flash: float = -1.0,
+	to_flash: float = -1.0,
+	from_ash_peel: float = -1.0,
+	to_ash_peel: float = -1.0
+) -> void:
+	var delays := _build_transition_lift_delays(priority_route)
+	var elapsed := 0.0
+	while elapsed < duration:
+		var delta := get_process_delta_time()
+		elapsed = minf(duration, elapsed + delta)
+		var phase := clampf(elapsed / maxf(0.001, duration), 0.0, 1.0)
+		for cell_id_variant in _cell_nodes.keys():
+			var cell_id := int(cell_id_variant)
+			var delay := float(delays.get(cell_id, 0.0))
+			var local_t := clampf((phase - delay) / 0.34, 0.0, 1.0)
+			var smooth_t := local_t * local_t * (3.0 - 2.0 * local_t)
+			_transition_lift_offsets[cell_id] = lerpf(from_lift, to_lift, smooth_t)
+		if from_burn >= 0.0 and to_burn >= 0.0:
+			_set_burn_reveal_progress(lerpf(from_burn, to_burn, phase))
+		if from_flash >= 0.0 and to_flash >= 0.0:
+			_transition_color_flash_strength = lerpf(from_flash, to_flash, phase)
+		if from_ash_peel >= 0.0 and to_ash_peel >= 0.0:
+			_set_ash_peel_progress(lerpf(from_ash_peel, to_ash_peel, phase))
+		_update_texture_surface_motion()
+		await get_tree().process_frame
+	_set_all_transition_lift_offsets(to_lift)
+	if to_burn >= 0.0:
+		_set_burn_reveal_progress(to_burn)
+	if to_flash >= 0.0:
+		_transition_color_flash_strength = to_flash
+	if to_ash_peel >= 0.0:
+		_set_ash_peel_progress(to_ash_peel)
+	_update_texture_surface_motion()
+
+
+func _build_transition_lift_delays(priority_route: Array) -> Dictionary:
+	var route_ids: Array[int] = []
+	for id_variant in priority_route:
+		route_ids.append(int(id_variant))
+	var route_lookup: Dictionary = {}
+	for cell_id in route_ids:
+		route_lookup[cell_id] = true
+	var distance_map := _build_distance_map(route_ids)
+	var delays: Dictionary = {}
+	for cell_id_variant in _cell_nodes.keys():
+		var cell_id := int(cell_id_variant)
+		var hash := _hash_cell(cell_id)
+		if route_lookup.has(cell_id):
+			var route_index := maxi(0, route_ids.find(cell_id))
+			var route_batch := floorf(float(route_index) / 3.0)
+			delays[cell_id] = clampf(route_batch * 0.12 + hash * 0.018, 0.0, 0.34)
+		else:
+			var dist := float(distance_map.get(cell_id, 6))
+			var group := floorf(hash * 5.0) / 5.0
+			delays[cell_id] = clampf(0.24 + dist * 0.055 + group * 0.18, 0.24, 0.66)
+	return delays
+
+
+func _set_all_transition_lift_offsets(value: float) -> void:
+	for cell_id_variant in _cell_nodes.keys():
+		_transition_lift_offsets[int(cell_id_variant)] = value
+
+
+func _prepare_burn_reveal(next_texture: Texture2D) -> void:
+	_setup_burn_reveal_origins()
+	_set_burn_reveal_progress(0.0)
+	_set_ash_peel_progress(0.0)
+	if _burn_heat_rect != null:
+		_burn_heat_rect.visible = true
+	if _stage_image_next_rect != null:
+		_stage_image_next_rect.texture = next_texture
+		_stage_image_next_rect.material = _create_film_material()
+		_stage_image_next_rect.visible = next_texture != null
+	if _stage_image_rect != null and _stage_image_burn_material != null:
+		_stage_image_rect.material = _stage_image_burn_material
+
+
+func _finish_burn_reveal(next_texture: Texture2D) -> void:
+	if _stage_image_rect != null:
+		_stage_image_rect.texture = next_texture
+		_stage_image_rect.visible = next_texture != null
+		_stage_image_rect.material = _stage_image_material
+	if _stage_image_next_rect != null:
+		_stage_image_next_rect.visible = false
+		_stage_image_next_rect.texture = null
+		_stage_image_next_rect.material = _stage_image_wipe_material
+	if _burn_heat_rect != null:
+		_burn_heat_rect.visible = false
+	_set_burn_reveal_progress(0.0)
+	_set_ash_peel_progress(0.0)
+
+
+func _prepare_route_burn() -> void:
+	_transition_burn_route_points = PackedVector2Array()
+	_transition_burn_route_closed = false
+	var pixel_points := _preview_points_to_pixels(_current_preview_uvs)
+	var active_points := _build_active_preview_points(pixel_points)
+	if active_points.size() < 2:
+		return
+	_transition_burn_route_points = active_points
+	_transition_burn_route_closed = _current_route_guide_closed
+	line_canvas.set_line_points(active_points, _current_route_guide_closed, 5.6)
+	line_canvas.set_burn_progress(0.0, false)
+	if _route_burn_canvas != null:
+		_route_burn_canvas.clear_lines()
+		_route_burn_canvas.visible = false
+
+
+func _restore_route_burn() -> void:
+	if _transition_burn_route_points.size() < 2:
+		return
+	line_canvas.set_line_points(_transition_burn_route_points, _transition_burn_route_closed, 5.6)
+	line_canvas.set_burn_progress(_get_burn_reveal_progress(), false)
+	if _route_burn_canvas != null:
+		_route_burn_canvas.clear_lines()
+		_route_burn_canvas.visible = false
+
+
+func _finish_route_burn() -> void:
+	line_canvas.set_burn_progress(-1.0, false)
+	_transition_burn_route_points = PackedVector2Array()
+	_transition_burn_route_closed = false
+	if _route_burn_canvas != null:
+		_route_burn_canvas.clear_lines()
+		_route_burn_canvas.visible = false
+
+
+func _run_burn_reveal_phase(from_progress: float, to_progress: float, duration: float) -> void:
+	var elapsed := 0.0
+	while elapsed < duration:
+		var delta := get_process_delta_time()
+		elapsed = minf(duration, elapsed + delta)
+		var t := clampf(elapsed / maxf(0.001, duration), 0.0, 1.0)
+		var smooth_t := t * t * (3.0 - 2.0 * t)
+		_set_burn_reveal_progress(lerpf(from_progress, to_progress, smooth_t))
+		await get_tree().process_frame
+	_set_burn_reveal_progress(to_progress)
+
+
+func _run_transition_color_flash_phase(
+	from_strength: float,
+	to_strength: float,
+	duration: float,
+	from_burn: float = -1.0,
+	to_burn: float = -1.0
+) -> void:
+	var elapsed := 0.0
+	while elapsed < duration:
+		var delta := get_process_delta_time()
+		elapsed = minf(duration, elapsed + delta)
+		var t := clampf(elapsed / maxf(0.001, duration), 0.0, 1.0)
+		var smooth_t := t * t * (3.0 - 2.0 * t)
+		_transition_color_flash_strength = lerpf(from_strength, to_strength, smooth_t)
+		if from_burn >= 0.0 and to_burn >= 0.0:
+			_set_burn_reveal_progress(lerpf(from_burn, to_burn, smooth_t))
+		_update_texture_surface_motion()
+		await get_tree().process_frame
+	_transition_color_flash_strength = to_strength
+	if to_burn >= 0.0:
+		_set_burn_reveal_progress(to_burn)
+	_update_texture_surface_motion()
+
+
+func _set_burn_reveal_progress(progress: float) -> void:
+	var clamped_progress := clampf(progress, 0.0, 1.0)
+	_transition_burn_progress = clamped_progress
+	if _stage_image_burn_material == null:
+		return
+	_stage_image_burn_material.set_shader_parameter("burn_progress", clamped_progress)
+	if _burn_heat_material != null:
+		_burn_heat_material.set_shader_parameter("burn_progress", clamped_progress)
+	line_canvas.set_burn_progress(clamped_progress, false)
+	if _route_burn_canvas != null:
+		_route_burn_canvas.visible = false
+
+
+func _set_ash_peel_progress(progress: float) -> void:
+	if _burn_heat_material == null:
+		return
+	_burn_heat_material.set_shader_parameter("ash_peel_progress", clampf(progress, 0.0, 1.0))
+
+
+func _get_burn_reveal_progress() -> float:
+	return _transition_burn_progress
+
+
+func _setup_burn_reveal_origins() -> void:
+	if _stage_image_burn_material == null:
+		return
+	var template := _current_preview_uvs
+	if template.is_empty():
+		template = _stage_data[_current_stage_index].get("preview_template", PackedVector2Array()) as PackedVector2Array
+	if template.is_empty():
+		var fallback_a := Vector2(0.45, 0.5)
+		var fallback_b := Vector2(0.62, 0.42)
+		var fallback_c := Vector2(0.52, 0.58)
+		_stage_image_burn_material.set_shader_parameter("origin_a", fallback_a)
+		_stage_image_burn_material.set_shader_parameter("origin_b", fallback_b)
+		_stage_image_burn_material.set_shader_parameter("origin_c", fallback_c)
+		_stage_image_burn_material.set_shader_parameter("origin_d", Vector2(0.38, 0.55))
+		_stage_image_burn_material.set_shader_parameter("origin_e", Vector2(0.56, 0.47))
+		_stage_image_burn_material.set_shader_parameter("origin_f", Vector2(0.70, 0.38))
+		_stage_image_burn_material.set_shader_parameter("origin_g", Vector2(0.48, 0.64))
+		_set_burn_heat_origins(fallback_a, fallback_b, fallback_c)
+		return
+	var sample_count := template.size()
+	var origin_a := template[0]
+	var origin_b := template[clampi(roundi(float(sample_count - 1) * 0.16), 0, sample_count - 1)]
+	var origin_c := template[clampi(roundi(float(sample_count - 1) * 0.33), 0, sample_count - 1)]
+	var origin_d := template[clampi(roundi(float(sample_count - 1) * 0.50), 0, sample_count - 1)]
+	var origin_e := template[clampi(roundi(float(sample_count - 1) * 0.66), 0, sample_count - 1)]
+	var origin_f := template[clampi(roundi(float(sample_count - 1) * 0.83), 0, sample_count - 1)]
+	var origin_g := template[sample_count - 1]
+	_stage_image_burn_material.set_shader_parameter("origin_a", origin_a)
+	_stage_image_burn_material.set_shader_parameter("origin_b", origin_b)
+	_stage_image_burn_material.set_shader_parameter("origin_c", origin_c)
+	_stage_image_burn_material.set_shader_parameter("origin_d", origin_d)
+	_stage_image_burn_material.set_shader_parameter("origin_e", origin_e)
+	_stage_image_burn_material.set_shader_parameter("origin_f", origin_f)
+	_stage_image_burn_material.set_shader_parameter("origin_g", origin_g)
+	_set_burn_heat_origins(origin_a, origin_d, origin_g)
+
+
+func _set_burn_heat_origins(origin_a: Vector2, origin_b: Vector2, origin_c: Vector2) -> void:
+	if _burn_heat_material == null:
+		return
+	_burn_heat_material.set_shader_parameter("origin_a", origin_a)
+	_burn_heat_material.set_shader_parameter("origin_b", origin_b)
+	_burn_heat_material.set_shader_parameter("origin_c", origin_c)
+
+
+func _run_transition_flash_phase(from_progress: float, to_progress: float, duration: float) -> void:
+	var elapsed := 0.0
+	while elapsed < duration:
+		var delta := get_process_delta_time()
+		elapsed = minf(duration, elapsed + delta)
+		var t := clampf(elapsed / maxf(0.001, duration), 0.0, 1.0)
+		var smooth_t := t * t * (3.0 - 2.0 * t)
+		var progress := lerpf(from_progress, to_progress, smooth_t)
+		var intensity := clampf(0.35 + progress * 1.25, 0.0, 1.65)
+		if to_progress < from_progress:
+			intensity = progress * 1.15
+		_set_transition_flash(progress, intensity)
+		await get_tree().process_frame
+
+
+func _set_transition_flash(progress: float, intensity: float) -> void:
+	if _transition_flash_material == null:
+		return
+	_transition_flash_material.set_shader_parameter("progress", clampf(progress, 0.0, 1.0))
+	_transition_flash_material.set_shader_parameter("intensity", clampf(intensity, 0.0, 2.0))
+
+
+func _setup_transition_flash_origins() -> void:
+	if _transition_flash_material == null:
+		return
+	var template := _current_preview_uvs
+	if template.is_empty():
+		template = _stage_data[_current_stage_index].get("preview_template", PackedVector2Array()) as PackedVector2Array
+	if template.is_empty():
+		_transition_flash_material.set_shader_parameter("origin_a", Vector2(0.45, 0.5))
+		_transition_flash_material.set_shader_parameter("origin_b", Vector2(0.62, 0.42))
+		_transition_flash_material.set_shader_parameter("origin_c", Vector2(0.52, 0.58))
+		return
+	var first := template[0]
+	var middle := template[int(template.size() / 2)]
+	var last := template[template.size() - 1]
+	_transition_flash_material.set_shader_parameter("origin_a", first)
+	_transition_flash_material.set_shader_parameter("origin_b", middle)
+	_transition_flash_material.set_shader_parameter("origin_c", last)
 
 
 func _play_hand_wipe_to_stage(next_stage_index: int) -> void:
@@ -2458,31 +3219,6 @@ func _play_hand_wipe_to_stage(next_stage_index: int) -> void:
 		_stage_image_wipe_material.set_shader_parameter("reveal_progress", 0.0)
 	_hand_rect.visible = false
 	_set_status_text("擦除完成，进入下一张纹理。")
-	return
-
-	_hand_rect.visible = true
-	_place_hand_at_start()
-
-	var panel_size := right_panel.size
-	var mid_pos := Vector2(panel_size.x * 0.12, panel_size.y * 0.06)
-	var exit_pos := Vector2(-panel_size.x * 0.52, panel_size.y * 0.36)
-
-	var first_tween := create_tween()
-	first_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	first_tween.tween_property(_hand_rect, "position", mid_pos, hand_wipe_duration_sec * 0.48)
-	first_tween.parallel().tween_property(_hand_rect, "rotation_degrees", 22.0, hand_wipe_duration_sec * 0.48)
-	await first_tween.finished
-
-	_apply_stage(next_stage_index, true)
-	_set_status_text("Hand04 擦拭完成，进入下一张贴图。")
-
-	var second_tween := create_tween()
-	second_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	second_tween.tween_property(_hand_rect, "position", exit_pos, hand_wipe_duration_sec * 0.52)
-	second_tween.parallel().tween_property(_hand_rect, "rotation_degrees", 68.0, hand_wipe_duration_sec * 0.52)
-	await second_tween.finished
-
-	_hand_rect.visible = false
 
 
 func _play_final_hand_wipe() -> void:
@@ -2506,8 +3242,9 @@ func _place_hand_at_start() -> void:
 	var panel_size := right_panel.size
 	_hand_rect.size = Vector2(panel_size.x * 0.62, panel_size.y * 0.82)
 	_hand_rect.pivot_offset = _hand_rect.size * 0.5
-	_hand_rect.position = Vector2(panel_size.x * 1.02, -panel_size.y * 0.12)
-	_hand_rect.rotation_degrees = -28.0
+	_hand_rect.position = Vector2(panel_size.x * 1.10, -panel_size.y * 0.18)
+	_hand_rect.rotation_degrees = -31.0
+	_hand_rect.scale = Vector2.ONE
 
 
 func _place_hand_for_wipe(progress: float) -> void:
@@ -2515,10 +3252,18 @@ func _place_hand_for_wipe(progress: float) -> void:
 	var t := clampf(progress, 0.0, 1.0)
 	_hand_rect.size = Vector2(panel_size.x * 0.72, panel_size.y * 1.05)
 	_hand_rect.pivot_offset = _hand_rect.size * 0.5
-	var x := lerpf(-panel_size.x * 0.42, panel_size.x * 1.08, t)
-	var y := panel_size.y * 0.52 + sin(t * PI) * panel_size.y * 0.06
+	var contact := smoothstep(0.04, 0.20, t) * (1.0 - smoothstep(0.82, 1.0, t))
+	var exit_push := smoothstep(0.74, 1.0, t)
+	var x := lerpf(-panel_size.x * 0.52, panel_size.x * 1.14, t)
+	x += sin(t * PI * 1.35 + 0.45) * panel_size.x * 0.035 * contact
+	var y := panel_size.y * 0.54
+	y += sin(t * PI) * panel_size.y * 0.09
+	y += sin(t * PI * 4.0) * panel_size.y * 0.018 * contact
+	y -= exit_push * panel_size.y * 0.10
 	_hand_rect.position = Vector2(x, y - _hand_rect.size.y * 0.52)
-	_hand_rect.rotation_degrees = lerpf(-8.0, 10.0, t)
+	_hand_rect.rotation_degrees = lerpf(-18.0, 15.0, t) + sin(t * PI * 2.2) * 6.0 * contact
+	var pressure := 1.0 + sin(t * PI) * 0.035 * contact
+	_hand_rect.scale = Vector2(pressure, 1.0 - (pressure - 1.0) * 0.45)
 
 
 func _update_pointer_hand(delta: float) -> void:
@@ -2532,89 +3277,75 @@ func _update_pointer_hand(delta: float) -> void:
 		_pointer_hand_rect.texture = pointer_texture
 
 	var panel_size := right_panel.size
-	var hand_width := clampf(panel_size.x * 0.30, 120.0, 260.0)
 	var texture_size := pointer_texture.get_size()
 	var aspect := texture_size.y / maxf(1.0, texture_size.x)
-	_pointer_hand_rect.size = Vector2(hand_width, hand_width * aspect)
+	var hand_height := clampf(panel_size.y * 1.14, 520.0, 860.0)
+	var hand_width := hand_height / maxf(0.001, aspect)
+	_pointer_hand_rect.size = Vector2(hand_width, hand_height)
 	_pointer_hand_rect.pivot_offset = _pointer_hand_rect.size * 0.5
 
-	var tip_local := _pointer_hand_rect.size
+	var tip_local := _pointer_hand_rect.size * POINTER_HAND_TIP_UV
 	var tip_point := _get_current_preview_pointer_point()
 	if tip_point != Vector2.INF:
 		_pointer_hand_target_pos = tip_point
 
-	var target_alpha := 1.0 if _pointer_hand_visible_target and _pointer_hand_target_pos != Vector2.ZERO else 0.0
-	_pointer_hand_alpha = move_toward(_pointer_hand_alpha, target_alpha, delta * 3.4)
+	var target_visible := _pointer_hand_visible_target and _pointer_hand_target_pos != Vector2.ZERO
+	var target_enter_t := 1.0 if target_visible else 0.0
+	var enter_speed := 4.8 if target_visible else 3.2
+	_pointer_hand_enter_t = move_toward(_pointer_hand_enter_t, target_enter_t, delta * enter_speed)
+	var smooth_enter_t := _pointer_hand_enter_t * _pointer_hand_enter_t * (3.0 - 2.0 * _pointer_hand_enter_t)
+	_pointer_hand_alpha = smooth_enter_t
 
-	if _pointer_hand_alpha <= 0.01 and target_alpha <= 0.0:
+	if _pointer_hand_enter_t <= 0.01 and not target_visible:
 		_pointer_hand_rect.visible = false
 		return
 
 	_pointer_hand_rect.visible = true
 	var target_rotation := _get_pointer_hand_rotation_for_target(_pointer_hand_target_pos, _pointer_hand_rect.size)
-	var rotation_follow_t := 1.0 - pow(0.0008, delta)
+	var rotation_follow_t := 1.0 - pow(0.00004, delta)
 	_pointer_hand_rect.rotation = lerp_angle(_pointer_hand_rect.rotation, target_rotation, rotation_follow_t)
 	var pivot := _pointer_hand_rect.pivot_offset
 	var base_position := _pointer_hand_target_pos - pivot - (tip_local - pivot).rotated(_pointer_hand_rect.rotation)
-	var enter_offset := Vector2(0.0, (1.0 - _pointer_hand_alpha) * panel_size.y * 0.34)
-	var exit_offset := Vector2(0.0, (1.0 - target_alpha) * panel_size.y * 0.62)
-	var desired_position := base_position + enter_offset + exit_offset
-	_pointer_hand_rect.position = desired_position
+	var exit_vector := _get_pointer_hand_exit_vector(_pointer_hand_target_pos, _pointer_hand_rect.size)
+	_pointer_hand_rect.position = base_position + exit_vector * (1.0 - smooth_enter_t)
 	_pointer_hand_rect.modulate = Color(1.0, 1.0, 1.0, _pointer_hand_alpha)
 	if _hand_pointer_material != null:
 		_hand_pointer_material.set_shader_parameter("shimmer", _pointer_hand_alpha)
 
 
 func _get_pointer_hand_rotation_for_target(target: Vector2, hand_size: Vector2) -> float:
+	var desired_vector := _get_pointer_hand_wrist_vector(target, hand_size)
+	if desired_vector.length_squared() <= 0.001:
+		return 0.0
+
+	var tip_local := hand_size * POINTER_HAND_TIP_UV
+	var wrist_local := hand_size * POINTER_HAND_WRIST_UV
+	var local_tip_to_wrist := wrist_local - tip_local
+	if local_tip_to_wrist.length_squared() <= 0.001:
+		return 0.0
+	return desired_vector.angle() - local_tip_to_wrist.angle()
+
+
+func _get_pointer_hand_exit_vector(target: Vector2, hand_size: Vector2) -> Vector2:
+	var wrist_vector := _get_pointer_hand_wrist_vector(target, hand_size)
+	if wrist_vector.length_squared() <= 0.001:
+		return Vector2(0.0, hand_size.y * 0.38)
+	return wrist_vector.normalized() * maxf(180.0, hand_size.y * 0.30)
+
+
+func _get_pointer_hand_wrist_vector(target: Vector2, hand_size: Vector2) -> Vector2:
 	var panel_size := right_panel.size
 	if panel_size.x <= 1.0 or panel_size.y <= 1.0:
-		return deg_to_rad(-4.0)
+		return Vector2.DOWN
 	var x_ratio := clampf(target.x / panel_size.x, 0.0, 1.0)
-	var y_ratio := clampf(target.y / panel_size.y, 0.0, 1.0)
-	var preferred_deg := lerpf(-24.0, 16.0, x_ratio)
-	if target.y < hand_size.y * 0.34:
-		preferred_deg += lerpf(18.0, -12.0, x_ratio)
-	elif y_ratio > 0.78:
-		preferred_deg -= 10.0
-
-	var best_rotation := deg_to_rad(preferred_deg)
-	var best_score := INF
-	for offset_deg in [-48.0, -36.0, -24.0, -12.0, 0.0, 12.0, 24.0, 36.0, 48.0]:
-		var rotation := deg_to_rad(clampf(preferred_deg + offset_deg, -62.0, 42.0))
-		var overflow := _get_pointer_hand_overflow_score(target, hand_size, rotation)
-		var preference_penalty := absf(offset_deg) * 0.002
-		var score := overflow + preference_penalty
-		if score < best_score:
-			best_score = score
-			best_rotation = rotation
-	return best_rotation
-
-
-func _get_pointer_hand_overflow_score(target: Vector2, hand_size: Vector2, rotation: float) -> float:
-	var panel_size := right_panel.size
-	var pivot := hand_size * 0.5
-	var tip := hand_size
-	var top_left := target - pivot - (tip - pivot).rotated(rotation)
-	var corners: Array[Vector2] = [
-		Vector2.ZERO,
-		Vector2(hand_size.x, 0.0),
-		hand_size,
-		Vector2(0.0, hand_size.y),
-	]
-	var min_point := Vector2(INF, INF)
-	var max_point := Vector2(-INF, -INF)
-	for corner in corners:
-		var point: Vector2 = top_left + pivot + (corner - pivot).rotated(rotation)
-		min_point.x = minf(min_point.x, point.x)
-		min_point.y = minf(min_point.y, point.y)
-		max_point.x = maxf(max_point.x, point.x)
-		max_point.y = maxf(max_point.y, point.y)
-	var margin := 10.0
-	var overflow_left := maxf(0.0, margin - min_point.x)
-	var overflow_top := maxf(0.0, margin - min_point.y)
-	var overflow_right := maxf(0.0, max_point.x - (panel_size.x - margin))
-	var overflow_bottom := maxf(0.0, max_point.y - (panel_size.y - margin))
-	return overflow_left + overflow_top + overflow_right + overflow_bottom
+	var bottom_y := panel_size.y + hand_size.y * 0.24
+	var outside_x := lerpf(panel_size.x * 0.40, panel_size.x * 0.60, x_ratio)
+	if x_ratio < 0.24:
+		outside_x = -hand_size.x * 0.22
+	elif x_ratio > 0.76:
+		outside_x = panel_size.x + hand_size.x * 0.22
+	var desired_wrist := Vector2(outside_x, bottom_y)
+	return desired_wrist - target
 
 
 func _load_pointer_hand_texture() -> Texture2D:
@@ -2623,7 +3354,7 @@ func _load_pointer_hand_texture() -> Texture2D:
 	var image := Image.new()
 	var error := image.load(ProjectSettings.globalize_path(HAND_POINTER_TEXTURE_PATH))
 	if error != OK:
-		push_warning("Missing Hand05 pointer texture: %s" % HAND_POINTER_TEXTURE_PATH)
+		push_warning("Missing tracing hand pointer texture: %s" % HAND_POINTER_TEXTURE_PATH)
 		return null
 	_hand_pointer_texture = ImageTexture.create_from_image(image)
 	return _hand_pointer_texture
@@ -2635,8 +3366,10 @@ func _get_current_preview_pointer_point() -> Vector2:
 	var pixel_points := _preview_points_to_pixels(_current_preview_uvs)
 	if pixel_points.is_empty():
 		return Vector2.INF
-	var progress := _get_visual_route_progress()
-	return _sample_pixel_route_at_progress(pixel_points, progress)
+	var active_points := _build_active_preview_points(pixel_points)
+	if active_points.is_empty():
+		return Vector2.INF
+	return active_points[active_points.size() - 1]
 
 
 func _get_visual_route_progress() -> float:
@@ -2923,9 +3656,26 @@ func _update_rotation_input(delta: float) -> void:
 
 
 func _apply_focus_rotation(target_yaw_deg: float, target_pitch_deg: float, animate: bool) -> void:
-	_yaw_deg = target_yaw_deg
-	_pitch_deg = target_pitch_deg
-	sphere.rotation = Vector3(deg_to_rad(target_pitch_deg), deg_to_rad(target_yaw_deg), 0.0)
+	if _orientation_tween != null and _orientation_tween.is_valid():
+		_orientation_tween.kill()
+	if not animate:
+		_yaw_deg = target_yaw_deg
+		_pitch_deg = target_pitch_deg
+		_set_model_rotation_from_state()
+		return
+
+	_sync_rotation_state_from_model()
+	var start_yaw := _yaw_deg
+	var start_pitch := _pitch_deg
+	var yaw_delta := wrapf(target_yaw_deg - start_yaw, -180.0, 180.0)
+	var final_yaw := start_yaw + yaw_delta
+	_orientation_tween = create_tween()
+	_orientation_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	var focus_step := func(t: float) -> void:
+		_yaw_deg = lerpf(start_yaw, final_yaw, t)
+		_pitch_deg = lerpf(start_pitch, target_pitch_deg, t)
+		_set_model_rotation_from_state()
+	_orientation_tween.tween_method(focus_step, 0.0, 1.0, TRANSITION_SETTLE_IN_SEC)
 
 
 func _set_model_rotation_from_state() -> void:

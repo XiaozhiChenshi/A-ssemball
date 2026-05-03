@@ -9,6 +9,10 @@ class_name LineCanvas2D
 @export var rough_pencil: bool = false
 @export var particle_enabled: bool = false
 @export var particle_color: Color = Color(0.9, 0.86, 0.72, 0.42)
+@export_range(-1.0, 1.0, 0.001) var burn_progress: float = -1.0
+@export var burn_fire_only: bool = false
+@export var burn_fire_color: Color = Color(1.0, 0.58, 0.18, 0.9)
+@export var burn_ash_color: Color = Color(0.05, 0.025, 0.012, 0.82)
 
 var _points: PackedVector2Array = PackedVector2Array()
 var _closed: bool = false
@@ -24,16 +28,27 @@ func set_line_points(points: PackedVector2Array, closed: bool = false, width: fl
 func clear_lines() -> void:
 	_points = PackedVector2Array()
 	_closed = false
+	burn_progress = -1.0
+	queue_redraw()
+
+
+func set_burn_progress(progress: float, fire_only: bool = false) -> void:
+	burn_progress = progress
+	burn_fire_only = fire_only
 	queue_redraw()
 
 
 func _process(_delta: float) -> void:
-	if particle_enabled and _points.size() >= 2:
+	if (particle_enabled or burn_progress >= 0.0) and _points.size() >= 2:
 		queue_redraw()
 
 
 func _draw() -> void:
 	if _points.size() < 2:
+		return
+
+	if burn_progress >= 0.0:
+		_draw_burning_line()
 		return
 
 	if rough_pencil:
@@ -58,6 +73,30 @@ func _draw_rough_line() -> void:
 		_draw_rough_segment(_points[_points.size() - 1], _points[0], segment_count)
 	if particle_enabled:
 		_draw_evaporating_particles()
+
+
+func _draw_burning_line() -> void:
+	var progress: float = clampf(burn_progress, 0.0, 1.0)
+	var path_points := PackedVector2Array(_points)
+	if _closed:
+		path_points.append(_points[0])
+	if path_points.size() < 2:
+		return
+
+	var disappear := smoothstep(0.08, 1.0, progress)
+	var alpha := pow(1.0 - disappear, 1.18)
+	if alpha <= 0.015:
+		return
+
+	if burn_fire_only:
+		return
+
+	var shadow := line_shadow_color
+	shadow.a *= alpha * 0.7
+	var color := line_color
+	color.a *= alpha
+	draw_polyline(path_points, shadow, line_width + line_shadow_extra_width, false)
+	draw_polyline(path_points, color, line_width, false)
 
 
 func _draw_rough_segment(a: Vector2, b: Vector2, segment_index: int) -> void:
