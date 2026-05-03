@@ -2597,28 +2597,7 @@ func _start_final_close_transition() -> void:
 	if _dragging_orbit_cube_index >= 0:
 		_dragging_orbit_cube_index = -1
 
-	if _final_curtain_layer == null or not is_instance_valid(_final_curtain_layer):
-		_setup_final_curtains()
-	if _final_curtain_layer == null:
-		chapter_completed.emit(chapter_index)
-		return
-
-	_final_curtain_layer.visible = true
-	_final_curtain_layer.move_to_front()
-	_final_curtain_left.offset_right = 0.0
-	_final_curtain_right.offset_left = 0.0
-
-	var half_width := maxf(1.0, size.x * 0.5 + 2.0)
-	var close_tween := create_tween()
-	close_tween.set_parallel(true)
-	close_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	close_tween.tween_property(_final_curtain_left, "offset_right", half_width, maxf(0.05, final_close_to_black_sec))
-	close_tween.tween_property(_final_curtain_right, "offset_left", -half_width, maxf(0.05, final_close_to_black_sec))
-	await close_tween.finished
-
-	if final_black_hold_sec > 0.0:
-		await get_tree().create_timer(final_black_hold_sec).timeout
-
+	# Removed curtain close-to-black transition: hand off immediately to main flow.
 	chapter_completed.emit(chapter_index)
 
 

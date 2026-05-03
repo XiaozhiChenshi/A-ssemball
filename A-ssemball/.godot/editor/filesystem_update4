@@ -1,1 +1,7 @@
+res://scripts/line_canvas_2d.gd
+res://scripts/levels/chapter_1/level_2.gd
+res://scripts/main_entry.gd
 res://scripts/levels/chapter_2/level_1.gd
+res://scenes/levels/chapter_2/level_2.tscn
+res://scenes/levels/chapter_2/source_level_2.tscn
+res://scripts/levels/chapter_2/level_2.gd

@@ -1,0 +1,322 @@
+[gd_scene load_steps=25 format=3 uid="uid://cjffm7hvosbte"]
+
+[ext_resource type="Script" uid="uid://den6lwd2c0mdt" path="res://scripts/levels/chapter_2/level_2.gd" id="1_level_2"]
+[ext_resource type="Texture2D" uid="uid://b8a5s16dv4ftj" path="res://assets/materials/plat2-2.png" id="2_plat_2_2"]
+[ext_resource type="Texture2D" uid="uid://ca38olmbbx3g" path="res://assets/materials/p1-1-1.png" id="3_p1_1_1"]
+[ext_resource type="Texture2D" uid="uid://cw7y0c3blmhxb" path="res://assets/materials/p1-1-2.png" id="4_p1_1_2"]
+[ext_resource type="Texture2D" uid="uid://b6c1vw6yvvek3" path="res://assets/materials/p1-2-1.png" id="5_p1_2_1"]
+[ext_resource type="Texture2D" uid="uid://twgcaejxi7sh" path="res://assets/materials/p1-2-2.png" id="6_p1_2_2"]
+[ext_resource type="Texture2D" uid="uid://b285sxq7gxbud" path="res://assets/materials/p2-1-1.png" id="7_p2_1_1"]
+[ext_resource type="Texture2D" uid="uid://crl0xivdy60vk" path="res://assets/materials/p2-1-2.png" id="8_p2_1_2"]
+[ext_resource type="Texture2D" uid="uid://ctbnibo88j4de" path="res://assets/materials/p2-2-1.png" id="9_p2_2_1"]
+[ext_resource type="Texture2D" uid="uid://cg8x33dlso3u5" path="res://assets/materials/p2-2-2.png" id="10_p2_2_2"]
+[ext_resource type="Texture2D" path="res://assets/materials/指挥棒.png" id="11_baton"]
+[ext_resource type="Texture2D" path="res://assets/materials/小提琴.png" id="12_violin"]
+[ext_resource type="Texture2D" path="res://assets/materials/钢琴.png" id="13_piano"]
+[ext_resource type="Texture2D" path="res://assets/materials/军鼓.png" id="14_snare"]
+[ext_resource type="Texture2D" path="res://assets/materials/竖琴.png" id="15_harp"]
+[ext_resource type="Texture2D" path="res://assets/materials/三角铁.png" id="16_triangle"]
+[ext_resource type="Texture2D" path="res://assets/materials/长笛.png" id="17_flute"]
+[ext_resource type="Texture2D" path="res://assets/materials/低音号.png" id="18_tuba"]
+
+[sub_resource type="Environment" id="Environment_dark"]
+background_mode = 1
+ambient_light_source = 2
+ambient_light_color = Color(0.16, 0.18, 0.22, 1)
+ambient_light_energy = 0.42
+
+[sub_resource type="StandardMaterial3D" id="ChunkMaterial"]
+cull_mode = 2
+albedo_color = Color(0.72, 0.79, 0.9, 1)
+metallic = 0.08
+roughness = 0.32
+emission_enabled = true
+emission = Color(0.2, 0.28, 0.4, 1)
+emission_energy_multiplier = 1.35
+
+[sub_resource type="SphereMesh" id="SphereMesh_chunk"]
+radius = 0.56
+height = 1.12
+radial_segments = 32
+rings = 20
+
+[sub_resource type="StandardMaterial3D" id="StairMaterial"]
+albedo_color = Color(0.95, 0.95, 0.95, 1)
+roughness = 0.78
+
+[sub_resource type="BoxMesh" id="Step1Mesh"]
+size = Vector3(0.9, 0.16, 0.42)
+
+[sub_resource type="BoxMesh" id="Step2Mesh"]
+size = Vector3(0.45, 0.16, 0.21)
+
+[node name="Chapter2Level2Source" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_level_2")
+
+[node name="ChapterSplit" type="HSplitContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Left3D" type="SubViewportContainer" parent="ChapterSplit"]
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+stretch = true
+
+[node name="LeftViewport" type="SubViewport" parent="ChapterSplit/Left3D"]
+handle_input_locally = false
+size = Vector2i(320, 720)
+render_target_update_mode = 4
+
+[node name="World3D" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="ChapterSplit/Left3D/LeftViewport/World3D"]
+environment = SubResource("Environment_dark")
+
+[node name="KeyLight" type="DirectionalLight3D" parent="ChapterSplit/Left3D/LeftViewport/World3D"]
+transform = Transform3D(0.769751, -0.422618, 0.478891, 0.292372, 0.898794, 0.32672, -0.56737, -0.117553, 0.815006, 0, 0, 0)
+light_energy = 0.95
+shadow_enabled = true
+
+[node name="FillLight" type="DirectionalLight3D" parent="ChapterSplit/Left3D/LeftViewport/World3D"]
+transform = Transform3D(0.682705, 0.333807, -0.649966, -0.0354512, 0.902544, 0.429202, 0.729834, -0.271108, 0.627363, 0, 0, 0)
+light_color = Color(0.82, 0.9, 1, 1)
+light_energy = 0.38
+
+[node name="Camera3D" type="Camera3D" parent="ChapterSplit/Left3D/LeftViewport/World3D"]
+transform = Transform3D(1, 0, 0, 0, 0.961262, 0.275637, 0, -0.275637, 0.961262, 0, 0.95, 4.2)
+current = true
+fov = 54.0
+
+[node name="ChunkRoot" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport/World3D"]
+
+[node name="Chunk_n1_n1_n1" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot"]
+
+[node name="ChunkMesh" type="MeshInstance3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_n1_n1_n1"]
+material_override = SubResource("ChunkMaterial")
+mesh = SubResource("SphereMesh_chunk")
+
+[node name="Instrument_1_1_1" type="Sprite3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_n1_n1_n1"]
+position = Vector3(-0.34, -0.34, -0.34)
+pixel_size = 0.00115
+texture = ExtResource("11_baton")
+billboard = 1
+no_depth_test = true
+
+[node name="Chunk_n1_n1_p1" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot"]
+
+[node name="ChunkMesh" type="MeshInstance3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_n1_n1_p1"]
+material_override = SubResource("ChunkMaterial")
+mesh = SubResource("SphereMesh_chunk")
+
+[node name="Instrument_1_1_2" type="Sprite3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_n1_n1_p1"]
+position = Vector3(-0.34, -0.34, 0.34)
+pixel_size = 0.00075
+texture = ExtResource("12_violin")
+billboard = 1
+no_depth_test = true
+
+[node name="Chunk_n1_p1_n1" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot"]
+
+[node name="ChunkMesh" type="MeshInstance3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_n1_p1_n1"]
+material_override = SubResource("ChunkMaterial")
+mesh = SubResource("SphereMesh_chunk")
+
+[node name="Instrument_1_2_1" type="Sprite3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_n1_p1_n1"]
+position = Vector3(-0.34, 0.34, -0.34)
+pixel_size = 0.00058
+texture = ExtResource("15_harp")
+billboard = 1
+no_depth_test = true
+
+[node name="Chunk_n1_p1_p1" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot"]
+
+[node name="ChunkMesh" type="MeshInstance3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_n1_p1_p1"]
+material_override = SubResource("ChunkMaterial")
+mesh = SubResource("SphereMesh_chunk")
+
+[node name="Instrument_1_2_2" type="Sprite3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_n1_p1_p1"]
+position = Vector3(-0.34, 0.34, 0.34)
+pixel_size = 0.00075
+texture = ExtResource("16_triangle")
+billboard = 1
+no_depth_test = true
+
+[node name="Chunk_p1_n1_n1" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot"]
+
+[node name="ChunkMesh" type="MeshInstance3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_p1_n1_n1"]
+material_override = SubResource("ChunkMaterial")
+mesh = SubResource("SphereMesh_chunk")
+
+[node name="Instrument_2_1_1" type="Sprite3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_p1_n1_n1"]
+position = Vector3(0.34, -0.34, -0.34)
+pixel_size = 0.00075
+texture = ExtResource("13_piano")
+billboard = 1
+no_depth_test = true
+
+[node name="Chunk_p1_n1_p1" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot"]
+
+[node name="ChunkMesh" type="MeshInstance3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_p1_n1_p1"]
+material_override = SubResource("ChunkMaterial")
+mesh = SubResource("SphereMesh_chunk")
+
+[node name="Instrument_2_1_2" type="Sprite3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_p1_n1_p1"]
+position = Vector3(0.34, -0.34, 0.34)
+pixel_size = 0.00075
+texture = ExtResource("14_snare")
+billboard = 1
+no_depth_test = true
+
+[node name="Chunk_p1_p1_n1" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot"]
+
+[node name="ChunkMesh" type="MeshInstance3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_p1_p1_n1"]
+material_override = SubResource("ChunkMaterial")
+mesh = SubResource("SphereMesh_chunk")
+
+[node name="Instrument_2_2_1" type="Sprite3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_p1_p1_n1"]
+position = Vector3(0.34, 0.34, -0.34)
+pixel_size = 0.00075
+texture = ExtResource("17_flute")
+billboard = 1
+no_depth_test = true
+
+[node name="Chunk_p1_p1_p1" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot"]
+
+[node name="ChunkMesh" type="MeshInstance3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_p1_p1_p1"]
+material_override = SubResource("ChunkMaterial")
+mesh = SubResource("SphereMesh_chunk")
+
+[node name="Instrument_2_2_2" type="Sprite3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_p1_p1_p1"]
+position = Vector3(0.34, 0.34, 0.34)
+pixel_size = 0.00075
+texture = ExtResource("18_tuba")
+billboard = 1
+no_depth_test = true
+
+[node name="StairRoot" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot"]
+
+[node name="Step_1" type="MeshInstance3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/StairRoot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.16, 0)
+material_override = SubResource("StairMaterial")
+mesh = SubResource("Step1Mesh")
+
+[node name="Step_2" type="MeshInstance3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/StairRoot"]
+transform = Transform3D(2, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, -0.105)
+material_override = SubResource("StairMaterial")
+mesh = SubResource("Step2Mesh")
+
+[node name="RightPanel" type="Control" parent="ChapterSplit"]
+custom_minimum_size = Vector2(960, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="PlatBackground" type="TextureRect" parent="ChapterSplit/RightPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_plat_2_2")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="InteractiveFragments" type="Control" parent="ChapterSplit/RightPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+
+[node name="Doll_1_1_1" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 40.0
+offset_top = 40.0
+offset_right = 220.0
+offset_bottom = 280.0
+texture = ExtResource("3_p1_1_1")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Doll_1_1_2" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 240.0
+offset_top = 40.0
+offset_right = 420.0
+offset_bottom = 280.0
+texture = ExtResource("4_p1_1_2")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Doll_1_2_1" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 440.0
+offset_top = 40.0
+offset_right = 620.0
+offset_bottom = 280.0
+texture = ExtResource("5_p1_2_1")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Doll_1_2_2" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 640.0
+offset_top = 40.0
+offset_right = 820.0
+offset_bottom = 280.0
+texture = ExtResource("6_p1_2_2")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Doll_2_1_1" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 40.0
+offset_top = 300.0
+offset_right = 220.0
+offset_bottom = 540.0
+texture = ExtResource("7_p2_1_1")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Doll_2_1_2" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 240.0
+offset_top = 300.0
+offset_right = 420.0
+offset_bottom = 540.0
+texture = ExtResource("8_p2_1_2")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Doll_2_2_1" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 440.0
+offset_top = 300.0
+offset_right = 620.0
+offset_bottom = 540.0
+texture = ExtResource("9_p2_2_1")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Doll_2_2_2" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 640.0
+offset_top = 300.0
+offset_right = 820.0
+offset_bottom = 540.0
+texture = ExtResource("10_p2_2_2")
+expand_mode = 1
+stretch_mode = 5
