@@ -14,13 +14,13 @@ const INSTRUMENT_TEXTURES: Dictionary = {
 	"tuba": preload("res://assets/materials/低音号.png"),
 }
 const HOLD_ICON_ANCHORS: Array[Vector2] = [
-	Vector2(0.50, 0.46),
+	Vector2(0.50, 0.4583),
 	Vector2(0.46, 0.42),
 	Vector2(0.50, 0.45),
 	Vector2(0.50, 0.45),
-	Vector2(0.50, 0.42),
+	Vector2(0.50, 0.40),
 	Vector2(0.48, 0.44),
-	Vector2(0.50, 0.42),
+	Vector2(0.50, 0.4575),
 	Vector2(0.50, 0.45),
 ]
 const HOLD_ICON_SIZES: Dictionary = {
@@ -28,7 +28,7 @@ const HOLD_ICON_SIZES: Dictionary = {
 	"violin": Vector2(96.0, 78.0),
 	"piano": Vector2(116.0, 92.0),
 	"snare": Vector2(88.0, 78.0),
-	"harp": Vector2(106.0, 122.0),
+	"harp": Vector2(78.0, 122.0),
 	"triangle": Vector2(78.0, 78.0),
 	"flute": Vector2(112.0, 58.0),
 	"tuba": Vector2(104.0, 122.0),
@@ -64,14 +64,14 @@ const INITIAL_INSTRUMENTS: Array[String] = [
 	"baton",
 ]
 const TARGET_INSTRUMENTS: Array[String] = [
-	"baton",
-	"violin",
-	"piano",
 	"snare",
-	"harp",
 	"triangle",
+	"violin",
 	"flute",
+	"piano",
 	"tuba",
+	"harp",
+	"baton",
 ]
 const DOLL_NODE_NAMES: Array[String] = [
 	"Doll_1_1_1",
@@ -105,6 +105,7 @@ const MATCH_FLASH_ATTACK_RATIO: float = 0.52
 @export_range(0.05, 1.5, 0.01) var audition_sec: float = 0.72
 @export_range(0.0, 0.12, 0.001) var group_idle_motion: float = 0.018
 @export_range(0.2, 2.4, 0.01) var swap_sec: float = 1.15
+@export var lock_scene_actor_positions: bool = true
 
 @onready var chapter_split: HSplitContainer = $ChapterSplit
 @onready var left_3d: SubViewportContainer = $ChapterSplit/Left3D
@@ -140,10 +141,15 @@ var _stage_flash: ColorRect
 var _progress_label: Label
 var _audition_button: Button
 var _selected_piece: int = -1
+var _fixed_doll_rects: Array[Rect2] = []
+var _fixed_icon_rects: Array[Rect2] = []
+var _initial_instruments_runtime: Array[String] = []
 
 
 func _ready() -> void:
 	_rng.randomize()
+	_initial_instruments_runtime = INITIAL_INSTRUMENTS.duplicate()
+	_initial_instruments_runtime.shuffle()
 	_setup_piece_groups()
 	_setup_stage_runtime_ui()
 	_sync_stage_instruments()
@@ -223,7 +229,7 @@ func _setup_piece_groups() -> void:
 				"node": node,
 				"home_slot": i,
 				"slot": i,
-				"instrument": INITIAL_INSTRUMENTS[i],
+				"instrument": _initial_instruments_runtime[i],
 				"phase": _rng.randf_range(0.0, TAU),
 				"speed": _rng.randf_range(0.55, 1.25),
 				"active_target": 0.0,
@@ -545,6 +551,30 @@ func _create_outline_material(is_main: bool) -> StandardMaterial3D:
 
 
 func _setup_stage_runtime_ui() -> void:
+	if stage_root.get_node_or_null("StageFlash") != null:
+		_foot_lights.clear()
+		_top_lights.clear()
+		_stage_icons.clear()
+		_stage_flash = stage_root.get_node("StageFlash") as ColorRect
+		for i in range(8):
+			var foot := stage_root.get_node_or_null("FootLight_%d" % i) as ColorRect
+			if foot != null:
+				_foot_lights.append(foot)
+		for i in range(4):
+			var top := stage_root.get_node_or_null("TopLight_%d" % i) as ColorRect
+			if top != null:
+				_top_lights.append(top)
+		for i in range(8):
+			var icon := stage_root.get_node_or_null("StageInstrument_%d" % i) as TextureRect
+			if icon != null:
+				_stage_icons.append(icon)
+		_progress_label = right_panel.get_node_or_null("ProgressLabel") as Label
+		_audition_button = right_panel.get_node_or_null("AuditionButton") as Button
+		if _audition_button != null and not _audition_button.pressed.is_connected(_start_audition):
+			_audition_button.pressed.connect(_start_audition)
+		_cache_scene_actor_layout()
+		return
+
 	_stage_flash = ColorRect.new()
 	_stage_flash.name = "StageFlash"
 	_stage_flash.color = Color(1.0, 0.94, 0.72, 0.0)
@@ -592,6 +622,7 @@ func _setup_stage_runtime_ui() -> void:
 	_audition_button.custom_minimum_size = Vector2(96.0, 42.0)
 	_audition_button.pressed.connect(_start_audition)
 	right_panel.add_child(_audition_button)
+	_cache_scene_actor_layout()
 
 
 func _layout_stage_runtime_ui() -> void:
@@ -608,26 +639,36 @@ func _layout_stage_runtime_ui() -> void:
 	for i in range(_stage_icons.size()):
 		var doll := stage_root.get_node_or_null(DOLL_NODE_NAMES[i]) as TextureRect
 		if doll != null and i < DOLL_BASE_RECTS.size():
-			var base_rect := DOLL_BASE_RECTS[i]
 			doll.visible = true
-			doll.position = base_rect.position * scale
-			doll.size = base_rect.size * scale
+			if lock_scene_actor_positions and i < _fixed_doll_rects.size():
+				var fixed_doll := _fixed_doll_rects[i]
+				doll.position = fixed_doll.position
+				doll.size = fixed_doll.size
+			else:
+				var base_rect := DOLL_BASE_RECTS[i]
+				doll.position = base_rect.position * scale
+				doll.size = base_rect.size * scale
 
 		var instrument_id := _stage_instrument_at_slot(i)
-		var icon_size: Vector2 = HOLD_ICON_SIZES.get(instrument_id, Vector2(100.0, 86.0)) * scale
-		var icon_pos := Vector2.ZERO
-		if doll != null:
-			icon_pos = doll.position + doll.size * HOLD_ICON_ANCHORS[i]
-		else:
-			icon_pos = Vector2(130.0 + float(i % 4) * 200.0, 140.0 + float(i / 4) * 260.0) * scale
 		var icon := _stage_icons[i]
 		icon.visible = true
-		icon.position = icon_pos - icon_size * 0.5
-		icon.size = icon_size
+		if lock_scene_actor_positions and i < _fixed_icon_rects.size():
+			var fixed_icon := _fixed_icon_rects[i]
+			icon.position = fixed_icon.position
+			icon.size = fixed_icon.size
+		else:
+			var icon_size: Vector2 = HOLD_ICON_SIZES.get(instrument_id, Vector2(100.0, 86.0)) * scale
+			var icon_pos := Vector2.ZERO
+			if doll != null:
+				icon_pos = doll.position + doll.size * HOLD_ICON_ANCHORS[i]
+			else:
+				icon_pos = Vector2(130.0 + float(i % 4) * 200.0, 140.0 + float(i / 4) * 260.0) * scale
+			icon.position = icon_pos - icon_size * 0.5
+			icon.size = icon_size
 		icon.move_to_front()
 
 		var foot := _foot_lights[i]
-		var foot_pos := icon_pos + Vector2(-48.0, 126.0) * scale
+		var foot_pos := icon.position + Vector2(icon.size.x * 0.5 - 48.0 * scale.x, 126.0 * scale.y)
 		if doll != null:
 			foot_pos = doll.position + Vector2(doll.size.x * 0.5 - 48.0 * scale.x, doll.size.y * 0.92)
 		foot.position = foot_pos
@@ -652,6 +693,20 @@ func _layout_stage_runtime_ui() -> void:
 		_audition_button.offset_top = 18.0
 		_audition_button.offset_right = -20.0
 		_audition_button.offset_bottom = 60.0
+
+
+func _cache_scene_actor_layout() -> void:
+	_fixed_doll_rects.clear()
+	_fixed_icon_rects.clear()
+	for i in range(DOLL_NODE_NAMES.size()):
+		var doll := stage_root.get_node_or_null(DOLL_NODE_NAMES[i]) as TextureRect
+		if doll == null:
+			_fixed_doll_rects.append(Rect2())
+		else:
+			_fixed_doll_rects.append(Rect2(doll.position, doll.size))
+	for i in range(_stage_icons.size()):
+		var icon := _stage_icons[i]
+		_fixed_icon_rects.append(Rect2(icon.position, icon.size))
 
 
 func _stage_scale() -> Vector2:
@@ -730,13 +785,17 @@ func _animate_stage_rotation(moves: Array[Dictionary]) -> void:
 		source_icon.modulate.a = 0.22
 		var target_pos := _stage_icon_position_for_slot(to_slot, instrument_id, scale)
 		var target_size: Vector2 = HOLD_ICON_SIZES.get(instrument_id, Vector2(100.0, 86.0)) * scale
+		if lock_scene_actor_positions and to_slot >= 0 and to_slot < _fixed_icon_rects.size():
+			target_size = _fixed_icon_rects[to_slot].size
 		tween.tween_property(ghost, "position", target_pos, snap_rotate_sec)
 		tween.tween_property(ghost, "size", target_size, snap_rotate_sec)
 		tween.tween_property(ghost, "modulate:a", 0.0, snap_rotate_sec).set_delay(snap_rotate_sec * 0.72)
-		tween.finished.connect(_free_stage_move_ghost.bind(ghost))
+		tween.tween_callback(_free_stage_move_ghost.bind(ghost)).set_delay(snap_rotate_sec)
 
 
 func _stage_icon_position_for_slot(slot_index: int, instrument_id: String, scale: Vector2) -> Vector2:
+	if lock_scene_actor_positions and slot_index >= 0 and slot_index < _fixed_icon_rects.size():
+		return _fixed_icon_rects[slot_index].position
 	var icon_size: Vector2 = HOLD_ICON_SIZES.get(instrument_id, Vector2(100.0, 86.0)) * scale
 	var doll_rect := DOLL_BASE_RECTS[clampi(slot_index, 0, DOLL_BASE_RECTS.size() - 1)]
 	var doll_pos := doll_rect.position * scale
@@ -923,7 +982,7 @@ func _start_piece_swap(first: int, second: int) -> void:
 		return
 	var first_target_basis := _basis_between_dirs(_slot_sign(first_slot), _slot_sign(second_slot)) * first_node.transform.basis
 	var second_target_basis := _basis_between_dirs(_slot_sign(second_slot), _slot_sign(first_slot)) * second_node.transform.basis
-	var stage_moves := [
+	var stage_moves: Array[Dictionary] = [
 		{"from": first_slot, "to": second_slot, "instrument": String(_pieces[first].get("instrument", ""))},
 		{"from": second_slot, "to": first_slot, "instrument": String(_pieces[second].get("instrument", ""))},
 	]

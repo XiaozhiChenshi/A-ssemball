@@ -10,14 +10,14 @@
 [ext_resource type="Texture2D" uid="uid://crl0xivdy60vk" path="res://assets/materials/p2-1-2.png" id="8_p2_1_2"]
 [ext_resource type="Texture2D" uid="uid://ctbnibo88j4de" path="res://assets/materials/p2-2-1.png" id="9_p2_2_1"]
 [ext_resource type="Texture2D" uid="uid://cg8x33dlso3u5" path="res://assets/materials/p2-2-2.png" id="10_p2_2_2"]
-[ext_resource type="Texture2D" path="res://assets/materials/指挥棒.png" id="11_baton"]
-[ext_resource type="Texture2D" path="res://assets/materials/小提琴.png" id="12_violin"]
-[ext_resource type="Texture2D" path="res://assets/materials/钢琴.png" id="13_piano"]
-[ext_resource type="Texture2D" path="res://assets/materials/军鼓.png" id="14_snare"]
-[ext_resource type="Texture2D" path="res://assets/materials/竖琴.png" id="15_harp"]
-[ext_resource type="Texture2D" path="res://assets/materials/三角铁.png" id="16_triangle"]
-[ext_resource type="Texture2D" path="res://assets/materials/长笛.png" id="17_flute"]
-[ext_resource type="Texture2D" path="res://assets/materials/低音号.png" id="18_tuba"]
+[ext_resource type="Texture2D" uid="uid://bhycc7giuyove" path="res://assets/materials/指挥棒.png" id="11_baton"]
+[ext_resource type="Texture2D" uid="uid://c5ttxythjdid6" path="res://assets/materials/小提琴.png" id="12_violin"]
+[ext_resource type="Texture2D" uid="uid://becxa57lr5exq" path="res://assets/materials/钢琴.png" id="13_piano"]
+[ext_resource type="Texture2D" uid="uid://fcaftyxndyr" path="res://assets/materials/军鼓.png" id="14_snare"]
+[ext_resource type="Texture2D" uid="uid://di3icq5vdwpx2" path="res://assets/materials/竖琴.png" id="15_harp"]
+[ext_resource type="Texture2D" uid="uid://dk3wrtc7vlf78" path="res://assets/materials/三角铁.png" id="16_triangle"]
+[ext_resource type="Texture2D" uid="uid://4m3ofxkuc22y" path="res://assets/materials/长笛.png" id="17_flute"]
+[ext_resource type="Texture2D" uid="uid://b72cvgvoipgvk" path="res://assets/materials/低音号.png" id="18_tuba"]
 
 [sub_resource type="Environment" id="Environment_dark"]
 background_mode = 1
@@ -107,11 +107,11 @@ material_override = SubResource("ChunkMaterial")
 mesh = SubResource("SphereMesh_chunk")
 
 [node name="Instrument_1_1_1" type="Sprite3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_n1_n1_n1"]
-position = Vector3(-0.34, -0.34, -0.34)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.34, -0.34, -0.34)
 pixel_size = 0.00115
-texture = ExtResource("11_baton")
 billboard = 1
 no_depth_test = true
+texture = ExtResource("11_baton")
 
 [node name="Chunk_n1_n1_p1" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot"]
 
@@ -120,11 +120,11 @@ material_override = SubResource("ChunkMaterial")
 mesh = SubResource("SphereMesh_chunk")
 
 [node name="Instrument_1_1_2" type="Sprite3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_n1_n1_p1"]
-position = Vector3(-0.34, -0.34, 0.34)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.34, -0.34, 0.34)
 pixel_size = 0.00075
-texture = ExtResource("12_violin")
 billboard = 1
 no_depth_test = true
+texture = ExtResource("12_violin")
 
 [node name="Chunk_n1_p1_n1" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot"]
 
@@ -133,11 +133,11 @@ material_override = SubResource("ChunkMaterial")
 mesh = SubResource("SphereMesh_chunk")
 
 [node name="Instrument_1_2_1" type="Sprite3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_n1_p1_n1"]
-position = Vector3(-0.34, 0.34, -0.34)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.34, 0.34, -0.34)
 pixel_size = 0.00058
-texture = ExtResource("15_harp")
 billboard = 1
 no_depth_test = true
+texture = ExtResource("15_harp")
 
 [node name="Chunk_n1_p1_p1" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot"]
 
@@ -146,11 +146,11 @@ material_override = SubResource("ChunkMaterial")
 mesh = SubResource("SphereMesh_chunk")
 
 [node name="Instrument_1_2_2" type="Sprite3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_n1_p1_p1"]
-position = Vector3(-0.34, 0.34, 0.34)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.34, 0.34, 0.34)
 pixel_size = 0.00075
-texture = ExtResource("16_triangle")
 billboard = 1
 no_depth_test = true
+texture = ExtResource("16_triangle")
 
 [node name="Chunk_p1_n1_n1" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot"]
 
@@ -159,11 +159,11 @@ material_override = SubResource("ChunkMaterial")
 mesh = SubResource("SphereMesh_chunk")
 
 [node name="Instrument_2_1_1" type="Sprite3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_p1_n1_n1"]
-position = Vector3(0.34, -0.34, -0.34)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.34, -0.34, -0.34)
 pixel_size = 0.00075
-texture = ExtResource("13_piano")
 billboard = 1
 no_depth_test = true
+texture = ExtResource("13_piano")
 
 [node name="Chunk_p1_n1_p1" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot"]
 
@@ -172,11 +172,11 @@ material_override = SubResource("ChunkMaterial")
 mesh = SubResource("SphereMesh_chunk")
 
 [node name="Instrument_2_1_2" type="Sprite3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_p1_n1_p1"]
-position = Vector3(0.34, -0.34, 0.34)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.34, -0.34, 0.34)
 pixel_size = 0.00075
-texture = ExtResource("14_snare")
 billboard = 1
 no_depth_test = true
+texture = ExtResource("14_snare")
 
 [node name="Chunk_p1_p1_n1" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot"]
 
@@ -185,11 +185,11 @@ material_override = SubResource("ChunkMaterial")
 mesh = SubResource("SphereMesh_chunk")
 
 [node name="Instrument_2_2_1" type="Sprite3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_p1_p1_n1"]
-position = Vector3(0.34, 0.34, -0.34)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.34, 0.34, -0.34)
 pixel_size = 0.00075
-texture = ExtResource("17_flute")
 billboard = 1
 no_depth_test = true
+texture = ExtResource("17_flute")
 
 [node name="Chunk_p1_p1_p1" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot"]
 
@@ -198,11 +198,11 @@ material_override = SubResource("ChunkMaterial")
 mesh = SubResource("SphereMesh_chunk")
 
 [node name="Instrument_2_2_2" type="Sprite3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot/Chunk_p1_p1_p1"]
-position = Vector3(0.34, 0.34, 0.34)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.34, 0.34, 0.34)
 pixel_size = 0.00075
-texture = ExtResource("18_tuba")
 billboard = 1
 no_depth_test = true
+texture = ExtResource("18_tuba")
 
 [node name="StairRoot" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot"]
 
@@ -241,82 +241,321 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 1
 
-[node name="Doll_1_1_1" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
-layout_mode = 0
-offset_left = 40.0
-offset_top = 40.0
-offset_right = 220.0
-offset_bottom = 280.0
-texture = ExtResource("3_p1_1_1")
-expand_mode = 1
-stretch_mode = 5
-
 [node name="Doll_1_1_2" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
 layout_mode = 0
-offset_left = 240.0
-offset_top = 40.0
-offset_right = 420.0
-offset_bottom = 280.0
+offset_left = 498.0
+offset_top = 384.0
+offset_right = 678.0
+offset_bottom = 624.0
 texture = ExtResource("4_p1_1_2")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="Doll_1_2_1" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
-layout_mode = 0
-offset_left = 440.0
-offset_top = 40.0
-offset_right = 620.0
-offset_bottom = 280.0
-texture = ExtResource("5_p1_2_1")
 expand_mode = 1
 stretch_mode = 5
 
 [node name="Doll_1_2_2" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
 layout_mode = 0
 offset_left = 640.0
-offset_top = 40.0
+offset_top = 327.0
 offset_right = 820.0
-offset_bottom = 280.0
+offset_bottom = 567.0
 texture = ExtResource("6_p1_2_2")
 expand_mode = 1
 stretch_mode = 5
 
 [node name="Doll_2_1_1" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
 layout_mode = 0
-offset_left = 40.0
-offset_top = 300.0
-offset_right = 220.0
-offset_bottom = 540.0
+offset_left = 176.0
+offset_top = 150.0
+offset_right = 356.0
+offset_bottom = 390.0
 texture = ExtResource("7_p2_1_1")
 expand_mode = 1
 stretch_mode = 5
 
 [node name="Doll_2_1_2" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
 layout_mode = 0
-offset_left = 240.0
-offset_top = 300.0
-offset_right = 420.0
-offset_bottom = 540.0
+offset_left = 446.0
+offset_top = 91.0
+offset_right = 679.0
+offset_bottom = 401.6667
 texture = ExtResource("8_p2_1_2")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="StageInstrument_6" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 132.0
+offset_top = 99.0
+offset_right = 332.0
+offset_bottom = 411.8205
+mouse_filter = 2
+texture = ExtResource("15_harp")
 expand_mode = 1
 stretch_mode = 5
 
 [node name="Doll_2_2_1" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
 layout_mode = 0
-offset_left = 440.0
-offset_top = 300.0
-offset_right = 620.0
-offset_bottom = 540.0
+offset_left = 567.0
+offset_top = 39.0
+offset_right = 793.0
+offset_bottom = 340.33334
 texture = ExtResource("9_p2_2_1")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="StageInstrument_3" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 596.0
+offset_top = 120.0
+offset_right = 708.0
+offset_bottom = 178.0
+mouse_filter = 2
+texture = ExtResource("17_flute")
 expand_mode = 1
 stretch_mode = 5
 
 [node name="Doll_2_2_2" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
 layout_mode = 0
-offset_left = 640.0
-offset_top = 300.0
-offset_right = 820.0
-offset_bottom = 540.0
+offset_left = 346.0
+offset_top = 117.0
+offset_right = 526.0
+offset_bottom = 357.0
 texture = ExtResource("10_p2_2_2")
 expand_mode = 1
 stretch_mode = 5
+
+[node name="Doll_1_2_1" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 271.0
+offset_top = 310.0
+offset_right = 451.0
+offset_bottom = 550.0
+texture = ExtResource("5_p1_2_1")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Doll_1_1_1" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 80.0
+offset_top = 339.0
+offset_right = 295.0
+offset_bottom = 625.6667
+texture = ExtResource("3_p1_1_1")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="StageFlash" type="ColorRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(1, 0.94, 0.72, 0)
+metadata/_edit_lock_ = true
+
+[node name="FootLight_0" type="ColorRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 82.0
+offset_top = 260.8
+offset_right = 178.0
+offset_bottom = 268.8
+mouse_filter = 2
+color = Color(0.24, 0.42, 0.62, 0.28)
+
+[node name="FootLight_1" type="ColorRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 320.0
+offset_top = 118.0
+offset_right = 416.0
+offset_bottom = 126.0
+mouse_filter = 2
+color = Color(0.24, 0.42, 0.62, 0.28)
+
+[node name="FootLight_2" type="ColorRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 482.0
+offset_top = 260.8
+offset_right = 578.0
+offset_bottom = 268.8
+mouse_filter = 2
+color = Color(0.24, 0.42, 0.62, 0.28)
+
+[node name="FootLight_3" type="ColorRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 682.0
+offset_top = 260.8
+offset_right = 778.0
+offset_bottom = 268.8
+mouse_filter = 2
+color = Color(0.24, 0.42, 0.62, 0.28)
+
+[node name="FootLight_4" type="ColorRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 136.0
+offset_top = 374.0
+offset_right = 232.0
+offset_bottom = 382.0
+mouse_filter = 2
+color = Color(0.24, 0.42, 0.62, 0.28)
+
+[node name="FootLight_5" type="ColorRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 487.0
+offset_top = 555.0
+offset_right = 583.0
+offset_bottom = 563.0
+mouse_filter = 2
+color = Color(0.24, 0.42, 0.62, 0.28)
+
+[node name="FootLight_6" type="ColorRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 315.0
+offset_top = 561.0
+offset_right = 411.0
+offset_bottom = 569.0
+mouse_filter = 2
+color = Color(0.24, 0.42, 0.62, 0.28)
+
+[node name="FootLight_7" type="ColorRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 682.0
+offset_top = 520.8
+offset_right = 778.0
+offset_bottom = 528.8
+mouse_filter = 2
+color = Color(0.24, 0.42, 0.62, 0.28)
+
+[node name="TopLight_0" type="ColorRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 180.0
+offset_top = 24.0
+offset_right = 290.0
+offset_bottom = 34.0
+mouse_filter = 2
+color = Color(0.72, 0.86, 1, 0.22)
+
+[node name="TopLight_1" type="ColorRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 360.0
+offset_top = 24.0
+offset_right = 470.0
+offset_bottom = 34.0
+mouse_filter = 2
+color = Color(0.72, 0.86, 1, 0.22)
+
+[node name="TopLight_2" type="ColorRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 540.0
+offset_top = 24.0
+offset_right = 650.0
+offset_bottom = 34.0
+mouse_filter = 2
+color = Color(0.72, 0.86, 1, 0.22)
+
+[node name="TopLight_3" type="ColorRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 720.0
+offset_top = 24.0
+offset_right = 830.0
+offset_bottom = 34.0
+mouse_filter = 2
+color = Color(0.72, 0.86, 1, 0.22)
+
+[node name="StageInstrument_0" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 678.0
+offset_top = 358.0
+offset_right = 782.9231
+offset_bottom = 451.0
+mouse_filter = 2
+texture = ExtResource("14_snare")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="StageInstrument_1" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 550.0
+offset_top = 116.0
+offset_right = 617.0
+offset_bottom = 183.0
+mouse_filter = 2
+texture = ExtResource("16_triangle")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="StageInstrument_2" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 568.0
+offset_top = 362.0
+offset_right = 664.0
+offset_bottom = 440.0
+mouse_filter = 2
+texture = ExtResource("12_violin")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="StageInstrument_4" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 141.0
+offset_top = 248.0
+offset_right = 559.60864
+offset_bottom = 580.0
+mouse_filter = 2
+texture = ExtResource("13_piano")
+expand_mode = 1
+stretch_mode = 5
+metadata/_edit_lock_ = true
+
+[node name="StageInstrument_5" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 338.0
+offset_top = 144.0
+offset_right = 442.0
+offset_bottom = 266.0
+mouse_filter = 2
+texture = ExtResource("18_tuba")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="StageInstrument_7" type="TextureRect" parent="ChapterSplit/RightPanel/InteractiveFragments"]
+layout_mode = 0
+offset_left = 78.0
+offset_top = 293.0
+offset_right = 124.0
+offset_bottom = 374.6129
+mouse_filter = 2
+texture = ExtResource("11_baton")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="ProgressLabel" type="Label" parent="ChapterSplit/RightPanel"]
+modulate = Color(0.92, 0.96, 1, 0.88)
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -46.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_font_sizes/font_size = 22
+text = "0 / 8"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="AuditionButton" type="Button" parent="ChapterSplit/RightPanel"]
+layout_mode = 1
+anchors_preset = 11
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -116.0
+offset_top = 18.0
+offset_right = -20.0
+offset_bottom = 60.0
+grow_horizontal = 0
+grow_vertical = 2
+focus_mode = 0
+text = "试听"
