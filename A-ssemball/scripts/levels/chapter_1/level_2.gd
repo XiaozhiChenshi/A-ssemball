@@ -4,6 +4,9 @@ class_name LevelC1L2
 signal chapter_completed(chapter_index: int)
 
 const StructureShapeProviderRef = preload("res://scripts/structure/structure_shape_provider.gd")
+const RouteBurnMaskCanvas2DRef = preload("res://scripts/route_burn_mask_canvas_2d.gd")
+const AshFragmentOverlay2DRef = preload("res://scripts/ash_fragment_overlay_2d.gd")
+const ASH_DEPOSIT_TEXTURE: Texture2D = preload("res://assets/ui/chapter_1_stage_2/ash_deposit.jpg")
 const HAND_TEXTURE: Texture2D = preload("res://assets/ui/chapter_1_stage_2/Hand04.png")
 const HAND_POINTER_TEXTURE_PATH := "res://assets/ui/chapter_1_stage_2/Hand06.png"
 const POINTER_HAND_TIP_UV := Vector2(0.3716, 0.1141)
@@ -146,6 +149,7 @@ var _film_overlay_rect: ColorRect
 var _film_overlay_material: ShaderMaterial
 var _burn_heat_rect: ColorRect
 var _burn_heat_material: ShaderMaterial
+var _ash_fragment_overlay
 var _suppress_stage_image_refresh: bool = false
 var _stage_badge_label: Label
 var _title_label: Label
@@ -156,7 +160,7 @@ var _status_label: Label
 var _hand_rect: TextureRect
 var _pointer_hand_rect: TextureRect
 var _route_guide_canvas: LineCanvas2D
-var _route_burn_canvas: LineCanvas2D
+var _route_burn_canvas
 var _pointer_hand_target_pos: Vector2 = Vector2.ZERO
 var _pointer_hand_visible_target: bool = false
 var _pointer_hand_alpha: float = 0.0
@@ -497,7 +501,7 @@ func _setup_right_panel_ui() -> void:
 	line_canvas.offset_right = 0.0
 	line_canvas.offset_bottom = 0.0
 	line_canvas.line_shadow_color = Color(0.86, 0.84, 0.76, 0.16)
-	line_canvas.line_shadow_extra_width = 8.0
+	line_canvas.line_shadow_extra_width = 2.6
 	line_canvas.rough_pencil = true
 	line_canvas.particle_enabled = true
 	_route_guide_canvas.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -544,19 +548,30 @@ func _setup_right_panel_ui() -> void:
 	right_panel.add_child(_burn_heat_rect)
 	_burn_heat_rect.move_to_front()
 
-	_route_burn_canvas = LineCanvas2D.new()
-	_route_burn_canvas.name = "TextureRouteBurnFire"
+	_route_burn_canvas = RouteBurnMaskCanvas2DRef.new()
+	_route_burn_canvas.name = "TextureRouteBurnMask"
 	_route_burn_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_route_burn_canvas.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_route_burn_canvas.offset_left = 0.0
 	_route_burn_canvas.offset_top = 0.0
 	_route_burn_canvas.offset_right = 0.0
 	_route_burn_canvas.offset_bottom = 0.0
-	_route_burn_canvas.rough_pencil = false
-	_route_burn_canvas.particle_enabled = false
 	_route_burn_canvas.visible = false
 	right_panel.add_child(_route_burn_canvas)
 	_route_burn_canvas.move_to_front()
+
+	_ash_fragment_overlay = AshFragmentOverlay2DRef.new()
+	_ash_fragment_overlay.name = "AshFragmentOverlay"
+	_ash_fragment_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ash_fragment_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_ash_fragment_overlay.offset_left = 0.0
+	_ash_fragment_overlay.offset_top = 0.0
+	_ash_fragment_overlay.offset_right = 0.0
+	_ash_fragment_overlay.offset_bottom = 0.0
+	_ash_fragment_overlay.visible = false
+	_ash_fragment_overlay.set_ash_texture(ASH_DEPOSIT_TEXTURE)
+	right_panel.add_child(_ash_fragment_overlay)
+	_ash_fragment_overlay.move_to_front()
 
 
 func _create_film_material() -> ShaderMaterial:
@@ -2481,8 +2496,13 @@ func _refresh_stage_labels() -> void:
 	var trace_color := _get_trace_theme_color(stage, true)
 	line_canvas.line_color = trace_color
 	line_canvas.line_shadow_color = _get_trace_shadow_color(trace_color)
-	line_canvas.line_shadow_extra_width = 10.0
-	line_canvas.particle_color = Color(trace_color.r, trace_color.g, trace_color.b, 0.88)
+	line_canvas.line_shadow_extra_width = 2.6
+	line_canvas.particle_color = Color(
+		minf(trace_color.r + 0.20, 1.0),
+		minf(trace_color.g + 0.18, 1.0),
+		minf(trace_color.b + 0.16, 1.0),
+		0.96
+	)
 
 
 func _refresh_stage_image(stage: Dictionary) -> void:
@@ -2847,6 +2867,7 @@ func _play_texture_reassembly_transition(next_stage_index: int) -> void:
 	await _run_transition_lift_phase(previous_route, 0.0, TRANSITION_LIFT_RADIUS, TRANSITION_LIFT_OUT_SEC, 0.0, 0.42)
 
 	await _run_transition_color_flash_phase(0.0, 1.0, 0.8, 0.42, 0.55)
+	await _run_burn_reveal_phase(0.55, 1.0, TRANSITION_FILM_SWITCH_SEC)
 
 	var target_yaw := float(next_stage.get("focus_yaw_deg", 0.0))
 	var target_pitch := float(next_stage.get("focus_pitch_deg", -18.0))
@@ -2971,7 +2992,9 @@ func _prepare_burn_reveal(next_texture: Texture2D) -> void:
 	_set_burn_reveal_progress(0.0)
 	_set_ash_peel_progress(0.0)
 	if _burn_heat_rect != null:
-		_burn_heat_rect.visible = true
+		_burn_heat_rect.visible = false
+	if _ash_fragment_overlay != null:
+		_ash_fragment_overlay.prepare(_get_current_burn_origins())
 	if _stage_image_next_rect != null:
 		_stage_image_next_rect.texture = next_texture
 		_stage_image_next_rect.material = _create_film_material()
@@ -2991,6 +3014,8 @@ func _finish_burn_reveal(next_texture: Texture2D) -> void:
 		_stage_image_next_rect.material = _stage_image_wipe_material
 	if _burn_heat_rect != null:
 		_burn_heat_rect.visible = false
+	if _ash_fragment_overlay != null:
+		_ash_fragment_overlay.clear_ash()
 	_set_burn_reveal_progress(0.0)
 	_set_ash_peel_progress(0.0)
 
@@ -2998,35 +3023,49 @@ func _finish_burn_reveal(next_texture: Texture2D) -> void:
 func _prepare_route_burn() -> void:
 	_transition_burn_route_points = PackedVector2Array()
 	_transition_burn_route_closed = false
+	line_canvas.visible = false
+	line_canvas.clear_lines()
 	var pixel_points := _preview_points_to_pixels(_current_preview_uvs)
 	var active_points := _build_active_preview_points(pixel_points)
 	if active_points.size() < 2:
+		if _route_burn_canvas != null:
+			_route_burn_canvas.clear_route()
+			_route_burn_canvas.visible = false
 		return
 	_transition_burn_route_points = active_points
 	_transition_burn_route_closed = _current_route_guide_closed
-	line_canvas.set_line_points(active_points, _current_route_guide_closed, 5.6)
-	line_canvas.set_burn_progress(0.0, false)
 	if _route_burn_canvas != null:
-		_route_burn_canvas.clear_lines()
-		_route_burn_canvas.visible = false
+		_route_burn_canvas.set_route(active_points, _current_route_guide_closed, _get_current_burn_origins())
+		_route_burn_canvas.set_burn_progress(0.0)
+		_route_burn_canvas.visible = true
+	if _ash_fragment_overlay != null:
+		_ash_fragment_overlay.move_to_front()
+	if _route_burn_canvas != null:
+		_route_burn_canvas.move_to_front()
 
 
 func _restore_route_burn() -> void:
 	if _transition_burn_route_points.size() < 2:
 		return
-	line_canvas.set_line_points(_transition_burn_route_points, _transition_burn_route_closed, 5.6)
-	line_canvas.set_burn_progress(_get_burn_reveal_progress(), false)
+	line_canvas.visible = false
+	line_canvas.clear_lines()
 	if _route_burn_canvas != null:
-		_route_burn_canvas.clear_lines()
-		_route_burn_canvas.visible = false
+		_route_burn_canvas.set_route(_transition_burn_route_points, _transition_burn_route_closed, _get_current_burn_origins())
+		_route_burn_canvas.set_burn_progress(_get_burn_reveal_progress())
+		_route_burn_canvas.visible = true
+	if _ash_fragment_overlay != null:
+		_ash_fragment_overlay.move_to_front()
+	if _route_burn_canvas != null:
+		_route_burn_canvas.move_to_front()
 
 
 func _finish_route_burn() -> void:
 	line_canvas.set_burn_progress(-1.0, false)
+	line_canvas.visible = true
 	_transition_burn_route_points = PackedVector2Array()
 	_transition_burn_route_closed = false
 	if _route_burn_canvas != null:
-		_route_burn_canvas.clear_lines()
+		_route_burn_canvas.clear_route()
 		_route_burn_canvas.visible = false
 
 
@@ -3074,48 +3113,62 @@ func _set_burn_reveal_progress(progress: float) -> void:
 	_stage_image_burn_material.set_shader_parameter("burn_progress", clamped_progress)
 	if _burn_heat_material != null:
 		_burn_heat_material.set_shader_parameter("burn_progress", clamped_progress)
-	line_canvas.set_burn_progress(clamped_progress, false)
 	if _route_burn_canvas != null:
-		_route_burn_canvas.visible = false
+		_route_burn_canvas.set_burn_progress(clamped_progress)
+	if _ash_fragment_overlay != null:
+		_ash_fragment_overlay.set_burn_progress(clamped_progress)
 
 
 func _set_ash_peel_progress(progress: float) -> void:
-	if _burn_heat_material == null:
-		return
-	_burn_heat_material.set_shader_parameter("ash_peel_progress", clampf(progress, 0.0, 1.0))
+	var clamped_progress := clampf(progress, 0.0, 1.0)
+	if _burn_heat_material != null:
+		_burn_heat_material.set_shader_parameter("ash_peel_progress", 0.0)
+	if _ash_fragment_overlay != null:
+		_ash_fragment_overlay.set_fall_progress(clamped_progress)
+		_ash_fragment_overlay.move_to_front()
 
 
 func _get_burn_reveal_progress() -> float:
 	return _transition_burn_progress
 
 
-func _setup_burn_reveal_origins() -> void:
-	if _stage_image_burn_material == null:
-		return
+func _get_current_burn_origins() -> Array[Vector2]:
 	var template := _current_preview_uvs
 	if template.is_empty():
 		template = _stage_data[_current_stage_index].get("preview_template", PackedVector2Array()) as PackedVector2Array
 	if template.is_empty():
-		var fallback_a := Vector2(0.45, 0.5)
-		var fallback_b := Vector2(0.62, 0.42)
-		var fallback_c := Vector2(0.52, 0.58)
-		_stage_image_burn_material.set_shader_parameter("origin_a", fallback_a)
-		_stage_image_burn_material.set_shader_parameter("origin_b", fallback_b)
-		_stage_image_burn_material.set_shader_parameter("origin_c", fallback_c)
-		_stage_image_burn_material.set_shader_parameter("origin_d", Vector2(0.38, 0.55))
-		_stage_image_burn_material.set_shader_parameter("origin_e", Vector2(0.56, 0.47))
-		_stage_image_burn_material.set_shader_parameter("origin_f", Vector2(0.70, 0.38))
-		_stage_image_burn_material.set_shader_parameter("origin_g", Vector2(0.48, 0.64))
-		_set_burn_heat_origins(fallback_a, fallback_b, fallback_c)
-		return
+		return [
+			Vector2(0.45, 0.5),
+			Vector2(0.62, 0.42),
+			Vector2(0.52, 0.58),
+			Vector2(0.38, 0.55),
+			Vector2(0.56, 0.47),
+			Vector2(0.70, 0.38),
+			Vector2(0.48, 0.64),
+		]
 	var sample_count := template.size()
-	var origin_a := template[0]
-	var origin_b := template[clampi(roundi(float(sample_count - 1) * 0.16), 0, sample_count - 1)]
-	var origin_c := template[clampi(roundi(float(sample_count - 1) * 0.33), 0, sample_count - 1)]
-	var origin_d := template[clampi(roundi(float(sample_count - 1) * 0.50), 0, sample_count - 1)]
-	var origin_e := template[clampi(roundi(float(sample_count - 1) * 0.66), 0, sample_count - 1)]
-	var origin_f := template[clampi(roundi(float(sample_count - 1) * 0.83), 0, sample_count - 1)]
-	var origin_g := template[sample_count - 1]
+	return [
+		template[0],
+		template[clampi(roundi(float(sample_count - 1) * 0.16), 0, sample_count - 1)],
+		template[clampi(roundi(float(sample_count - 1) * 0.33), 0, sample_count - 1)],
+		template[clampi(roundi(float(sample_count - 1) * 0.50), 0, sample_count - 1)],
+		template[clampi(roundi(float(sample_count - 1) * 0.66), 0, sample_count - 1)],
+		template[clampi(roundi(float(sample_count - 1) * 0.83), 0, sample_count - 1)],
+		template[sample_count - 1],
+	]
+
+
+func _setup_burn_reveal_origins() -> void:
+	if _stage_image_burn_material == null:
+		return
+	var origins := _get_current_burn_origins()
+	var origin_a := origins[0]
+	var origin_b := origins[1]
+	var origin_c := origins[2]
+	var origin_d := origins[3]
+	var origin_e := origins[4]
+	var origin_f := origins[5]
+	var origin_g := origins[6]
 	_stage_image_burn_material.set_shader_parameter("origin_a", origin_a)
 	_stage_image_burn_material.set_shader_parameter("origin_b", origin_b)
 	_stage_image_burn_material.set_shader_parameter("origin_c", origin_c)
@@ -3420,7 +3473,7 @@ func _refresh_route_preview() -> void:
 		return
 
 	var closed := _current_route_guide_closed and _selected_route_ids.size() == _current_stage_route_ids.size()
-	line_canvas.set_line_points(active_points, closed, 5.6)
+	line_canvas.set_line_points(active_points, closed, 3.15)
 
 
 func _build_active_preview_points(pixel_points: PackedVector2Array) -> PackedVector2Array:

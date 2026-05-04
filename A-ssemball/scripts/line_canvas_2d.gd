@@ -73,6 +73,7 @@ func _draw_rough_line() -> void:
 		_draw_rough_segment(_points[_points.size() - 1], _points[0], segment_count)
 	if particle_enabled:
 		_draw_evaporating_particles()
+		_draw_route_twinkle_stars()
 
 
 func _draw_burning_line() -> void:
@@ -112,7 +113,19 @@ func _draw_rough_segment(a: Vector2, b: Vector2, segment_index: int) -> void:
 		var seed := float(segment_index * 101 + step * 19)
 		var jitter := (sin(seed * 8.71) * 0.55 + sin(seed * 2.39) * 0.3) * line_width * 0.82
 		shadow_points.append(a.lerp(b, t) + normal * jitter)
-	draw_polyline(shadow_points, line_shadow_color, line_width + line_shadow_extra_width, false)
+	for step in range(shadow_points.size() - 1):
+		if step % 3 == 1:
+			continue
+		var shadow_seed := float(segment_index * 131 + step * 23)
+		var shadow_color := line_shadow_color
+		shadow_color.a *= 0.42 + 0.18 * absf(sin(shadow_seed))
+		draw_line(
+			shadow_points[step],
+			shadow_points[step + 1],
+			shadow_color,
+			maxf(1.0, line_width * 0.62),
+			false
+		)
 
 	for pass_index in range(7):
 		var rough_points := PackedVector2Array()
@@ -136,7 +149,16 @@ func _draw_rough_segment(a: Vector2, b: Vector2, segment_index: int) -> void:
 		minf(line_color.b + 0.12, 1.0),
 		clampf(line_color.a * 0.48, 0.0, 0.72)
 	)
-	draw_polyline(shadow_points, highlight, maxf(1.0, line_width * 0.58), false)
+	for step in range(shadow_points.size() - 1):
+		if step % 4 != 0:
+			continue
+		draw_line(
+			shadow_points[step],
+			shadow_points[step + 1],
+			highlight,
+			maxf(1.0, line_width * 0.36),
+			false
+		)
 
 
 func _draw_evaporating_particles() -> void:
@@ -167,3 +189,41 @@ func _draw_evaporating_particles() -> void:
 				color = particle_color.lerp(Color(0.82, 0.86, 0.78, particle_color.a), 0.18)
 			var radius := 1.65 + fmod(seed, 5.0) * 0.48
 			draw_circle(pos, radius, Color(color.r, color.g, color.b, alpha))
+
+
+func _draw_route_twinkle_stars() -> void:
+	var time_sec := Time.get_ticks_msec() / 1000.0
+	var segment_count := _points.size() - 1
+	for i in range(segment_count):
+		_draw_twinkles_on_segment(_points[i], _points[i + 1], i, time_sec)
+	if _closed:
+		_draw_twinkles_on_segment(_points[_points.size() - 1], _points[0], segment_count, time_sec)
+
+
+func _draw_twinkles_on_segment(a: Vector2, b: Vector2, segment_index: int, time_sec: float) -> void:
+	var length := a.distance_to(b)
+	if length <= 0.001:
+		return
+	var dir := (b - a) / length
+	var normal := Vector2(-dir.y, dir.x)
+	var count := clampi(int(length / 42.0), 1, 5)
+	for n in range(count):
+		var seed := float(segment_index * 173 + n * 47 + 23)
+		var t := clampf((float(n) + 0.5) / float(count) + sin(seed * 1.31) * 0.16, 0.08, 0.92)
+		var phase := fmod(time_sec * (1.5 + fmod(seed, 5.0) * 0.18) + sin(seed) * 4.7, 1.0)
+		var pulse := smoothstep(0.0, 0.18, phase) * (1.0 - smoothstep(0.38, 1.0, phase))
+		if pulse <= 0.01:
+			continue
+		var pos := a.lerp(b, t) + normal * sin(seed * 2.77 + time_sec * 2.1) * 3.6
+		var radius := (3.2 + fmod(seed, 4.0) * 1.25) * pulse
+		var color := Color(
+			minf(particle_color.r + 0.18, 1.0),
+			minf(particle_color.g + 0.16, 1.0),
+			minf(particle_color.b + 0.12, 1.0),
+			clampf(particle_color.a * pulse, 0.0, 0.95)
+		)
+		draw_line(pos - Vector2(radius, 0.0), pos + Vector2(radius, 0.0), color, 1.15, false)
+		draw_line(pos - Vector2(0.0, radius), pos + Vector2(0.0, radius), color, 1.15, false)
+		var diagonal := radius * 0.52
+		draw_line(pos - Vector2(diagonal, diagonal), pos + Vector2(diagonal, diagonal), Color(color.r, color.g, color.b, color.a * 0.62), 0.8, false)
+		draw_line(pos - Vector2(-diagonal, diagonal), pos + Vector2(-diagonal, diagonal), Color(color.r, color.g, color.b, color.a * 0.62), 0.8, false)
