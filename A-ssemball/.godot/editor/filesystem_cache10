@@ -1,5 +1,5 @@
 63f7b34db8d8cdea90c76aacccf841ec
-::res://::1777858769
+::res://::1777881662
 export_presets.cfg::TextFile::-1::1777386046::0::1::::<><><>0<>0<><>::
 icon.svg::CompressedTexture2D::3214789299660626481::1776264585::1776685005::1::::<><><>0<>0<>0e18217a1b12bd39cad6ff478ec9cd87<>res://.godot/imported/icon.svg-218a8f2b3041327d8a5756f3a245f83b.ctex::
 README.md::TextFile::-1::1777854972::0::1::::<><><>0<>0<><>::
@@ -63,7 +63,7 @@ polished_stone_implements.png::CompressedTexture2D::4865595469598455604::1776776
 steam_engine.png::CompressedTexture2D::132852134271353257::1776781255::1776849204::1::::<><><>0<>0<>a7ca976efa014ec4741dc36d809a7bf4<>res://.godot/imported/steam_engine.png-19d966e092f68689d608759b70b03633.ctex::
 waterwheel.png::CompressedTexture2D::2666169764798678452::1776779677::1776849204::1::::<><><>0<>0<>3adbca8624b4f9e63d2468bc1c71fc7f<>res://.godot/imported/waterwheel.png-8a9289ad82443f2d014c055bac8498e4.ctex::
 wooden_wheel.png::CompressedTexture2D::8697352054362703615::1776779197::1776849204::1::::<><><>0<>0<>f497987af109464621cc2ce3cde13902<>res://.godot/imported/wooden_wheel.png-5dcdc551556bcc1e06e11d863e53785a.ctex::
-::res://assets/ui/chapter_1_stage_2/::1777860186
+::res://assets/ui/chapter_1_stage_2/::1777860260
 ash_deposit.jpg::CompressedTexture2D::7811894366785388361::1777860089::1777860260::1::::<><><>0<>0<>56de72ead6348bef98cf149ca5c5a7a7<>res://.godot/imported/ash_deposit.jpg-9bd4ead74890aae145724cfa3e6dcc15.ctex::
 dry_soil.jpg::CompressedTexture2D::6696128058998812529::1777393300::1777393702::1::::<><><>0<>0<>2faa02ad92dd74363645db8d318b6523<>res://.godot/imported/dry_soil.jpg-d8af753d0e4d4eb590d97c3ecc260ce1.ctex::
 Hand04.png::CompressedTexture2D::1696749121593765305::1776953586::1776956655::1::::<><><>0<>0<>35f0b6b59e0034ffb8d56ff73ed39e7d<>res://.godot/imported/Hand04.png-038a2079c58ea1eb2e49b423b48bb2df.ctex::
@@ -91,7 +91,7 @@ source_level_2.tscn::PackedScene::5415189555923880926::1777854972::0::1::::<><><
 level_1.tscn::PackedScene::-1::1776945991::0::1::::<><><>0<>0<><>::res://scripts/levels/level_bridge.gd
 level_2.tscn::PackedScene::-1::1776946014::0::1::::<><><>0<>0<><>::res://scripts/levels/level_bridge.gd
 ::res://scripts/::1777859597
-ash_fragment_overlay_2d.gd::GDScript::2353143291951046324::1777860232::0::1::::AshFragmentOverlay2D<>ColorRect<><>0<>1<><>::
+ash_fragment_overlay_2d.gd::GDScript::2353143291951046324::1777861534::0::1::::AshFragmentOverlay2D<>Control<><>0<>1<><>::
 intro_interactive.gd::GDScript::4217141148193261996::1777386046::0::1::::IntroInteractive<>Control<><>0<>0<><>::
 line_canvas_2d.gd::GDScript::7611566420917911238::1777858637::0::1::::LineCanvas2D<>Control<><>0<>1<><>::
 main_entry.gd::GDScript::8290360491995648465::1777854972::0::1::::<>Control<><>0<>0<><>::
@@ -102,9 +102,9 @@ level_bridge.gd::GDScript::1180233423248081032::1777386046::0::1::::LevelBridge<
 ::res://scripts/levels/chapter_1/::1777386046
 level_1.gd::GDScript::5720136571880895080::1777386046::0::1::::LevelC1L1<>Control<><>0<>0<><>::
 level_2.gd::GDScript::7073454198673714847::1777860204::0::1::::LevelC1L2<>Control<><>0<>0<><>::
-::res://scripts/levels/chapter_2/::1777854972
+::res://scripts/levels/chapter_2/::1777865870
 level_1.gd::GDScript::1782513284385078474::1777854972::0::1::::LevelC2L1<>Control<><>0<>1<><>::
-level_2.gd::GDScript::7468757368321466161::1777854972::0::1::::LevelC2L2<>Control<><>0<>0<><>::
+level_2.gd::GDScript::7468757368321466161::1777866177::0::1::::LevelC2L2<>Control<><>0<>0<><>::
 ::res://scripts/levels/chapter_3/::1776946845
 ::res://scripts/structure/::1776695024
 goldberg_topology_generator.gd::GDScript::2508364101458508646::1776692706::0::1::::GoldbergTopologyGenerator<>RefCounted<><>0<>0<><>::
