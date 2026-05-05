@@ -1,0 +1,73 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/levels/chapter_3/level_1.gd" id="1_level"]
+
+[sub_resource type="Environment" id="Environment_c3_l1"]
+background_mode = 1
+ambient_light_source = 2
+ambient_light_color = Color(0.22, 0.24, 0.27, 1)
+ambient_light_energy = 0.46
+
+[sub_resource type="SphereMesh" id="SphereMesh_left"]
+radius = 0.92
+height = 1.84
+radial_segments = 64
+rings = 32
+
+[node name="Chapter3Level1Source" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_level")
+
+[node name="ChapterSplit" type="HSplitContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Left3D" type="SubViewportContainer" parent="ChapterSplit"]
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+stretch = true
+
+[node name="LeftViewport" type="SubViewport" parent="ChapterSplit/Left3D"]
+handle_input_locally = false
+size = Vector2i(480, 720)
+render_target_update_mode = 4
+
+[node name="World3D" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="ChapterSplit/Left3D/LeftViewport/World3D"]
+environment = SubResource("Environment_c3_l1")
+
+[node name="KeyLight" type="DirectionalLight3D" parent="ChapterSplit/Left3D/LeftViewport/World3D"]
+transform = Transform3D(0.766044, -0.321394, 0.55667, 0.219846, 0.946188, 0.237232, -0.604023, -0.0593912, 0.794732, 0, 0, 0)
+light_energy = 0.95
+shadow_enabled = true
+
+[node name="FillLight" type="DirectionalLight3D" parent="ChapterSplit/Left3D/LeftViewport/World3D"]
+transform = Transform3D(0.642788, 0.262003, -0.719846, -0.0400088, 0.946188, 0.321394, 0.765001, -0.177842, 0.618182, 0, 0, 0)
+light_color = Color(0.78, 0.86, 1, 1)
+light_energy = 0.42
+
+[node name="Camera3D" type="Camera3D" parent="ChapterSplit/Left3D/LeftViewport/World3D"]
+transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 0.72, 4.0)
+current = true
+fov = 52.0
+
+[node name="ModelRoot" type="Node3D" parent="ChapterSplit/Left3D/LeftViewport/World3D"]
+
+[node name="Sphere" type="MeshInstance3D" parent="ChapterSplit/Left3D/LeftViewport/World3D/ModelRoot"]
+mesh = SubResource("SphereMesh_left")
+
+[node name="RightPanel" type="Control" parent="ChapterSplit"]
+custom_minimum_size = Vector2(720, 0)
+layout_mode = 2
+size_flags_horizontal = 3
