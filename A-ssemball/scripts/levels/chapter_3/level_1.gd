@@ -116,7 +116,7 @@ func _build_stage_data() -> Array[Dictionary]:
 			"spots": [
 				{"uv": Vector2(0.22, 0.28), "color": Color(0.92, 0.12, 0.10), "radius": 0.18},
 				{"uv": Vector2(0.68, 0.24), "color": Color(0.12, 0.38, 0.82), "radius": 0.16},
-				{"uv": Vector2(0.44, 0.48), "color": Color(0.96, 0.72, 0.18), "radius": 0.17},
+				{"uv": Vector2(0.58, 0.30), "color": Color(0.96, 0.72, 0.18), "radius": 0.17},
 				{"uv": Vector2(0.76, 0.62), "color": Color(0.18, 0.60, 0.38), "radius": 0.16},
 				{"uv": Vector2(0.30, 0.74), "color": Color(0.78, 0.20, 0.58), "radius": 0.18},
 			],
