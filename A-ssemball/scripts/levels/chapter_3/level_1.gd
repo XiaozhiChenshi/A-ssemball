@@ -36,11 +36,16 @@ const ColorReticleRef = preload("res://scripts/levels/chapter_3/color_reticle.gd
 @export_range(-12.0, 12.0, 0.1) var painting_tilt_degrees: float = -4.2
 @export_range(0.2, 2.0, 0.01) var frame_settle_sec: float = 0.8
 @export_range(0.2, 2.0, 0.01) var stage_pan_sec: float = 0.72
+@export_range(0.05, 1.8, 0.01) var sphere_flow_speed: float = 0.42
+@export_range(0.05, 0.45, 0.01) var left_background_darkness: float = 0.17
+@export_range(0.0, 24.0, 0.1) var sphere_idle_rotate_speed_deg: float = 5.0
+@export_range(0.0, 0.5, 0.01) var sphere_color_drift_speed: float = 0.08
 
 @onready var chapter_split: HSplitContainer = $ChapterSplit
 @onready var left_3d: SubViewportContainer = $ChapterSplit/Left3D
 @onready var model_root: Node3D = $ChapterSplit/Left3D/LeftViewport/World3D/ModelRoot
 @onready var sphere_mesh: MeshInstance3D = $ChapterSplit/Left3D/LeftViewport/World3D/ModelRoot/Sphere
+@onready var world_environment: WorldEnvironment = $ChapterSplit/Left3D/LeftViewport/World3D/WorldEnvironment
 @onready var right_panel: Control = $ChapterSplit/RightPanel
 
 var _stage_data: Array[Dictionary] = []
@@ -69,6 +74,10 @@ var _reticle: Control
 var _progress_label: Label
 var _status_label: Label
 var _fx_layer: Control
+var _left_environment: Environment
+var _color_flow_time: float = 0.0
+var _pulse_color: Color = Color(0.86, 0.18, 0.14, 1.0)
+var _pulse_mix: float = 0.0
 
 
 func _ready() -> void:
@@ -76,10 +85,12 @@ func _ready() -> void:
 	_setup_sphere_material()
 	_setup_right_panel()
 	_setup_fx_layer()
-	_apply_stage(0, false)
+	_apply_stage(0, true)
 
 
 func _process(delta: float) -> void:
+	_update_left_color_flow(delta)
+	_update_idle_rotation(delta)
 	_update_rotation_and_reticle(delta)
 	_update_collect_cooldown(delta)
 	_update_reticle_visual()
@@ -118,8 +129,9 @@ func _build_stage_data() -> Array[Dictionary]:
 				{"uv": Vector2(0.30, 0.22), "color": Color(0.94, 0.10, 0.08), "radius": 0.19},
 				{"uv": Vector2(0.67, 0.28), "color": Color(0.08, 0.30, 0.86), "radius": 0.18},
 				{"uv": Vector2(0.48, 0.48), "color": Color(0.98, 0.76, 0.08), "radius": 0.20},
-				{"uv": Vector2(0.28, 0.70), "color": Color(0.18, 0.58, 0.18), "radius": 0.17},
-				{"uv": Vector2(0.72, 0.72), "color": Color(0.90, 0.40, 0.12), "radius": 0.17},
+				{"uv": Vector2(0.24, 0.72), "color": Color(0.95, 0.12, 0.10), "radius": 0.17},
+				{"uv": Vector2(0.52, 0.74), "color": Color(0.10, 0.36, 0.88), "radius": 0.17},
+				{"uv": Vector2(0.78, 0.68), "color": Color(0.98, 0.74, 0.12), "radius": 0.18},
 			],
 		},
 		{
@@ -147,6 +159,52 @@ func _setup_sphere_material() -> void:
 	_sphere_material.emission = Color(0.05, 0.06, 0.07, 1.0)
 	_sphere_material.emission_energy_multiplier = 0.45
 	sphere_mesh.material_override = _sphere_material
+	_left_environment = world_environment.environment
+	_update_left_color_flow(0.0)
+
+
+func _update_left_color_flow(delta: float) -> void:
+	_color_flow_time += delta * sphere_flow_speed
+	_pulse_mix = maxf(0.0, _pulse_mix - delta * 1.35)
+
+	var flow_color := _sample_flow_color(_color_flow_time)
+	var sphere_color := flow_color.lerp(_pulse_color, _pulse_mix * 0.58)
+	_sphere_material.albedo_color = sphere_color
+	_sphere_material.emission = sphere_color
+
+	if _left_environment == null:
+		return
+	var dark := clampf(left_background_darkness, 0.05, 0.45)
+	var bg_color := Color(
+		sphere_color.r * dark,
+		sphere_color.g * dark,
+		sphere_color.b * dark,
+		1.0
+	)
+	_left_environment.background_color = bg_color
+	_left_environment.ambient_light_color = bg_color
+
+
+func _update_idle_rotation(delta: float) -> void:
+	if model_root == null:
+		return
+	if sphere_idle_rotate_speed_deg == 0.0:
+		return
+	model_root.rotate_y(deg_to_rad(sphere_idle_rotate_speed_deg) * delta)
+
+
+func _sample_flow_color(t: float) -> Color:
+	var phase := t * (1.0 + sphere_color_drift_speed)
+	var r := 0.5 + 0.5 * sin(phase)
+	var g := 0.5 + 0.5 * sin(phase + TAU / 3.0)
+	var b := 0.5 + 0.5 * sin(phase + TAU * 2.0 / 3.0)
+	var color := Color(r, g, b, 1.0)
+	var peak := maxf(color.r, maxf(color.g, color.b))
+	if peak > 0.0:
+		color.r /= peak
+		color.g /= peak
+		color.b /= peak
+	return color.lerp(Color(1.0, 1.0, 1.0, 1.0), 0.08)
 
 
 func _setup_right_panel() -> void:
@@ -783,10 +841,8 @@ func _add_sphere_color_cloud(color: Color) -> void:
 
 
 func _pulse_sphere(color: Color) -> void:
-	var current := _sphere_material.albedo_color
-	var target := current.lerp(color, 0.08)
-	_sphere_material.albedo_color = target
-	_sphere_material.emission = color
+	_pulse_color = color
+	_pulse_mix = 1.0
 	_sphere_material.emission_energy_multiplier = 1.45
 
 	var tween := create_tween()
@@ -872,31 +928,7 @@ func _emit_completed() -> void:
 
 
 func _get_stage_start_view_uv(stage_index: int) -> Vector2:
-	var stage := _stage_data[stage_index]
-	var start := Vector2(0.5, 0.5)
-	if stage.has("start_uv"):
-		start = _painting_uv_to_canvas_uv(stage["start_uv"] as Vector2)
-	elif not (stage["spots"] as Array).is_empty():
-		start = _painting_uv_to_canvas_uv(((stage["spots"] as Array)[0] as Dictionary)["uv"] as Vector2)
-	if _is_view_clear_from_stage_spots(start, stage_index):
-		return start
-
-	var candidates := [
-		Vector2(0.5, 0.5),
-		Vector2(0.5, 0.82),
-		Vector2(0.18, 0.82),
-		Vector2(0.82, 0.82),
-		Vector2(0.18, 0.18),
-		Vector2(0.82, 0.18),
-	]
-	var best := start
-	var best_distance := -1.0
-	for candidate in candidates:
-		var distance := _nearest_stage_spot_distance(candidate, stage_index)
-		if distance > best_distance:
-			best_distance = distance
-			best = candidate
-	return best
+	return _painting_uv_to_canvas_uv(Vector2(0.5, 0.5))
 
 
 func _is_view_clear_from_stage_spots(view_uv: Vector2, stage_index: int) -> bool:
