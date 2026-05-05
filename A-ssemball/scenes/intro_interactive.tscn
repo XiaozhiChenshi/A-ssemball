@@ -1,6 +1,8 @@
-[gd_scene load_steps=15 format=3 uid="uid://b7x4s4trv8rj2"]
+[gd_scene load_steps=18 format=3 uid="uid://b7x4s4trv8rj2"]
 
 [ext_resource type="Script" uid="uid://b1c2x0s645ymu" path="res://scripts/intro_interactive.gd" id="1_0t6k7"]
+[ext_resource type="Texture2D" uid="uid://yyl2v0733gpa" path="res://assets/ui/start_1.png" id="2_s1img"]
+[ext_resource type="Texture2D" uid="uid://g1ggpfh7agbq" path="res://assets/ui/start_2.png" id="3_s2img"]
 
 [sub_resource type="Environment" id="Environment_intro"]
 background_mode = 1
@@ -94,13 +96,24 @@ height = 10.0
 radial_segments = 12
 rings = 8
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_material_board"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_material_board_1"]
+transparency = 1
+cull_mode = 2
 albedo_color = Color(0.86, 0.89, 0.94, 1)
+albedo_texture = ExtResource("2_s1img")
 metallic = 0.08
 roughness = 0.28
 
 [sub_resource type="QuadMesh" id="QuadMesh_material_board"]
 size = Vector2(14, 8)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_material_board_2"]
+transparency = 1
+cull_mode = 2
+albedo_color = Color(0.86, 0.89, 0.94, 1)
+albedo_texture = ExtResource("3_s2img")
+metallic = 0.08
+roughness = 0.28
 
 [sub_resource type="Shader" id="Shader_vignette_overlay"]
 code = "shader_type canvas_item;
@@ -224,13 +237,13 @@ material_override = SubResource("ShaderMaterial_goal_sphere")
 mesh = SubResource("SphereMesh_goal_lowpoly")
 
 [node name="MaterialBoard1" type="MeshInstance3D" parent="ViewportContainer/SubViewport/WorldRoot"]
-transform = Transform3D(24, 0, 0, 0, 16, 0, 0, 0, 8, 0, 7, -72)
-material_override = SubResource("StandardMaterial3D_material_board")
+transform = Transform3D(18.44769, 0, 0, 0, 9.181489, 0, 0, 0, 8, 0, 32.148758, -72)
+material_override = SubResource("StandardMaterial3D_material_board_1")
 mesh = SubResource("QuadMesh_material_board")
 
 [node name="MaterialBoard2" type="MeshInstance3D" parent="ViewportContainer/SubViewport/WorldRoot"]
-transform = Transform3D(24, 0, 0, 0, 16, 0, 0, 0, 8, 0, 7, -95.151)
-material_override = SubResource("StandardMaterial3D_material_board")
+transform = Transform3D(16.218748, 0, 0, 0, 16, 0, 0, 0, 8, 0, 31.703857, -95.151)
+material_override = SubResource("StandardMaterial3D_material_board_2")
 mesh = SubResource("QuadMesh_material_board")
 
 [node name="Hint" type="Label" parent="."]

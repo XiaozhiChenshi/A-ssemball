@@ -1,2 +1,4 @@
-res://scenes/levels/chapter_2/source_level_2.tscn
-res://scripts/levels/chapter_2/level_2.gd
+res://scripts/intro_interactive.gd
+res://scripts/main_entry.gd
+res://scripts/levels/chapter_1/level_1.gd
+res://scenes/intro_interactive.tscn

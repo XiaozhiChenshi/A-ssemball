@@ -7,6 +7,7 @@ const CHAPTER_2_LEVEL_1_SCENE: PackedScene = preload("res://scenes/levels/chapte
 const CHAPTER_2_LEVEL_2_SCENE: PackedScene = preload("res://scenes/levels/chapter_2/level_2.tscn")
 const CHAPTER_3_LEVEL_1_SCENE: PackedScene = preload("res://scenes/levels/chapter_3/level_1.tscn")
 const CHAPTER_3_LEVEL_2_SCENE: PackedScene = preload("res://scenes/levels/chapter_3/level_2.tscn")
+const CHAPTER_1_NOISE_LOOP_AUDIO: AudioStream = preload("res://assets/audio/底噪.mp3")
 const TRAN_1_TEX: Texture2D = preload("res://assets/materials/tran1.png")
 const TRAN_2_TEX: Texture2D = preload("res://assets/materials/tran2.png")
 const TRAN_3_TEX: Texture2D = preload("res://assets/materials/tran3.png")
@@ -30,12 +31,14 @@ var _active_chapter_node: Node = null
 var _chapter_transition_running: bool = false
 var _requested_start_chapter_scene_index: int = 0
 var _chapter_transition_overlay: TextureRect
+var _chapter_1_noise_player: AudioStreamPlayer
 
 
 func _ready() -> void:
 	fade_layer.color = Color(0.0, 0.0, 0.0, 0.0)
 	_chapter_scenes = _resolve_chapter_scenes()
 	_ensure_chapter_transition_overlay()
+	_ensure_audio_players()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -143,6 +146,7 @@ func _spawn_next_chapter() -> void:
 
 	if chapter.has_method("_set_game_started"):
 		chapter.call("_set_game_started", true)
+	_update_chapter_audio_state(_current_chapter_scene_index)
 
 	if chapter.has_signal("chapter_completed"):
 		if not chapter.is_connected("chapter_completed", Callable(self, "_on_chapter_completed")):
@@ -171,6 +175,7 @@ func _on_chapter_completed(_chapter_index: int = 0) -> void:
 func _on_all_chapters_completed() -> void:
 	# Keep the last chapter visible and unlock restart from menu key flow.
 	_is_starting = false
+	_update_chapter_audio_state(-1)
 
 
 func _fade_to_black() -> void:
@@ -272,3 +277,31 @@ func _tween_transition_overlay_alpha(target_alpha: float, duration: float) -> vo
 	var tween := create_tween()
 	tween.tween_property(_chapter_transition_overlay, "modulate:a", clampf(target_alpha, 0.0, 1.0), maxf(0.001, duration))
 	await tween.finished
+
+
+func _ensure_audio_players() -> void:
+	if _chapter_1_noise_player != null and is_instance_valid(_chapter_1_noise_player):
+		return
+	_chapter_1_noise_player = AudioStreamPlayer.new()
+	_chapter_1_noise_player.name = "Chapter1NoisePlayer"
+	_chapter_1_noise_player.stream = CHAPTER_1_NOISE_LOOP_AUDIO
+	if _chapter_1_noise_player.stream is AudioStreamMP3:
+		(_chapter_1_noise_player.stream as AudioStreamMP3).loop = true
+	_chapter_1_noise_player.volume_db = linear_to_db(0.4)
+	_chapter_1_noise_player.autoplay = false
+	add_child(_chapter_1_noise_player)
+
+
+func _is_chapter_1_scene_index(scene_index: int) -> bool:
+	return scene_index == 0 or scene_index == 1
+
+
+func _update_chapter_audio_state(scene_index: int) -> void:
+	if _chapter_1_noise_player == null or not is_instance_valid(_chapter_1_noise_player):
+		return
+	if _is_chapter_1_scene_index(scene_index):
+		if not _chapter_1_noise_player.playing:
+			_chapter_1_noise_player.play()
+		return
+	if _chapter_1_noise_player.playing:
+		_chapter_1_noise_player.stop()

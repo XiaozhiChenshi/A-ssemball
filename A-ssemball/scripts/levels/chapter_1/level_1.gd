@@ -5,6 +5,17 @@ signal act_one_completed
 signal chapter_completed(chapter_index: int)
 
 const StructureShapeProviderRef = preload("res://scripts/structure/structure_shape_provider.gd")
+const SPHERE_CLICK_AUDIO: AudioStream = preload("res://assets/audio/单击球面音效.mp3")
+const STAGE_STONE_END_AUDIO: AudioStream = preload("res://assets/audio/1.3.2打铁.mp3")
+const STAGE_WHEEL_END_AUDIO: AudioStream = preload("res://assets/audio/1.4.2轮轴转动.mp3")
+const STAGE_WATERWHEEL_END_AUDIO: AudioStream = preload("res://assets/audio/1.5.2水车声.mp3")
+const STAGE_CLOCK_LOOP_AUDIO: AudioStream = preload("res://assets/audio/1.6.2钟声1.WAV")
+const STAGE_CLOCK_END_AUDIO: AudioStream = preload("res://assets/audio/1.6.2钟声2.mp3")
+const STAGE_STEAM_TYPEWRITER_AUDIO: AudioStream = preload("res://assets/audio/1.7.2（可选1）类打字机声.mp3")
+const STAGE_STEAM_GEAR_AUDIO: AudioStream = preload("res://assets/audio/1.7.2（可选2）齿轮运作声.mp3")
+const STAGE_COMBUSTION_AUDIO: AudioStream = preload("res://assets/audio/1.8.2蒸汽机.mp3")
+const STAGE_ELECTRONIC_NOISE_LOOP_AUDIO: AudioStream = preload("res://assets/audio/1.9.1电子杂音.mp3")
+const STAGE_ELECTRONIC_SUCCESS_AUDIO: AudioStream = preload("res://assets/audio/1.9.2成功运行电子音.mp3")
 
 const ACT_ONE_BASE_COLOR: Color = Color(0.68, 0.74, 0.82, 1.0)
 const SHAPE_RADIUS: float = 1.0
@@ -136,6 +147,14 @@ var _status_label: Label
 var _noise_overlay: ColorRect
 var _noise_material: ShaderMaterial
 var _flash_overlay: ColorRect
+var _sphere_click_audio_player: AudioStreamPlayer
+var _stage_event_audio_player: AudioStreamPlayer
+var _stage_event_audio_player_b: AudioStreamPlayer
+var _clock_loop_audio_player: AudioStreamPlayer
+var _electronic_noise_loop_player: AudioStreamPlayer
+var _stage_end_audio_played_for_index: int = -1
+var _stage_end_audio_pending_for_index: int = -1
+var _stage_end_audio_started_for_index: int = -1
 
 
 func _ready() -> void:
@@ -150,6 +169,7 @@ func _ready() -> void:
 	_ensure_edge_overlay_instance()
 	_setup_right_panel_ui()
 	_ensure_flash_overlay()
+	_ensure_audio_players()
 
 	_apply_stage(_current_stage_index)
 	_update_hint_and_progress_text()
@@ -183,6 +203,170 @@ func _input(event: InputEvent) -> void:
 			_set_status_text("Act 1 complete. Waiting at the Act 2 entry shape.")
 			return
 		await _handle_stage_click(event.position)
+
+
+func _ensure_audio_players() -> void:
+	if _sphere_click_audio_player != null and is_instance_valid(_sphere_click_audio_player):
+		pass
+	else:
+		_sphere_click_audio_player = AudioStreamPlayer.new()
+		_sphere_click_audio_player.name = "SphereClickAudioPlayer"
+		_sphere_click_audio_player.stream = SPHERE_CLICK_AUDIO
+		add_child(_sphere_click_audio_player)
+
+	if _stage_event_audio_player != null and is_instance_valid(_stage_event_audio_player):
+		pass
+	else:
+		_stage_event_audio_player = AudioStreamPlayer.new()
+		_stage_event_audio_player.name = "StageEventAudioPlayer"
+		add_child(_stage_event_audio_player)
+
+	if _stage_event_audio_player_b != null and is_instance_valid(_stage_event_audio_player_b):
+		pass
+	else:
+		_stage_event_audio_player_b = AudioStreamPlayer.new()
+		_stage_event_audio_player_b.name = "StageEventAudioPlayerB"
+		add_child(_stage_event_audio_player_b)
+
+	if _clock_loop_audio_player != null and is_instance_valid(_clock_loop_audio_player):
+		pass
+	else:
+		_clock_loop_audio_player = AudioStreamPlayer.new()
+		_clock_loop_audio_player.name = "ClockLoopAudioPlayer"
+		_clock_loop_audio_player.stream = STAGE_CLOCK_LOOP_AUDIO
+		if _clock_loop_audio_player.stream is AudioStreamWAV:
+			(_clock_loop_audio_player.stream as AudioStreamWAV).loop_mode = AudioStreamWAV.LOOP_FORWARD
+		add_child(_clock_loop_audio_player)
+
+	if _electronic_noise_loop_player != null and is_instance_valid(_electronic_noise_loop_player):
+		return
+	_electronic_noise_loop_player = AudioStreamPlayer.new()
+	_electronic_noise_loop_player.name = "ElectronicNoiseLoopPlayer"
+	_electronic_noise_loop_player.stream = STAGE_ELECTRONIC_NOISE_LOOP_AUDIO
+	if _electronic_noise_loop_player.stream is AudioStreamMP3:
+		(_electronic_noise_loop_player.stream as AudioStreamMP3).loop = true
+	add_child(_electronic_noise_loop_player)
+
+
+func _play_sphere_click_audio() -> void:
+	if _sphere_click_audio_player == null or not is_instance_valid(_sphere_click_audio_player):
+		return
+	_sphere_click_audio_player.stop()
+	_sphere_click_audio_player.play()
+
+
+func _play_stage_event_audio(stream: AudioStream) -> void:
+	if stream == null:
+		return
+	if _stage_event_audio_player == null or not is_instance_valid(_stage_event_audio_player):
+		return
+	_stage_event_audio_player.stream = stream
+	_stage_event_audio_player.stop()
+	_stage_event_audio_player.play()
+
+
+func _play_stage_event_audio_dual(stream_a: AudioStream, stream_b: AudioStream) -> void:
+	if stream_a == null or stream_b == null:
+		return
+	if _stage_event_audio_player == null or not is_instance_valid(_stage_event_audio_player):
+		return
+	if _stage_event_audio_player_b == null or not is_instance_valid(_stage_event_audio_player_b):
+		return
+	_stage_event_audio_player.stream = stream_a
+	_stage_event_audio_player_b.stream = stream_b
+	_stage_event_audio_player.stop()
+	_stage_event_audio_player_b.stop()
+	_stage_event_audio_player.play()
+	_stage_event_audio_player_b.play()
+
+
+func _get_stage_end_audio_stream(stage_index: int) -> AudioStream:
+	match stage_index:
+		0:
+			return STAGE_STONE_END_AUDIO
+		1:
+			return STAGE_WHEEL_END_AUDIO
+		2:
+			return STAGE_WATERWHEEL_END_AUDIO
+		3:
+			return STAGE_CLOCK_END_AUDIO
+		5:
+			return STAGE_COMBUSTION_AUDIO
+		6:
+			return STAGE_ELECTRONIC_SUCCESS_AUDIO
+	return null
+
+
+func _stop_all_stage_event_audio() -> void:
+	if _stage_event_audio_player != null and is_instance_valid(_stage_event_audio_player):
+		_stage_event_audio_player.stop()
+	if _stage_event_audio_player_b != null and is_instance_valid(_stage_event_audio_player_b):
+		_stage_event_audio_player_b.stop()
+
+
+func _start_stage_end_audio_after_click_once_for_current_stage() -> void:
+	if _stage_end_audio_pending_for_index == _current_stage_index or _stage_end_audio_started_for_index == _current_stage_index:
+		return
+	if _current_stage_index == 4:
+		var stage_index_steam := _current_stage_index
+		_stage_end_audio_pending_for_index = stage_index_steam
+		_start_stage_end_audio_after_delay(stage_index_steam, STAGE_STEAM_TYPEWRITER_AUDIO)
+		return
+	var stream := _get_stage_end_audio_stream(_current_stage_index)
+	if stream == null:
+		return
+	var stage_index := _current_stage_index
+	_stage_end_audio_pending_for_index = stage_index
+	_start_stage_end_audio_after_delay(stage_index, stream)
+
+
+func _start_stage_end_audio_after_delay(stage_index: int, stream: AudioStream) -> void:
+	await get_tree().create_timer(0.3).timeout
+	if _stage_end_audio_pending_for_index != stage_index:
+		return
+	if _current_stage_index != stage_index:
+		return
+	_stage_end_audio_pending_for_index = -1
+	_stage_end_audio_started_for_index = stage_index
+	if stage_index == 3:
+		if _clock_loop_audio_player != null and is_instance_valid(_clock_loop_audio_player):
+			_clock_loop_audio_player.stop()
+	if stage_index == 4:
+		_play_stage_event_audio_dual(STAGE_STEAM_TYPEWRITER_AUDIO, STAGE_STEAM_GEAR_AUDIO)
+		return
+	if stage_index == 6:
+		if _electronic_noise_loop_player != null and is_instance_valid(_electronic_noise_loop_player):
+			_electronic_noise_loop_player.stop()
+	_play_stage_event_audio(stream)
+
+
+func _await_stage_end_audio_stop_before_switch_for_current_stage() -> void:
+	if _stage_end_audio_played_for_index == _current_stage_index:
+		return
+	_stage_end_audio_played_for_index = _current_stage_index
+	_stage_end_audio_pending_for_index = -1
+	_stop_all_stage_event_audio()
+	await get_tree().create_timer(0.5).timeout
+
+
+func _update_stage_loop_audio_for_stage(stage_index: int) -> void:
+	if _clock_loop_audio_player == null or not is_instance_valid(_clock_loop_audio_player):
+		pass
+	else:
+		if stage_index == 3:
+			if not _clock_loop_audio_player.playing:
+				_clock_loop_audio_player.play()
+		elif _clock_loop_audio_player.playing:
+			_clock_loop_audio_player.stop()
+
+	if _electronic_noise_loop_player == null or not is_instance_valid(_electronic_noise_loop_player):
+		return
+	if stage_index == 6:
+		if not _electronic_noise_loop_player.playing:
+			_electronic_noise_loop_player.play()
+		return
+	if _electronic_noise_loop_player.playing:
+		_electronic_noise_loop_player.stop()
 
 
 func _build_stage_data() -> Array[Dictionary]:
@@ -944,6 +1128,7 @@ func _update_right_panel_effect(delta: float) -> void:
 
 func _handle_stage_click(screen_pos: Vector2) -> void:
 	if _current_stage_mode == NORMAL_STAGE_MODE:
+		_start_stage_end_audio_after_click_once_for_current_stage()
 		_transition_locked = true
 		await _advance_to_next_stage()
 		_transition_locked = false
@@ -965,10 +1150,12 @@ func _handle_stage_click(screen_pos: Vector2) -> void:
 		_set_status_text("That abnormal structure is already stabilizing.")
 		return
 
+	_play_sphere_click_audio()
 	_remaining_abnormal_ids.erase(clicked_cell_id)
 	_trigger_click_feedback(clicked_cell_id)
 	_begin_abnormal_normalization(clicked_cell_id, _stage_interaction_revision)
 	if _remaining_abnormal_ids.is_empty():
+		_start_stage_end_audio_after_click_once_for_current_stage()
 		_set_status_text("Final abnormal structure stabilizing...")
 	else:
 		_set_status_text("Abnormal targets remaining: %d" % _remaining_abnormal_ids.size())
@@ -980,6 +1167,7 @@ func _advance_to_next_stage() -> void:
 		await _play_final_transition_to_act_two_entry()
 		return
 
+	await _await_stage_end_audio_stop_before_switch_for_current_stage()
 	_completed_stage_advances += 1
 	_update_hint_and_progress_text()
 	await _play_transition_to_stage(_current_stage_index + 1, _completed_stage_advances)
@@ -1008,6 +1196,8 @@ func _play_transition_to_stage(target_stage_index: int, sequence_index: int) -> 
 
 
 func _play_final_transition_to_act_two_entry() -> void:
+	_update_stage_loop_audio_for_stage(-1)
+	_stop_all_stage_event_audio()
 	_set_status_text("Converging into the Act 2 entry shape.")
 	for i in range(3):
 		var amplitude_mul := 1.35 + float(i) * 0.28
@@ -1305,7 +1495,11 @@ func _get_cell_front_facing_score(cell_id: int) -> float:
 
 func _apply_stage(stage_index: int) -> void:
 	_current_stage_index = clampi(stage_index, 0, _stage_data.size() - 1)
+	_stage_end_audio_played_for_index = -1
+	_stage_end_audio_pending_for_index = -1
+	_stage_end_audio_started_for_index = -1
 	_apply_stage_from_dictionary(_stage_data[_current_stage_index])
+	_update_stage_loop_audio_for_stage(_current_stage_index)
 	_update_hint_and_progress_text()
 
 

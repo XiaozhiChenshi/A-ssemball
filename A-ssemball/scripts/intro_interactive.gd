@@ -2,6 +2,7 @@ extends Control
 class_name IntroInteractive
 
 signal intro_finished
+signal goal_clicked
 
 @export var hold_key: Key = KEY_W
 @export var move_speed: float = 15
@@ -78,6 +79,7 @@ const FOV_BREATH_EXPAND_RATIO: float = 0.62
 const FOV_BREATH_EXPAND_CURVE: float = 1.8
 const FOV_BREATH_CONTRACT_CURVE: float = 0.72
 const VIGNETTE_RADIUS_SMOOTH: float = 4.0
+const SCREEN_SHAKE_AUDIO: AudioStream = preload("res://assets/audio/1.2屏幕震动.mp3")
 
 @onready var sub_viewport: SubViewport = $ViewportContainer/SubViewport
 @onready var viewport_container: SubViewportContainer = $ViewportContainer
@@ -133,6 +135,7 @@ var _board_1_target_y: float = 0.0
 var _board_2_target_y: float = 0.0
 var _board_1_triggered: bool = false
 var _board_2_triggered: bool = false
+var _screen_shake_audio_player: AudioStreamPlayer
 
 
 func _ready() -> void:
@@ -154,6 +157,7 @@ func _ready() -> void:
 	_on_resized()
 	_update_hint_text()
 	_update_goal_sphere_scale()
+	_ensure_audio_players()
 
 
 func _process(delta: float) -> void:
@@ -557,6 +561,8 @@ func _start_goal_transition_sequence() -> void:
 		return
 	_transition_started = true
 	_awaiting_goal_click = false
+	_play_screen_shake_audio_once()
+	goal_clicked.emit()
 	hint.visible = false
 	await _run_goal_transition_sequence()
 
@@ -567,6 +573,8 @@ func start_post_goal_effect_from_menu() -> void:
 	_completed = true
 	_awaiting_goal_click = false
 	_transition_started = true
+	_play_screen_shake_audio_once()
+	goal_clicked.emit()
 	hint.visible = false
 	_update_move_speed_factor(0.0, false)
 	_update_camera_motion(0.0, false)
@@ -583,6 +591,22 @@ func _run_goal_transition_sequence() -> void:
 	vignette_dynamic_enabled = false
 	await _play_line_rise_and_glow()
 	intro_finished.emit()
+
+
+func _ensure_audio_players() -> void:
+	if _screen_shake_audio_player != null and is_instance_valid(_screen_shake_audio_player):
+		return
+	_screen_shake_audio_player = AudioStreamPlayer.new()
+	_screen_shake_audio_player.name = "ScreenShakeAudioPlayer"
+	_screen_shake_audio_player.stream = SCREEN_SHAKE_AUDIO
+	add_child(_screen_shake_audio_player)
+
+
+func _play_screen_shake_audio_once() -> void:
+	if _screen_shake_audio_player == null or not is_instance_valid(_screen_shake_audio_player):
+		return
+	_screen_shake_audio_player.stop()
+	_screen_shake_audio_player.play()
 
 
 func _play_goal_charge_and_whiteout() -> void:

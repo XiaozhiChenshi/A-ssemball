@@ -8,6 +8,7 @@ const RouteBurnMaskCanvas2DRef = preload("res://scripts/route_burn_mask_canvas_2
 const AshFragmentOverlay2DRef = preload("res://scripts/ash_fragment_overlay_2d.gd")
 const ASH_DEPOSIT_TEXTURE: Texture2D = preload("res://assets/ui/chapter_1_stage_2/ash_deposit.jpg")
 const HAND_TEXTURE: Texture2D = preload("res://assets/ui/chapter_1_stage_2/Hand04.png")
+const SPHERE_CLICK_AUDIO: AudioStream = preload("res://assets/audio/单击球面音效.mp3")
 const HAND_POINTER_TEXTURE_PATH := "res://assets/ui/chapter_1_stage_2/Hand06.png"
 const POINTER_HAND_TIP_UV := Vector2(0.3716, 0.1141)
 const POINTER_HAND_WRIST_UV := Vector2(0.5, 0.96)
@@ -172,6 +173,7 @@ var _transition_color_flash_strength: float = 0.0
 var _transition_burn_progress: float = 0.0
 var _transition_burn_route_points: PackedVector2Array = PackedVector2Array()
 var _transition_burn_route_closed: bool = false
+var _sphere_click_audio_player: AudioStreamPlayer
 
 
 func _ready() -> void:
@@ -191,6 +193,7 @@ func _ready() -> void:
 	_setup_right_panel_ui()
 	_stage_data = _build_stage_data()
 	_ensure_cell_root()
+	_ensure_audio_players()
 	sphere.rotation = Vector3.ZERO
 
 	resized.connect(_on_layout_changed)
@@ -2566,6 +2569,22 @@ func _set_status_text(text: String) -> void:
 		_status_label.text = text
 
 
+func _ensure_audio_players() -> void:
+	if _sphere_click_audio_player != null and is_instance_valid(_sphere_click_audio_player):
+		return
+	_sphere_click_audio_player = AudioStreamPlayer.new()
+	_sphere_click_audio_player.name = "SphereClickAudioPlayer"
+	_sphere_click_audio_player.stream = SPHERE_CLICK_AUDIO
+	add_child(_sphere_click_audio_player)
+
+
+func _play_sphere_click_audio() -> void:
+	if _sphere_click_audio_player == null or not is_instance_valid(_sphere_click_audio_player):
+		return
+	_sphere_click_audio_player.stop()
+	_sphere_click_audio_player.play()
+
+
 func _try_begin_drag() -> void:
 	if _transition_running:
 		return
@@ -2593,6 +2612,7 @@ func _try_begin_drag() -> void:
 	_drag_grace_left = drag_grace_sec
 	_set_status_text("保持按住，沿着纹理路径连续拖过去。")
 	_refresh_cell_materials()
+	_play_sphere_click_audio()
 	get_viewport().set_input_as_handled()
 
 
