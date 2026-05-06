@@ -11,8 +11,8 @@ ambient_light_energy = 0.46
 [sub_resource type="SphereMesh" id="SphereMesh_left"]
 radius = 0.92
 height = 1.84
-radial_segments = 64
-rings = 32
+radial_segments = 128
+rings = 64
 
 [node name="Chapter3Level1Source" type="Control"]
 layout_mode = 3
@@ -49,13 +49,14 @@ environment = SubResource("Environment_c3_l1")
 
 [node name="KeyLight" type="DirectionalLight3D" parent="ChapterSplit/Left3D/LeftViewport/World3D"]
 transform = Transform3D(0.766044, -0.321394, 0.55667, 0.219846, 0.946188, 0.237232, -0.604023, -0.0593912, 0.794732, 0, 0, 0)
-light_energy = 0.95
+light_color = Color(0.9, 0.96, 1, 1)
+light_energy = 1.16
 shadow_enabled = true
 
 [node name="FillLight" type="DirectionalLight3D" parent="ChapterSplit/Left3D/LeftViewport/World3D"]
 transform = Transform3D(0.642788, 0.262003, -0.719846, -0.0400088, 0.946188, 0.321394, 0.765001, -0.177842, 0.618182, 0, 0, 0)
-light_color = Color(0.78, 0.86, 1, 1)
-light_energy = 0.42
+light_color = Color(0.72, 0.82, 1, 1)
+light_energy = 0.56
 
 [node name="Camera3D" type="Camera3D" parent="ChapterSplit/Left3D/LeftViewport/World3D"]
 transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 0.72, 4.0)

@@ -40,11 +40,21 @@ const ColorReticleRef = preload("res://scripts/levels/chapter_3/color_reticle.gd
 @export_range(0.05, 0.45, 0.01) var left_background_darkness: float = 0.17
 @export_range(0.0, 24.0, 0.1) var sphere_idle_rotate_speed_deg: float = 5.0
 @export_range(0.0, 0.5, 0.01) var sphere_color_drift_speed: float = 0.08
+@export_range(3, 10, 1) var crack_primary_branch_count: int = 5
+@export_range(0.18, 1.35, 0.005) var crack_max_angular_length: float = 0.96
+@export_range(0.025, 0.16, 0.001) var crack_dark_width: float = 0.058
+@export_range(0.006, 0.07, 0.001) var shell_crack_open_radius: float = 0.012
+@export_range(1.0, 2.0, 0.05) var crack_spread_sec: float = 1.25
+@export_range(1.4, 4.5, 0.05) var core_dye_width_scale: float = 3.2
+@export_range(24, 72, 1) var shell_latitude_segments: int = 56
+@export_range(48, 144, 1) var shell_longitude_segments: int = 112
+@export_range(0.01, 0.16, 0.001) var shell_thickness: float = 0.055
 
 @onready var chapter_split: HSplitContainer = $ChapterSplit
 @onready var left_3d: SubViewportContainer = $ChapterSplit/Left3D
 @onready var model_root: Node3D = $ChapterSplit/Left3D/LeftViewport/World3D/ModelRoot
 @onready var sphere_mesh: MeshInstance3D = $ChapterSplit/Left3D/LeftViewport/World3D/ModelRoot/Sphere
+@onready var left_camera: Camera3D = $ChapterSplit/Left3D/LeftViewport/World3D/Camera3D
 @onready var world_environment: WorldEnvironment = $ChapterSplit/Left3D/LeftViewport/World3D/WorldEnvironment
 @onready var right_panel: Control = $ChapterSplit/RightPanel
 
@@ -59,7 +69,7 @@ var _right_panel_size: Vector2 = Vector2.ZERO
 var _current_art_zoom: float = 3.0
 var _art_zoom_tween: Tween
 
-var _sphere_material: StandardMaterial3D
+var _sphere_material: ShaderMaterial
 var _frame_root: Control
 var _art_root: Control
 var _viewport_wall_back: ColorRect
@@ -78,6 +88,18 @@ var _left_environment: Environment
 var _color_flow_time: float = 0.0
 var _pulse_color: Color = Color(0.86, 0.18, 0.14, 1.0)
 var _pulse_mix: float = 0.0
+var _crack_surface_dirs: Array[Vector3] = []
+var _shell_mesh: MeshInstance3D
+var _shell_material: StandardMaterial3D
+var _shell_cuts: Array[Dictionary] = []
+var _shell_cut_cells: Array[bool] = []
+var _shell_cell_dirs: Array[Vector3] = []
+var _core_mesh: MeshInstance3D
+var _core_material: ShaderMaterial
+var _core_patch_root: Node3D
+var _core_radius: float = 0.0
+var _core_color_accum: Color = Color(0.0, 0.0, 0.0, 1.0)
+var _core_color_count: int = 0
 
 
 func _ready() -> void:
@@ -151,14 +173,11 @@ func _build_stage_data() -> Array[Dictionary]:
 
 
 func _setup_sphere_material() -> void:
-	_sphere_material = StandardMaterial3D.new()
-	_sphere_material.albedo_color = Color(0.62, 0.64, 0.68, 1.0)
-	_sphere_material.roughness = 0.86
-	_sphere_material.metallic = 0.02
-	_sphere_material.emission_enabled = true
-	_sphere_material.emission = Color(0.05, 0.06, 0.07, 1.0)
-	_sphere_material.emission_energy_multiplier = 0.45
+	_sphere_material = _create_glass_sphere_material()
 	sphere_mesh.material_override = _sphere_material
+	sphere_mesh.visible = false
+	_setup_color_core()
+	_setup_cracked_shell()
 	_left_environment = world_environment.environment
 	_update_left_color_flow(0.0)
 
@@ -169,8 +188,14 @@ func _update_left_color_flow(delta: float) -> void:
 
 	var flow_color := _sample_flow_color(_color_flow_time)
 	var sphere_color := flow_color.lerp(_pulse_color, _pulse_mix * 0.58)
-	_sphere_material.albedo_color = sphere_color
-	_sphere_material.emission = sphere_color
+	if _sphere_material != null:
+		_sphere_material.set_shader_parameter("base_tint", sphere_color)
+		_sphere_material.set_shader_parameter("pulse_color", _pulse_color)
+		_sphere_material.set_shader_parameter("pulse_mix", _pulse_mix)
+		_sphere_material.set_shader_parameter("time", _color_flow_time)
+	if _core_material != null:
+		_core_material.set_shader_parameter("pulse_mix", _pulse_mix)
+		_core_material.set_shader_parameter("time", _color_flow_time)
 
 	if _left_environment == null:
 		return
@@ -205,6 +230,306 @@ func _sample_flow_color(t: float) -> Color:
 		color.g /= peak
 		color.b /= peak
 	return color.lerp(Color(1.0, 1.0, 1.0, 1.0), 0.08)
+
+
+func _create_glass_sphere_material() -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type spatial;
+render_mode blend_mix, cull_back, depth_draw_opaque;
+
+uniform vec4 base_tint : source_color = vec4(0.78, 0.84, 0.92, 1.0);
+uniform vec4 pulse_color : source_color = vec4(1.0, 0.16, 0.10, 1.0);
+uniform float pulse_mix = 0.0;
+uniform float time = 0.0;
+
+varying vec3 local_pos;
+
+float hash(vec3 p) {
+	return fract(sin(dot(p, vec3(17.17, 43.31, 91.77))) * 43758.5453);
+}
+
+float soft_noise(vec3 p) {
+	vec3 i = floor(p);
+	vec3 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	float n000 = hash(i + vec3(0.0, 0.0, 0.0));
+	float n100 = hash(i + vec3(1.0, 0.0, 0.0));
+	float n010 = hash(i + vec3(0.0, 1.0, 0.0));
+	float n110 = hash(i + vec3(1.0, 1.0, 0.0));
+	float n001 = hash(i + vec3(0.0, 0.0, 1.0));
+	float n101 = hash(i + vec3(1.0, 0.0, 1.0));
+	float n011 = hash(i + vec3(0.0, 1.0, 1.0));
+	float n111 = hash(i + vec3(1.0, 1.0, 1.0));
+	float nx00 = mix(n000, n100, f.x);
+	float nx10 = mix(n010, n110, f.x);
+	float nx01 = mix(n001, n101, f.x);
+	float nx11 = mix(n011, n111, f.x);
+	float nxy0 = mix(nx00, nx10, f.y);
+	float nxy1 = mix(nx01, nx11, f.y);
+	return mix(nxy0, nxy1, f.z);
+}
+
+void vertex() {
+	local_pos = VERTEX;
+}
+
+void fragment() {
+	vec3 n = normalize(NORMAL);
+	vec3 local_dir = normalize(local_pos);
+	float fresnel = pow(1.0 - clamp(dot(n, VIEW), 0.0, 1.0), 2.45);
+	float shell_grain = soft_noise(local_dir * 9.0 + vec3(time * 0.08, time * 0.05, -time * 0.04));
+	float inner_current = soft_noise(local_dir * 3.5 + vec3(time * 0.16, -time * 0.10, time * 0.07));
+	vec3 tint = mix(vec3(0.06, 0.075, 0.095), pulse_color.rgb, pulse_mix * 0.16);
+	vec3 body = mix(vec3(0.018, 0.017, 0.021), tint, 0.54 + inner_current * 0.16);
+	ALBEDO = body * (0.78 + shell_grain * 0.08);
+	ROUGHNESS = 0.34;
+	METALLIC = 0.02;
+	SPECULAR = 0.78;
+	EMISSION = body * 0.08 + vec3(0.34, 0.50, 0.72) * fresnel * 0.34 + pulse_color.rgb * pulse_mix * 0.18;
+	ALPHA = 1.0;
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	material.set_shader_parameter("base_tint", Color(0.78, 0.84, 0.92, 1.0))
+	material.set_shader_parameter("pulse_color", Color(0.86, 0.18, 0.14, 1.0))
+	material.set_shader_parameter("pulse_mix", 0.0)
+	material.set_shader_parameter("time", 0.0)
+	return material
+
+
+func _setup_color_core() -> void:
+	_core_mesh = MeshInstance3D.new()
+	_core_mesh.name = "ColorCoreSphere"
+	var mesh := SphereMesh.new()
+	_core_radius = maxf(0.05, left_sphere_radius - shell_thickness - 0.018)
+	mesh.radius = _core_radius
+	mesh.height = _core_radius * 2.0
+	mesh.radial_segments = 96
+	mesh.rings = 48
+	_core_mesh.mesh = mesh
+	_core_material = _create_color_core_material()
+	_core_mesh.material_override = _core_material
+	model_root.add_child(_core_mesh)
+	_core_patch_root = Node3D.new()
+	_core_patch_root.name = "CoreColorPatches"
+	model_root.add_child(_core_patch_root)
+
+
+func _create_color_core_material() -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type spatial;
+render_mode blend_mix, cull_back, depth_draw_opaque;
+
+uniform vec4 core_color : source_color = vec4(0.05, 0.055, 0.065, 1.0);
+uniform vec4 pulse_color : source_color = vec4(1.0, 0.2, 0.1, 1.0);
+uniform float pulse_mix = 0.0;
+uniform float time = 0.0;
+
+varying vec3 local_pos;
+
+float hash(vec3 p) {
+	return fract(sin(dot(p, vec3(31.17, 53.31, 97.77))) * 43758.5453);
+}
+
+void vertex() {
+	local_pos = VERTEX;
+}
+
+void fragment() {
+	vec3 dir = normalize(local_pos);
+	float grain = hash(floor((dir + vec3(time * 0.035, -time * 0.02, time * 0.025)) * 18.0));
+	float fresnel = pow(1.0 - clamp(dot(normalize(NORMAL), VIEW), 0.0, 1.0), 2.1);
+	vec3 color = mix(core_color.rgb, pulse_color.rgb, pulse_mix * 0.28);
+	ALBEDO = color * (0.72 + grain * 0.12);
+	ROUGHNESS = 0.46;
+	METALLIC = 0.0;
+	EMISSION = color * (0.34 + fresnel * 0.62 + pulse_mix * 0.45);
+	ALPHA = 1.0;
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	material.set_shader_parameter("core_color", Color(0.045, 0.05, 0.06, 1.0))
+	material.set_shader_parameter("pulse_color", Color(1.0, 0.2, 0.1, 1.0))
+	material.set_shader_parameter("pulse_mix", 0.0)
+	material.set_shader_parameter("time", 0.0)
+	return material
+
+
+func _setup_cracked_shell() -> void:
+	_shell_cuts.clear()
+	_build_shell_cell_cache()
+	_shell_mesh = MeshInstance3D.new()
+	_shell_mesh.name = "CrackedShellMesh"
+	_shell_material = _create_shell_material()
+	_shell_mesh.material_override = _shell_material
+	model_root.add_child(_shell_mesh)
+	_rebuild_cracked_shell()
+
+
+func _build_shell_cell_cache() -> void:
+	var cell_count: int = shell_latitude_segments * shell_longitude_segments
+	_shell_cut_cells.clear()
+	_shell_cut_cells.resize(cell_count)
+	_shell_cell_dirs.clear()
+	_shell_cell_dirs.resize(cell_count)
+	for y in range(shell_latitude_segments):
+		var theta: float = PI * (float(y) + 0.5) / float(shell_latitude_segments)
+		for x in range(shell_longitude_segments):
+			var phi: float = TAU * (float(x) + 0.5) / float(shell_longitude_segments)
+			var index: int = _shell_cell_index(y, x)
+			_shell_cut_cells[index] = false
+			_shell_cell_dirs[index] = _spherical_dir(theta, phi)
+
+
+func _create_shell_material() -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color(0.014, 0.013, 0.016, 1.0)
+	material.roughness = 0.88
+	material.metallic = 0.03
+	material.emission_enabled = true
+	material.emission = Color(0.015, 0.018, 0.022, 1.0)
+	material.emission_energy_multiplier = 0.2
+	return material
+
+
+func _rebuild_cracked_shell() -> void:
+	if _shell_mesh == null or not is_instance_valid(_shell_mesh):
+		return
+	_shell_mesh.mesh = _build_cracked_shell_mesh()
+
+
+func _build_cracked_shell_mesh() -> ArrayMesh:
+	var vertices: PackedVector3Array = PackedVector3Array()
+	var normals: PackedVector3Array = PackedVector3Array()
+	var uvs: PackedVector2Array = PackedVector2Array()
+	var indices: PackedInt32Array = PackedInt32Array()
+
+	for y in range(shell_latitude_segments):
+		for x in range(shell_longitude_segments):
+			if _is_shell_cell_cut(y, x):
+				continue
+			var d00: Vector3 = _grid_shell_dir(y, x)
+			var d10: Vector3 = _grid_shell_dir(y, x + 1)
+			var d01: Vector3 = _grid_shell_dir(y + 1, x)
+			var d11: Vector3 = _grid_shell_dir(y + 1, x + 1)
+			_append_shell_quad(vertices, normals, uvs, indices, d00, d10, d11, d01, left_sphere_radius, true)
+			_append_shell_quad(vertices, normals, uvs, indices, d01, d11, d10, d00, left_sphere_radius - shell_thickness, false)
+
+			if _is_shell_cell_cut(y, x - 1):
+				_append_shell_wall(vertices, normals, uvs, indices, d00, d01)
+			if _is_shell_cell_cut(y, x + 1):
+				_append_shell_wall(vertices, normals, uvs, indices, d10, d11)
+			if y == 0 or _is_shell_cell_cut(y - 1, x):
+				_append_shell_wall(vertices, normals, uvs, indices, d00, d10)
+			if y == shell_latitude_segments - 1 or _is_shell_cell_cut(y + 1, x):
+				_append_shell_wall(vertices, normals, uvs, indices, d01, d11)
+
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh: ArrayMesh = ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
+func _shell_cell_index(y: int, x: int) -> int:
+	return y * shell_longitude_segments + posmod(x, shell_longitude_segments)
+
+
+func _is_shell_cell_cut(y: int, x: int) -> bool:
+	if y < 0 or y >= shell_latitude_segments:
+		return false
+	return bool(_shell_cut_cells[_shell_cell_index(y, x)])
+
+
+func _grid_shell_dir(y: int, x: int) -> Vector3:
+	var theta: float = PI * float(y) / float(shell_latitude_segments)
+	var phi: float = TAU * float(x % shell_longitude_segments) / float(shell_longitude_segments)
+	return _spherical_dir(theta, phi)
+
+
+func _append_shell_quad(
+	vertices: PackedVector3Array,
+	normals: PackedVector3Array,
+	uvs: PackedVector2Array,
+	indices: PackedInt32Array,
+	d0: Vector3,
+	d1: Vector3,
+	d2: Vector3,
+	d3: Vector3,
+	radius: float,
+	outer: bool
+) -> void:
+	var base: int = vertices.size()
+	var n0: Vector3 = d0 if outer else -d0
+	var n1: Vector3 = d1 if outer else -d1
+	var n2: Vector3 = d2 if outer else -d2
+	var n3: Vector3 = d3 if outer else -d3
+	vertices.append(d0 * radius)
+	vertices.append(d1 * radius)
+	vertices.append(d2 * radius)
+	vertices.append(d3 * radius)
+	normals.append(n0)
+	normals.append(n1)
+	normals.append(n2)
+	normals.append(n3)
+	uvs.append(Vector2.ZERO)
+	uvs.append(Vector2.RIGHT)
+	uvs.append(Vector2.ONE)
+	uvs.append(Vector2.DOWN)
+	indices.append(base)
+	indices.append(base + 1)
+	indices.append(base + 2)
+	indices.append(base)
+	indices.append(base + 2)
+	indices.append(base + 3)
+
+
+func _append_shell_wall(
+	vertices: PackedVector3Array,
+	normals: PackedVector3Array,
+	uvs: PackedVector2Array,
+	indices: PackedInt32Array,
+	a: Vector3,
+	b: Vector3
+) -> void:
+	if a.distance_squared_to(b) < 0.000001:
+		return
+	var normal: Vector3 = (a + b).normalized()
+	var base: int = vertices.size()
+	vertices.append(a * left_sphere_radius)
+	vertices.append(b * left_sphere_radius)
+	vertices.append(b * (left_sphere_radius - shell_thickness))
+	vertices.append(a * (left_sphere_radius - shell_thickness))
+	normals.append(normal)
+	normals.append(normal)
+	normals.append(normal)
+	normals.append(normal)
+	uvs.append(Vector2.ZERO)
+	uvs.append(Vector2.RIGHT)
+	uvs.append(Vector2.ONE)
+	uvs.append(Vector2.DOWN)
+	indices.append(base)
+	indices.append(base + 1)
+	indices.append(base + 2)
+	indices.append(base)
+	indices.append(base + 2)
+	indices.append(base + 3)
+
+
+func _spherical_dir(theta: float, phi: float) -> Vector3:
+	return Vector3(
+		sin(theta) * cos(phi),
+		cos(theta),
+		sin(theta) * sin(phi)
+	).normalized()
 
 
 func _setup_right_panel() -> void:
@@ -815,47 +1140,354 @@ void fragment() {
 
 
 func _add_sphere_color_cloud(color: Color) -> void:
-	var local_dir := model_root.global_transform.basis.inverse() * Vector3(0.0, 0.0, 1.0)
-	local_dir = local_dir.normalized()
-	var center_uv := _direction_to_sphere_uv(local_dir)
-	var cloud := MeshInstance3D.new()
-	cloud.name = "ColorCloud_%d_%d" % [_stage_index, _collected_in_stage]
-	var mesh := SphereMesh.new()
-	mesh.radius = left_sphere_radius + 0.025
-	mesh.height = (left_sphere_radius + 0.025) * 2.0
-	mesh.radial_segments = 96
-	mesh.rings = 48
-	cloud.mesh = mesh
-	cloud.material_override = _create_color_cloud_material(color, center_uv)
-	model_root.add_child(cloud)
-	var material := cloud.material_override as ShaderMaterial
-	var tween := create_tween()
-	tween.set_parallel(true)
-	tween.tween_method(
-		func(value: float) -> void:
-			material.set_shader_parameter("progress", value),
-		0.0,
-		1.0,
-		0.55
+	var local_dir := _get_visible_sphere_local_direction()
+	_add_color_to_core(color)
+	var cut: Dictionary = _add_shell_cut(local_dir)
+	_add_core_color_patch(color, cut, crack_spread_sec)
+
+
+func _add_color_to_core(color: Color) -> void:
+	_core_color_accum.r += color.r
+	_core_color_accum.g += color.g
+	_core_color_accum.b += color.b
+	_core_color_count += 1
+	var inv := 1.0 / float(maxi(1, _core_color_count))
+	var mixed := Color(
+		clampf(_core_color_accum.r * inv, 0.0, 1.0),
+		clampf(_core_color_accum.g * inv, 0.0, 1.0),
+		clampf(_core_color_accum.b * inv, 0.0, 1.0),
+		1.0
 	)
+	mixed = mixed.lerp(color, 0.28)
+	if _core_material != null:
+		_core_material.set_shader_parameter("pulse_color", color)
+
+
+func _add_core_color_patch(color: Color, cut: Dictionary, spread_sec: float) -> void:
+	if _core_patch_root == null or not is_instance_valid(_core_patch_root):
+		return
+	var patch := MeshInstance3D.new()
+	patch.name = "CoreColorPatch_%d" % _core_color_count
+	patch.mesh = _build_core_color_patch_mesh(cut)
+	var material := _create_core_patch_material(color)
+	patch.material_override = material
+	_core_patch_root.add_child(patch)
+	patch.scale = Vector3.ONE * 0.12
+	var tween: Tween = create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(patch, "scale", Vector3.ONE, spread_sec).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_method(
+		func(alpha: float) -> void:
+			material.albedo_color = Color(color.r, color.g, color.b, alpha)
+			material.emission_energy_multiplier = lerpf(0.2, 1.7, alpha),
+		0.0,
+		0.92,
+		spread_sec
+	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+
+func _build_core_color_patch_mesh(cut: Dictionary) -> ArrayMesh:
+	var vertices: PackedVector3Array = PackedVector3Array()
+	var normals: PackedVector3Array = PackedVector3Array()
+	var uvs: PackedVector2Array = PackedVector2Array()
+	var indices: PackedInt32Array = PackedInt32Array()
+	var radius: float = _core_radius + 0.006
+	for y in range(shell_latitude_segments):
+		for x in range(shell_longitude_segments):
+			var index: int = _shell_cell_index(y, x)
+			var dir: Vector3 = _shell_cell_dirs[index]
+			if _does_cut_hit_direction(cut, dir, 1.0, core_dye_width_scale):
+				_append_core_patch_cell(vertices, normals, uvs, indices, y, x, radius)
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh: ArrayMesh = ArrayMesh.new()
+	if not vertices.is_empty():
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
+func _append_core_patch_cell(
+	vertices: PackedVector3Array,
+	normals: PackedVector3Array,
+	uvs: PackedVector2Array,
+	indices: PackedInt32Array,
+	y: int,
+	x: int,
+	radius: float
+) -> void:
+	var d00: Vector3 = _grid_shell_dir(y, x)
+	var d10: Vector3 = _grid_shell_dir(y, x + 1)
+	var d11: Vector3 = _grid_shell_dir(y + 1, x + 1)
+	var d01: Vector3 = _grid_shell_dir(y + 1, x)
+	var base: int = vertices.size()
+	vertices.append(d00 * radius)
+	vertices.append(d10 * radius)
+	vertices.append(d11 * radius)
+	vertices.append(d01 * radius)
+	normals.append(d00)
+	normals.append(d10)
+	normals.append(d11)
+	normals.append(d01)
+	uvs.append(Vector2.ZERO)
+	uvs.append(Vector2.RIGHT)
+	uvs.append(Vector2.ONE)
+	uvs.append(Vector2.DOWN)
+	indices.append(base)
+	indices.append(base + 1)
+	indices.append(base + 2)
+	indices.append(base)
+	indices.append(base + 2)
+	indices.append(base + 3)
+
+
+func _append_core_patch_disk(
+	vertices: PackedVector3Array,
+	normals: PackedVector3Array,
+	uvs: PackedVector2Array,
+	indices: PackedInt32Array,
+	center: Vector3,
+	tangent_a: Vector3,
+	tangent_b: Vector3,
+	radius_2d: float,
+	radius: float
+) -> void:
+	var base: int = vertices.size()
+	vertices.append(center * radius)
+	normals.append(center)
+	uvs.append(Vector2(0.5, 0.5))
+	var ring_count: int = 18
+	for i in range(ring_count):
+		var angle: float = TAU * float(i) / float(ring_count)
+		var offset: Vector2 = Vector2(cos(angle), sin(angle)) * radius_2d
+		var dir: Vector3 = _core_patch_dir(center, tangent_a, tangent_b, offset)
+		vertices.append(dir * radius)
+		normals.append(dir)
+		uvs.append(Vector2(0.5, 0.5) + offset)
+	for i in range(ring_count):
+		indices.append(base)
+		indices.append(base + 1 + i)
+		indices.append(base + 1 + ((i + 1) % ring_count))
+
+
+func _core_patch_dir(center: Vector3, tangent_a: Vector3, tangent_b: Vector3, offset: Vector2) -> Vector3:
+	return (center + tangent_a * offset.x + tangent_b * offset.y).normalized()
+
+
+func _create_core_patch_material(color: Color) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = Color(color.r, color.g, color.b, 0.92)
+	material.emission_enabled = true
+	material.emission = color
+	material.emission_energy_multiplier = 1.7
+	return material
+
+
+func _add_shell_cut(local_dir: Vector3) -> Dictionary:
+	var center_dir: Vector3 = local_dir.normalized()
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.randomize()
+	var cut: Dictionary = _create_shell_cut(center_dir, rng)
+	_shell_cuts.append(cut)
+	_crack_surface_dirs.append(center_dir)
+	_animate_shell_cut(cut, crack_spread_sec)
+	return cut
+
+
+func _animate_shell_cut(cut: Dictionary, spread_sec: float) -> void:
+	var step_count: int = 12
+	for step in range(1, step_count + 1):
+		var progress: float = float(step) / float(step_count)
+		var delay: float = spread_sec * float(step - 1) / float(step_count)
+		var timer := get_tree().create_timer(delay)
+		timer.timeout.connect(
+			func() -> void:
+				_apply_shell_cut_to_cells(cut, progress)
+				_rebuild_cracked_shell(),
+			CONNECT_ONE_SHOT
+		)
+
+
+func _create_shell_cut(center_dir: Vector3, rng: RandomNumberGenerator) -> Dictionary:
+	var basis: Array[Vector3] = _build_crack_basis(center_dir)
+	var tangent_a: Vector3 = basis[0]
+	var tangent_b: Vector3 = basis[1]
+	var pattern: int = rng.randi_range(1, 3)
+	var segments: Array[Dictionary] = _generate_shell_cut_segments(pattern, rng)
+	var cavity_radius: float = shell_crack_open_radius * rng.randf_range(0.28, 0.55)
+	var max_radius: float = cavity_radius
+	var avoid_turn: float = float(_count_nearby_crack_dirs(center_dir, 0.34)) * 0.43
+	for i in range(segments.size()):
+		var segment: Dictionary = segments[i]
+		var a: Vector2 = segment["a"] as Vector2
+		var b: Vector2 = segment["b"] as Vector2
+		var rotated_a: Vector2 = a.rotated(avoid_turn)
+		var rotated_b: Vector2 = b.rotated(avoid_turn)
+		segment["a"] = rotated_a
+		segment["b"] = rotated_b
+		segment["reveal_start"] = clampf(rotated_a.length() / maxf(crack_max_angular_length, 0.001), 0.0, 1.0)
+		segment["reveal_end"] = clampf(rotated_b.length() / maxf(crack_max_angular_length, 0.001), 0.0, 1.0)
+		max_radius = maxf(max_radius, maxf(rotated_a.length(), rotated_b.length()) + float(segment["width"]))
+		segments[i] = segment
+	return {
+		"center": center_dir,
+		"tangent_a": tangent_a,
+		"tangent_b": tangent_b,
+		"segments": segments,
+		"cavity_radius": cavity_radius,
+		"max_radius": max_radius,
+	}
+
+
+func _generate_shell_cut_segments(pattern: int, rng: RandomNumberGenerator) -> Array[Dictionary]:
+	var segments: Array[Dictionary] = []
+	var start_angle: float = rng.randf_range(0.0, TAU)
+	var trunk_count: int = 1
+
+	for trunk_index in range(trunk_count):
+		var angle: float = start_angle + rng.randf_range(-0.25, 0.25)
+		if trunk_count > 1:
+			angle += TAU * float(trunk_index) / float(trunk_count) + rng.randf_range(-0.16, 0.16)
+		if pattern == 2:
+			angle += PI * float(trunk_index) / float(maxi(1, trunk_count))
+		var heading: Vector2 = Vector2(cos(angle), sin(angle)).normalized()
+		var pos: Vector2 = heading * rng.randf_range(0.014, 0.028)
+		var previous: Vector2 = Vector2.ZERO
+		var segment_count: int = rng.randi_range(7, 12)
+		var branch_length: float = crack_max_angular_length * rng.randf_range(0.82, 1.22)
+		if pattern == 1 and trunk_index == 0:
+			segment_count = rng.randi_range(11, 16)
+			branch_length *= 1.32
+		for step_index in range(segment_count):
+			var turn: float = rng.randf_range(-0.32, 0.32)
+			if pattern == 2:
+				turn += sin(float(step_index) * 1.4 + start_angle) * 0.18
+			heading = heading.rotated(turn).normalized()
+			var step_length: float = branch_length / float(segment_count) * rng.randf_range(0.76, 1.24)
+			pos += heading * step_length
+			pos += Vector2(-heading.y, heading.x) * rng.randf_range(-0.014, 0.014)
+			var progress: float = float(step_index) / float(maxi(1, segment_count - 1))
+			var width: float = crack_dark_width * lerpf(0.78, 0.30, progress) * rng.randf_range(0.82, 1.10)
+			segments.append({"a": previous, "b": pos, "width": width})
+
+			if step_index >= 3 and rng.randf() < 0.28:
+				_append_shell_cut_fork(segments, pos, heading, rng, progress)
+			previous = pos
+
+	var extra_forks: int = crack_primary_branch_count + rng.randi_range(-1, 2)
+	for fork_index in range(maxi(0, extra_forks)):
+		if segments.is_empty():
+			break
+		var source: Dictionary = segments[rng.randi_range(0, segments.size() - 1)]
+		var source_a: Vector2 = source["a"] as Vector2
+		var source_b: Vector2 = source["b"] as Vector2
+		var source_pos: Vector2 = source_a.lerp(source_b, rng.randf_range(0.35, 0.90))
+		var source_heading: Vector2 = (source_b - source_a).normalized()
+		if source_heading.length_squared() <= 0.000001:
+			source_heading = Vector2(cos(start_angle), sin(start_angle))
+		_append_shell_cut_fork(segments, source_pos, source_heading, rng, rng.randf_range(0.4, 0.9))
+	return segments
+
+
+func _append_shell_cut_fork(
+	segments: Array[Dictionary],
+	start_pos: Vector2,
+	source_heading: Vector2,
+	rng: RandomNumberGenerator,
+	progress: float
+) -> void:
+	var fork_heading: Vector2 = source_heading.rotated((1.0 if rng.randf() > 0.5 else -1.0) * rng.randf_range(0.54, 1.18)).normalized()
+	var previous: Vector2 = start_pos
+	var fork_steps: int = rng.randi_range(3, 6)
+	var fork_length: float = crack_max_angular_length * rng.randf_range(0.18, 0.42) * (1.08 - progress * 0.35)
+	for fork_step in range(fork_steps):
+		fork_heading = fork_heading.rotated(rng.randf_range(-0.34, 0.34)).normalized()
+		var fork_pos: Vector2 = previous + fork_heading * (fork_length / float(fork_steps)) * rng.randf_range(0.74, 1.24)
+		var fork_progress: float = float(fork_step) / float(maxi(1, fork_steps - 1))
+		var fork_width: float = crack_dark_width * lerpf(0.58, 0.24, fork_progress) * rng.randf_range(0.82, 1.14)
+		segments.append({"a": previous, "b": fork_pos, "width": fork_width})
+		previous = fork_pos
+
+
+func _apply_shell_cut_to_cells(cut: Dictionary, progress: float = 1.0) -> void:
+	for i in range(_shell_cell_dirs.size()):
+		if bool(_shell_cut_cells[i]):
+			continue
+		if _does_cut_hit_direction(cut, _shell_cell_dirs[i], progress):
+			_shell_cut_cells[i] = true
+
+
+func _does_cut_hit_direction(cut: Dictionary, dir: Vector3, progress: float = 1.0) -> bool:
+	var center: Vector3 = cut["center"] as Vector3
+	var angle: float = center.angle_to(dir)
+	var max_radius: float = float(cut.get("max_radius", crack_max_angular_length))
+	if angle > max_radius:
+		return false
+	var cavity_radius: float = float(cut["cavity_radius"])
+	if progress > 0.02 and angle < cavity_radius:
+		return true
+	var tangent_a: Vector3 = cut["tangent_a"] as Vector3
+	var tangent_b: Vector3 = cut["tangent_b"] as Vector3
+	var center_dot: float = maxf(0.28, dir.dot(center))
+	var point: Vector2 = Vector2(dir.dot(tangent_a), dir.dot(tangent_b)) / center_dot
+	var segments: Array = cut["segments"] as Array
+	for segment_variant in segments:
+		var segment: Dictionary = segment_variant as Dictionary
+		var reveal_start: float = float(segment.get("reveal_start", 0.0))
+		var reveal_end: float = float(segment.get("reveal_end", 1.0))
+		if progress < reveal_start:
+			continue
+		var a: Vector2 = segment["a"] as Vector2
+		var b: Vector2 = segment["b"] as Vector2
+		if progress < reveal_end:
+			var span: float = maxf(0.001, reveal_end - reveal_start)
+			var local_progress: float = clampf((progress - reveal_start) / span, 0.0, 1.0)
+			b = a.lerp(b, local_progress)
+		var width: float = float(segment["width"])
+		if _distance_to_cut_segment(point, a, b) <= width:
+			return true
+	return false
+
+
+func _distance_to_cut_segment(point: Vector2, a: Vector2, b: Vector2) -> float:
+	var ab: Vector2 = b - a
+	var length_squared: float = ab.length_squared()
+	if length_squared <= 0.000001:
+		return point.distance_to(a)
+	var t: float = clampf((point - a).dot(ab) / length_squared, 0.0, 1.0)
+	return point.distance_to(a + ab * t)
+
+
+func _build_crack_basis(center_dir: Vector3) -> Array[Vector3]:
+	var reference := Vector3.UP
+	if abs(center_dir.dot(reference)) > 0.88:
+		reference = Vector3.RIGHT
+	var tangent_a := center_dir.cross(reference).normalized()
+	var tangent_b := tangent_a.cross(center_dir).normalized()
+	return [tangent_a, tangent_b]
+
+
+func _count_nearby_crack_dirs(center_dir: Vector3, angular_threshold: float) -> int:
+	var count := 0
+	for dir in _crack_surface_dirs:
+		if center_dir.angle_to(dir) < angular_threshold:
+			count += 1
+	return count
 
 
 func _pulse_sphere(color: Color) -> void:
 	_pulse_color = color
 	_pulse_mix = 1.0
-	_sphere_material.emission_energy_multiplier = 1.45
 
 	var tween := create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(model_root, "scale", Vector3.ONE * 1.045, 0.10).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tween.chain().tween_property(model_root, "scale", Vector3.ONE, 0.22).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	tween.tween_method(
-		func(value: float) -> void:
-			_sphere_material.emission_energy_multiplier = value,
-		1.45,
-		0.45,
-		0.42
-	)
 
 
 func _start_stage_complete_transition() -> void:
@@ -1068,40 +1700,12 @@ func _set_view_uv_for_tween(value: Vector2) -> void:
 	_update_art_canvas_transform()
 
 
-func _direction_to_sphere_uv(direction: Vector3) -> Vector2:
-	var u := atan2(direction.z, direction.x) / TAU + 0.5
-	var v := acos(clampf(direction.y, -1.0, 1.0)) / PI
-	return Vector2(u, v)
-
-
-func _create_color_cloud_material(color: Color, center_uv: Vector2) -> ShaderMaterial:
-	var shader := Shader.new()
-	shader.code = """
-shader_type spatial;
-render_mode blend_mix, cull_disabled, unshaded, depth_prepass_alpha;
-
-uniform vec4 cloud_color : source_color = vec4(1.0, 0.1, 0.1, 1.0);
-uniform vec2 center_uv = vec2(0.5, 0.5);
-uniform float progress = 0.0;
-uniform float radius = 0.23;
-uniform float softness = 0.22;
-
-void fragment() {
-	vec2 uv = UV;
-	float dx = abs(uv.x - center_uv.x);
-	dx = min(dx, 1.0 - dx);
-	float dy = uv.y - center_uv.y;
-	float d = length(vec2(dx, dy));
-	float stain = 1.0 - smoothstep(radius, radius + softness, d);
-	float feather = smoothstep(0.0, 0.7, progress);
-	ALBEDO = cloud_color.rgb;
-	EMISSION = cloud_color.rgb * (0.55 + 1.4 * (1.0 - progress));
-	ALPHA = stain * feather * 0.72;
-}
-"""
-	var material := ShaderMaterial.new()
-	material.shader = shader
-	material.set_shader_parameter("cloud_color", color)
-	material.set_shader_parameter("center_uv", center_uv)
-	material.set_shader_parameter("progress", 0.0)
-	return material
+func _get_visible_sphere_local_direction() -> Vector3:
+	if left_camera == null or not is_instance_valid(left_camera):
+		return Vector3(0.0, 0.0, 1.0)
+	var center := model_root.global_transform.origin
+	var camera_pos := left_camera.global_transform.origin
+	var world_dir := camera_pos - center
+	if world_dir.length_squared() <= 0.0001:
+		return Vector3(0.0, 0.0, 1.0)
+	return (model_root.global_transform.basis.inverse() * world_dir.normalized()).normalized()
