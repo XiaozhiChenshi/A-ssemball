@@ -8,6 +8,8 @@ const PAINTING_TEXTURES: Array[Texture2D] = [
 	preload("res://assets/ui/chapter_3/left_2.png"),
 	preload("res://assets/ui/chapter_3/left_3.png"),
 ]
+const PAINT_ROLL_COLOR_TEXTURE: Texture2D = preload("res://assets/ui/chapter_3/giving/right_4_color.png")
+const PAINT_ROLL_BW_TEXTURE: Texture2D = preload("res://assets/ui/chapter_3/giving/right_4_bw.png")
 const ColorReticleRef = preload("res://scripts/levels/chapter_3/color_reticle.gd")
 
 @export var chapter_index: int = 3
@@ -44,14 +46,21 @@ const ColorReticleRef = preload("res://scripts/levels/chapter_3/color_reticle.gd
 @export_range(0.18, 1.35, 0.005) var crack_max_angular_length: float = 0.96
 @export_range(0.025, 0.16, 0.001) var crack_dark_width: float = 0.058
 @export_range(0.006, 0.07, 0.001) var shell_crack_open_radius: float = 0.012
-@export_range(1.0, 2.0, 0.05) var crack_spread_sec: float = 1.25
+@export_range(1.0, 2.4, 0.05) var crack_spread_sec: float = 1.75
 @export_range(1.4, 4.5, 0.05) var core_dye_width_scale: float = 3.2
+@export_range(10.0, 20.0, 0.1) var final_reveal_sec: float = 12.0
+@export_range(0.12, 0.32, 0.005) var paint_roll_ball_screen_scale: float = 0.20
+@export_range(0.02, 0.16, 0.002) var paint_roll_brush_radius_uv: float = 0.055
+@export_range(0.04, 0.32, 0.005) var paint_roll_speed_uv: float = 0.14
+@export_range(0.8, 1.8, 0.01) var paint_roll_canvas_zoom: float = 1.22
+@export_range(0.72, 0.98, 0.01) var paint_roll_complete_threshold: float = 0.90
 @export_range(24, 72, 1) var shell_latitude_segments: int = 56
 @export_range(48, 144, 1) var shell_longitude_segments: int = 112
 @export_range(0.01, 0.16, 0.001) var shell_thickness: float = 0.055
 
 @onready var chapter_split: HSplitContainer = $ChapterSplit
 @onready var left_3d: SubViewportContainer = $ChapterSplit/Left3D
+@onready var left_viewport: SubViewport = $ChapterSplit/Left3D/LeftViewport
 @onready var model_root: Node3D = $ChapterSplit/Left3D/LeftViewport/World3D/ModelRoot
 @onready var sphere_mesh: MeshInstance3D = $ChapterSplit/Left3D/LeftViewport/World3D/ModelRoot/Sphere
 @onready var left_camera: Camera3D = $ChapterSplit/Left3D/LeftViewport/World3D/Camera3D
@@ -89,17 +98,53 @@ var _color_flow_time: float = 0.0
 var _pulse_color: Color = Color(0.86, 0.18, 0.14, 1.0)
 var _pulse_mix: float = 0.0
 var _crack_surface_dirs: Array[Vector3] = []
-var _shell_mesh: MeshInstance3D
-var _shell_material: StandardMaterial3D
+var _shell_root: Node3D
+var _shell_chunks: Array[MeshInstance3D] = []
+var _shell_cell_to_chunk: Array[int] = []
+var _shell_rebuild_queue: Array[int] = []
+var _shell_rebuild_queued: Dictionary = {}
+var _shell_chunk_cols: int = 1
+var _shell_chunk_rows: int = 1
+var _shell_chunk_cell_size: int = 14
+var _shell_material: ShaderMaterial
 var _shell_cuts: Array[Dictionary] = []
 var _shell_cut_cells: Array[bool] = []
 var _shell_cell_dirs: Array[Vector3] = []
 var _core_mesh: MeshInstance3D
 var _core_material: ShaderMaterial
-var _core_patch_root: Node3D
 var _core_radius: float = 0.0
+var _core_dye_image: Image
+var _core_dye_texture: ImageTexture
+var _core_dye_mask_size: Vector2i = Vector2i(256, 128)
+var _core_dye_queue: Array[Dictionary] = []
+var _core_dye_upload_pending: bool = false
+var _active_crack_emitters: Array[Dictionary] = []
+var _overflow_emit_timer: float = 0.0
+var _final_reveal_running: bool = false
+var _final_reveal_elapsed: float = 0.0
+var _final_break_cursor: int = 0
+var _final_break_order: Array[int] = []
+var _final_detached_chunks: Dictionary = {}
+var _final_detach_tween_count: int = 0
 var _core_color_accum: Color = Color(0.0, 0.0, 0.0, 1.0)
 var _core_color_count: int = 0
+var _core_flow_palette: Array[Color] = []
+var _paint_roll_root: Control
+var _paint_roll_canvas: Control
+var _paint_roll_bw: TextureRect
+var _paint_roll_color: TextureRect
+var _paint_roll_material: ShaderMaterial
+var _paint_roll_mask_image: Image
+var _paint_roll_mask_texture: ImageTexture
+var _paint_roll_mask_size: Vector2i = Vector2i(512, 512)
+var _paint_roll_source_image: Image
+var _paint_roll_view_uv: Vector2 = Vector2(0.5, 0.5)
+var _paint_roll_running: bool = false
+var _paint_roll_completion_timer: float = 0.0
+var _paint_roll_canvas_size: Vector2 = Vector2.ZERO
+var _paint_roll_finished: bool = false
+var _paint_roll_ball_diameter_px: float = 160.0
+var _paint_roll_sphere_fill_ratio: float = 0.52
 
 
 func _ready() -> void:
@@ -107,11 +152,16 @@ func _ready() -> void:
 	_setup_sphere_material()
 	_setup_right_panel()
 	_setup_fx_layer()
+	_setup_paint_roll_scene()
 	_apply_stage(0, true)
 
 
 func _process(delta: float) -> void:
 	_update_left_color_flow(delta)
+	_process_shell_rebuild_queue()
+	_process_core_dye_queue()
+	_update_crack_overflow_emitters(delta)
+	_update_final_shell_reveal(delta)
 	_update_idle_rotation(delta)
 	_update_rotation_and_reticle(delta)
 	_update_collect_cooldown(delta)
@@ -312,9 +362,7 @@ func _setup_color_core() -> void:
 	_core_material = _create_color_core_material()
 	_core_mesh.material_override = _core_material
 	model_root.add_child(_core_mesh)
-	_core_patch_root = Node3D.new()
-	_core_patch_root.name = "CoreColorPatches"
-	model_root.add_child(_core_patch_root)
+	_setup_core_dye_mask()
 
 
 func _create_color_core_material() -> ShaderMaterial:
@@ -325,6 +373,12 @@ render_mode blend_mix, cull_back, depth_draw_opaque;
 
 uniform vec4 core_color : source_color = vec4(0.05, 0.055, 0.065, 1.0);
 uniform vec4 pulse_color : source_color = vec4(1.0, 0.2, 0.1, 1.0);
+uniform sampler2D dye_mask : source_color;
+uniform vec4 flow_color_0 : source_color = vec4(0.9, 0.12, 0.08, 1.0);
+uniform vec4 flow_color_1 : source_color = vec4(0.1, 0.36, 0.9, 1.0);
+uniform vec4 flow_color_2 : source_color = vec4(0.96, 0.72, 0.12, 1.0);
+uniform vec4 flow_color_3 : source_color = vec4(0.18, 0.62, 0.34, 1.0);
+uniform float fill_progress = 0.0;
 uniform float pulse_mix = 0.0;
 uniform float time = 0.0;
 
@@ -334,19 +388,81 @@ float hash(vec3 p) {
 	return fract(sin(dot(p, vec3(31.17, 53.31, 97.77))) * 43758.5453);
 }
 
+float wave(vec3 p, float offset) {
+	return 0.5 + 0.5 * sin(dot(p, vec3(2.7, 4.1, 3.3)) + offset);
+}
+
+vec2 sphere_uv(vec3 dir) {
+	return vec2(fract(atan(dir.z, dir.x) / 6.2831853), acos(clamp(dir.y, -1.0, 1.0)) / 3.1415926);
+}
+
+vec2 safe_uv(vec2 uv) {
+	return vec2(fract(uv.x), clamp(uv.y, 0.002, 0.998));
+}
+
+vec3 palette_flow(vec3 dir) {
+	float a = wave(dir, time * 0.32 + wave(dir.zxy, time * -0.21) * 1.7);
+	float b = wave(dir.yzx, time * -0.27 + 2.1);
+	float c = wave(dir.zxy + vec3(a * 0.12, b * 0.09, 0.0), time * 0.18 - 0.8);
+	vec3 first = mix(flow_color_0.rgb, flow_color_1.rgb, smoothstep(0.18, 0.86, a));
+	vec3 second = mix(flow_color_2.rgb, flow_color_3.rgb, smoothstep(0.15, 0.88, b));
+	return mix(first, second, smoothstep(0.12, 0.92, c));
+}
+
+vec4 sample_flowing_dye(vec2 uv, vec3 dir, float spread) {
+	vec2 drift_a = vec2(
+		sin(time * 0.19 + dir.y * 4.3 + dir.z * 2.1),
+		cos(time * 0.16 + dir.x * 3.7 - dir.y * 1.8)
+	) * spread;
+	vec2 drift_b = vec2(
+		cos(time * 0.13 - dir.z * 3.8 + dir.x * 1.4),
+		sin(time * 0.15 + dir.y * 2.5 + 1.7)
+	) * spread * 0.72;
+	vec4 d0 = texture(dye_mask, safe_uv(uv));
+	vec4 d1 = texture(dye_mask, safe_uv(uv + drift_a));
+	vec4 d2 = texture(dye_mask, safe_uv(uv - drift_a * 0.78));
+	vec4 d3 = texture(dye_mask, safe_uv(uv + drift_b));
+	vec4 d4 = texture(dye_mask, safe_uv(uv - drift_b * 1.18));
+	float weight = d0.a * 1.55 + d1.a + d2.a + d3.a * 0.82 + d4.a * 0.82;
+	if (weight <= 0.001) {
+		return vec4(0.0);
+	}
+	vec3 color = (
+		d0.rgb * d0.a * 1.55 +
+		d1.rgb * d1.a +
+		d2.rgb * d2.a +
+		d3.rgb * d3.a * 0.82 +
+		d4.rgb * d4.a * 0.82
+	) / weight;
+	return vec4(color, clamp(weight / 3.2, 0.0, 1.0));
+}
+
 void vertex() {
 	local_pos = VERTEX;
 }
 
 void fragment() {
 	vec3 dir = normalize(local_pos);
-	float grain = hash(floor((dir + vec3(time * 0.035, -time * 0.02, time * 0.025)) * 18.0));
+	vec2 dye_uv = sphere_uv(dir);
+	vec4 dye = texture(dye_mask, dye_uv);
+	float progress = smoothstep(0.0, 1.0, fill_progress);
+	float liquid = smoothstep(0.10, 0.82, progress);
+	float spread = mix(0.002, 0.115, liquid);
+	vec4 flowing_dye = sample_flowing_dye(dye_uv, dir, spread);
+	vec3 palette = palette_flow(dir);
+	float grain = hash(floor((dir + vec3(time * 0.025, -time * 0.017, time * 0.021)) * 28.0));
 	float fresnel = pow(1.0 - clamp(dot(normalize(NORMAL), VIEW), 0.0, 1.0), 2.1);
-	vec3 color = mix(core_color.rgb, pulse_color.rgb, pulse_mix * 0.28);
-	ALBEDO = color * (0.72 + grain * 0.12);
+	vec3 base_color = mix(core_color.rgb, pulse_color.rgb, pulse_mix * 0.12);
+	vec3 anchored_color = mix(base_color, dye.rgb, clamp(dye.a, 0.0, 1.0));
+	vec3 advected_color = mix(anchored_color, flowing_dye.rgb, flowing_dye.a * liquid);
+	float late_fill = smoothstep(0.34, 1.0, progress);
+	float open_coverage = max(dye.a, max(flowing_dye.a * liquid, late_fill));
+	vec3 filled_color = mix(advected_color, palette, max(0.0, late_fill - flowing_dye.a * 0.65));
+	vec3 color = mix(base_color, filled_color, clamp(open_coverage, 0.0, 1.0));
+	ALBEDO = color * (0.76 + grain * 0.045);
 	ROUGHNESS = 0.46;
 	METALLIC = 0.0;
-	EMISSION = color * (0.34 + fresnel * 0.62 + pulse_mix * 0.45);
+	EMISSION = color * (0.38 + fresnel * 0.72 + pulse_mix * 0.45 + liquid * 0.16);
 	ALPHA = 1.0;
 }
 """
@@ -354,19 +470,32 @@ void fragment() {
 	material.shader = shader
 	material.set_shader_parameter("core_color", Color(0.045, 0.05, 0.06, 1.0))
 	material.set_shader_parameter("pulse_color", Color(1.0, 0.2, 0.1, 1.0))
+	material.set_shader_parameter("flow_color_0", Color(0.9, 0.12, 0.08, 1.0))
+	material.set_shader_parameter("flow_color_1", Color(0.1, 0.36, 0.9, 1.0))
+	material.set_shader_parameter("flow_color_2", Color(0.96, 0.72, 0.12, 1.0))
+	material.set_shader_parameter("flow_color_3", Color(0.18, 0.62, 0.34, 1.0))
+	material.set_shader_parameter("fill_progress", 0.0)
 	material.set_shader_parameter("pulse_mix", 0.0)
 	material.set_shader_parameter("time", 0.0)
 	return material
 
 
+func _setup_core_dye_mask() -> void:
+	_core_dye_image = Image.create(_core_dye_mask_size.x, _core_dye_mask_size.y, false, Image.FORMAT_RGBA8)
+	_core_dye_image.fill(Color(0.0, 0.0, 0.0, 0.0))
+	_core_dye_texture = ImageTexture.create_from_image(_core_dye_image)
+	if _core_material != null:
+		_core_material.set_shader_parameter("dye_mask", _core_dye_texture)
+
+
 func _setup_cracked_shell() -> void:
 	_shell_cuts.clear()
 	_build_shell_cell_cache()
-	_shell_mesh = MeshInstance3D.new()
-	_shell_mesh.name = "CrackedShellMesh"
 	_shell_material = _create_shell_material()
-	_shell_mesh.material_override = _shell_material
-	model_root.add_child(_shell_mesh)
+	_shell_root = Node3D.new()
+	_shell_root.name = "CrackedShellChunks"
+	model_root.add_child(_shell_root)
+	_setup_shell_chunks()
 	_rebuild_cracked_shell()
 
 
@@ -376,6 +505,10 @@ func _build_shell_cell_cache() -> void:
 	_shell_cut_cells.resize(cell_count)
 	_shell_cell_dirs.clear()
 	_shell_cell_dirs.resize(cell_count)
+	_shell_cell_to_chunk.clear()
+	_shell_cell_to_chunk.resize(cell_count)
+	_shell_chunk_cols = ceili(float(shell_longitude_segments) / float(_shell_chunk_cell_size))
+	_shell_chunk_rows = ceili(float(shell_latitude_segments) / float(_shell_chunk_cell_size))
 	for y in range(shell_latitude_segments):
 		var theta: float = PI * (float(y) + 0.5) / float(shell_latitude_segments)
 		for x in range(shell_longitude_segments):
@@ -383,64 +516,136 @@ func _build_shell_cell_cache() -> void:
 			var index: int = _shell_cell_index(y, x)
 			_shell_cut_cells[index] = false
 			_shell_cell_dirs[index] = _spherical_dir(theta, phi)
+			_shell_cell_to_chunk[index] = _shell_chunk_index_for_cell(y, x)
 
 
-func _create_shell_material() -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.014, 0.013, 0.016, 1.0)
-	material.roughness = 0.88
-	material.metallic = 0.03
-	material.emission_enabled = true
-	material.emission = Color(0.015, 0.018, 0.022, 1.0)
-	material.emission_energy_multiplier = 0.2
+func _setup_shell_chunks() -> void:
+	_shell_chunks.clear()
+	var chunk_count: int = _shell_chunk_rows * _shell_chunk_cols
+	for chunk_index in range(chunk_count):
+		var chunk := MeshInstance3D.new()
+		chunk.name = "CrackedShellChunk_%03d" % chunk_index
+		chunk.material_override = _shell_material
+		_shell_root.add_child(chunk)
+		_shell_chunks.append(chunk)
+
+
+func _create_shell_material() -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type spatial;
+render_mode cull_back, depth_draw_opaque;
+
+void fragment() {
+	float wall = clamp(COLOR.r, 0.0, 1.0);
+	float inner = clamp(COLOR.g, 0.0, 1.0);
+	vec3 outer_color = vec3(0.014, 0.013, 0.016);
+	vec3 inner_color = vec3(0.006, 0.006, 0.008);
+	vec3 wall_color = vec3(0.018, 0.015, 0.020);
+	vec3 color = mix(outer_color, inner_color, inner);
+	color = mix(color, wall_color, wall);
+	ALBEDO = color;
+	ROUGHNESS = mix(0.88, 0.97, wall);
+	METALLIC = 0.025;
+	EMISSION = vec3(0.012, 0.015, 0.020) + vec3(0.030, 0.045, 0.065) * wall;
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
 	return material
 
 
 func _rebuild_cracked_shell() -> void:
-	if _shell_mesh == null or not is_instance_valid(_shell_mesh):
+	for chunk_index in range(_shell_chunks.size()):
+		_rebuild_shell_chunk(chunk_index)
+
+
+func _rebuild_shell_chunk(chunk_index: int) -> void:
+	if chunk_index < 0 or chunk_index >= _shell_chunks.size():
 		return
-	_shell_mesh.mesh = _build_cracked_shell_mesh()
+	var chunk := _shell_chunks[chunk_index]
+	if chunk == null or not is_instance_valid(chunk):
+		return
+	chunk.mesh = _build_shell_chunk_mesh(chunk_index)
 
 
-func _build_cracked_shell_mesh() -> ArrayMesh:
+func _rebuild_shell_chunks(chunk_indices: Array[int]) -> void:
+	for chunk_index in chunk_indices:
+		_enqueue_shell_chunk_rebuild(chunk_index)
+
+
+func _enqueue_shell_chunk_rebuild(chunk_index: int) -> void:
+	if chunk_index < 0 or chunk_index >= _shell_chunks.size():
+		return
+	if bool(_shell_rebuild_queued.get(chunk_index, false)):
+		return
+	_shell_rebuild_queued[chunk_index] = true
+	_shell_rebuild_queue.append(chunk_index)
+
+
+func _process_shell_rebuild_queue() -> void:
+	var budget: int = 1
+	while budget > 0 and not _shell_rebuild_queue.is_empty():
+		var chunk_index: int = int(_shell_rebuild_queue.pop_front())
+		_shell_rebuild_queued.erase(chunk_index)
+		_rebuild_shell_chunk(chunk_index)
+		budget -= 1
+
+
+func _build_shell_chunk_mesh(chunk_index: int) -> ArrayMesh:
 	var vertices: PackedVector3Array = PackedVector3Array()
 	var normals: PackedVector3Array = PackedVector3Array()
 	var uvs: PackedVector2Array = PackedVector2Array()
+	var colors: PackedColorArray = PackedColorArray()
 	var indices: PackedInt32Array = PackedInt32Array()
+	var chunk_col: int = chunk_index % _shell_chunk_cols
+	var chunk_row: int = int(chunk_index / _shell_chunk_cols)
+	var y0: int = chunk_row * _shell_chunk_cell_size
+	var y1: int = mini(shell_latitude_segments, y0 + _shell_chunk_cell_size)
+	var x0: int = chunk_col * _shell_chunk_cell_size
+	var x1: int = mini(shell_longitude_segments, x0 + _shell_chunk_cell_size)
 
-	for y in range(shell_latitude_segments):
-		for x in range(shell_longitude_segments):
+	for y in range(y0, y1):
+		for x in range(x0, x1):
 			if _is_shell_cell_cut(y, x):
 				continue
 			var d00: Vector3 = _grid_shell_dir(y, x)
 			var d10: Vector3 = _grid_shell_dir(y, x + 1)
 			var d01: Vector3 = _grid_shell_dir(y + 1, x)
 			var d11: Vector3 = _grid_shell_dir(y + 1, x + 1)
-			_append_shell_quad(vertices, normals, uvs, indices, d00, d10, d11, d01, left_sphere_radius, true)
-			_append_shell_quad(vertices, normals, uvs, indices, d01, d11, d10, d00, left_sphere_radius - shell_thickness, false)
+			_append_shell_quad(vertices, normals, uvs, colors, indices, d00, d10, d11, d01, left_sphere_radius, true)
+			_append_shell_quad(vertices, normals, uvs, colors, indices, d01, d11, d10, d00, left_sphere_radius - shell_thickness, false)
 
 			if _is_shell_cell_cut(y, x - 1):
-				_append_shell_wall(vertices, normals, uvs, indices, d00, d01)
+				_append_shell_wall(vertices, normals, uvs, colors, indices, d00, d01)
 			if _is_shell_cell_cut(y, x + 1):
-				_append_shell_wall(vertices, normals, uvs, indices, d10, d11)
+				_append_shell_wall(vertices, normals, uvs, colors, indices, d10, d11)
 			if y == 0 or _is_shell_cell_cut(y - 1, x):
-				_append_shell_wall(vertices, normals, uvs, indices, d00, d10)
+				_append_shell_wall(vertices, normals, uvs, colors, indices, d00, d10)
 			if y == shell_latitude_segments - 1 or _is_shell_cell_cut(y + 1, x):
-				_append_shell_wall(vertices, normals, uvs, indices, d01, d11)
+				_append_shell_wall(vertices, normals, uvs, colors, indices, d01, d11)
 
 	var arrays: Array = []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
 	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_COLOR] = colors
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	arrays[Mesh.ARRAY_INDEX] = indices
 	var mesh: ArrayMesh = ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	if not vertices.is_empty():
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
 
 
 func _shell_cell_index(y: int, x: int) -> int:
 	return y * shell_longitude_segments + posmod(x, shell_longitude_segments)
+
+
+func _shell_chunk_index_for_cell(y: int, x: int) -> int:
+	var chunk_col: int = clampi(int(posmod(x, shell_longitude_segments) / _shell_chunk_cell_size), 0, _shell_chunk_cols - 1)
+	var chunk_row: int = clampi(int(y / _shell_chunk_cell_size), 0, _shell_chunk_rows - 1)
+	return chunk_row * _shell_chunk_cols + chunk_col
 
 
 func _is_shell_cell_cut(y: int, x: int) -> bool:
@@ -459,6 +664,7 @@ func _append_shell_quad(
 	vertices: PackedVector3Array,
 	normals: PackedVector3Array,
 	uvs: PackedVector2Array,
+	colors: PackedColorArray,
 	indices: PackedInt32Array,
 	d0: Vector3,
 	d1: Vector3,
@@ -480,6 +686,11 @@ func _append_shell_quad(
 	normals.append(n1)
 	normals.append(n2)
 	normals.append(n3)
+	var surface_color: Color = Color(0.0, 0.0, 0.0, 1.0) if outer else Color(0.0, 1.0, 0.0, 1.0)
+	colors.append(surface_color)
+	colors.append(surface_color)
+	colors.append(surface_color)
+	colors.append(surface_color)
 	uvs.append(Vector2.ZERO)
 	uvs.append(Vector2.RIGHT)
 	uvs.append(Vector2.ONE)
@@ -496,6 +707,7 @@ func _append_shell_wall(
 	vertices: PackedVector3Array,
 	normals: PackedVector3Array,
 	uvs: PackedVector2Array,
+	colors: PackedColorArray,
 	indices: PackedInt32Array,
 	a: Vector3,
 	b: Vector3
@@ -512,6 +724,11 @@ func _append_shell_wall(
 	normals.append(normal)
 	normals.append(normal)
 	normals.append(normal)
+	var wall_color := Color(1.0, 0.0, 0.0, 1.0)
+	colors.append(wall_color)
+	colors.append(wall_color)
+	colors.append(wall_color)
+	colors.append(wall_color)
 	uvs.append(Vector2.ZERO)
 	uvs.append(Vector2.RIGHT)
 	uvs.append(Vector2.ONE)
@@ -629,6 +846,81 @@ func _setup_fx_layer() -> void:
 	add_child(_fx_layer)
 
 
+func _setup_paint_roll_scene() -> void:
+	_paint_roll_root = Control.new()
+	_paint_roll_root.name = "PaintRollStage"
+	_paint_roll_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_paint_roll_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_paint_roll_root.offset_left = 0.0
+	_paint_roll_root.offset_top = 0.0
+	_paint_roll_root.offset_right = 0.0
+	_paint_roll_root.offset_bottom = 0.0
+	_paint_roll_root.clip_contents = true
+	_paint_roll_root.modulate.a = 0.0
+	_paint_roll_root.visible = false
+	add_child(_paint_roll_root)
+
+	_paint_roll_canvas = Control.new()
+	_paint_roll_canvas.name = "RollingPaintingCanvas"
+	_paint_roll_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_paint_roll_root.add_child(_paint_roll_canvas)
+
+	_paint_roll_bw = TextureRect.new()
+	_paint_roll_bw.name = "BlackWhitePainting"
+	_paint_roll_bw.texture = PAINT_ROLL_BW_TEXTURE
+	_paint_roll_bw.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_paint_roll_bw.stretch_mode = TextureRect.STRETCH_SCALE
+	_paint_roll_bw.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_paint_roll_canvas.add_child(_paint_roll_bw)
+
+	_paint_roll_mask_image = Image.create(_paint_roll_mask_size.x, _paint_roll_mask_size.y, false, Image.FORMAT_RGBA8)
+	_paint_roll_mask_image.fill(Color(0.0, 0.0, 0.0, 0.0))
+	_paint_roll_mask_texture = ImageTexture.create_from_image(_paint_roll_mask_image)
+	_paint_roll_source_image = PAINT_ROLL_COLOR_TEXTURE.get_image()
+
+	_paint_roll_color = TextureRect.new()
+	_paint_roll_color.name = "RestoredColorPainting"
+	_paint_roll_color.texture = PAINT_ROLL_COLOR_TEXTURE
+	_paint_roll_color.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_paint_roll_color.stretch_mode = TextureRect.STRETCH_SCALE
+	_paint_roll_color.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_paint_roll_material = _create_paint_roll_reveal_material()
+	_paint_roll_color.material = _paint_roll_material
+	_paint_roll_canvas.add_child(_paint_roll_color)
+
+
+func _create_paint_roll_reveal_material() -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+
+uniform sampler2D reveal_mask;
+uniform float edge_softness = 0.18;
+uniform float final_fill = 0.0;
+uniform float wet_strength = 0.62;
+
+float hash(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+void fragment() {
+	vec4 c = texture(TEXTURE, UV);
+	float m = max(texture(reveal_mask, UV).a, final_fill);
+	float grain = hash(floor(UV * 420.0));
+	float edge = smoothstep(0.02, edge_softness, m + (grain - 0.5) * 0.055);
+	float wet_edge = smoothstep(0.015, 0.22, m) * (1.0 - smoothstep(0.58, 0.98, m));
+	vec3 wet_color = mix(c.rgb, vec3(1.0), wet_edge * wet_strength * 0.18);
+	COLOR = vec4(wet_color, c.a * edge);
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	material.set_shader_parameter("reveal_mask", _paint_roll_mask_texture)
+	material.set_shader_parameter("final_fill", 0.0)
+	material.set_shader_parameter("wet_strength", 0.62)
+	return material
+
+
 func _create_grayscale_material() -> ShaderMaterial:
 	var shader := Shader.new()
 	shader.code = """
@@ -736,6 +1028,7 @@ func _layout_right_scene() -> void:
 	_status_label.offset_bottom = -12.0
 
 	_update_reticle_visual()
+	_layout_paint_roll_scene()
 
 
 func _layout_art_canvas_contents() -> void:
@@ -773,6 +1066,41 @@ func _layout_art_canvas_contents() -> void:
 	_dot_root.offset_bottom = 0.0
 
 	_refresh_spot_layout()
+
+
+func _layout_paint_roll_scene() -> void:
+	if _paint_roll_root == null or _paint_roll_canvas == null:
+		return
+	var viewport_size := size
+	if viewport_size.x <= 1.0 or viewport_size.y <= 1.0:
+		viewport_size = get_viewport_rect().size
+	if viewport_size.x <= 1.0 or viewport_size.y <= 1.0:
+		return
+	_paint_roll_root.size = viewport_size
+	var texture_size := PAINT_ROLL_COLOR_TEXTURE.get_size()
+	if texture_size.x <= 1.0 or texture_size.y <= 1.0:
+		return
+	var viewport_aspect := viewport_size.x / viewport_size.y
+	var texture_aspect := texture_size.x / texture_size.y
+	_paint_roll_canvas_size = viewport_size * paint_roll_canvas_zoom
+	if viewport_aspect > texture_aspect:
+		_paint_roll_canvas_size.y = _paint_roll_canvas_size.x / texture_aspect
+	else:
+		_paint_roll_canvas_size.x = _paint_roll_canvas_size.y * texture_aspect
+	_paint_roll_ball_diameter_px = _compute_paint_roll_ball_diameter(viewport_size)
+	_update_paint_roll_canvas_transform()
+	for rect in [_paint_roll_bw, _paint_roll_color]:
+		if rect == null:
+			continue
+		rect.position = Vector2.ZERO
+		rect.size = _paint_roll_canvas_size
+
+
+func _compute_paint_roll_ball_diameter(viewport_size: Vector2) -> float:
+	var painting_area: float = maxf(1.0, viewport_size.x * viewport_size.y)
+	var target_projection_area: float = painting_area / 25.0
+	var visual_diameter: float = sqrt(target_projection_area * 4.0 / PI)
+	return clampf(visual_diameter, minf(viewport_size.x, viewport_size.y) * 0.14, minf(viewport_size.x, viewport_size.y) * 0.32)
 
 
 func _apply_stage(next_stage_index: int, animate_entry: bool) -> void:
@@ -893,7 +1221,8 @@ func _refresh_spot_layout() -> void:
 
 
 func _update_rotation_and_reticle(delta: float) -> void:
-	if _transition_running:
+	if _paint_roll_running:
+		_update_paint_roll_input(delta)
 		return
 
 	var input_vec := Vector2.ZERO
@@ -913,6 +1242,9 @@ func _update_rotation_and_reticle(delta: float) -> void:
 	var rotate_amount := deg_to_rad(sphere_rotate_speed_deg) * delta
 	model_root.rotate_y(-input_vec.x * rotate_amount)
 	model_root.rotate_object_local(Vector3.RIGHT, -input_vec.y * rotate_amount)
+
+	if _transition_running:
+		return
 
 	_view_uv += input_vec * reticle_speed_uv * delta
 	_clamp_view_uv()
@@ -1142,8 +1474,10 @@ void fragment() {
 func _add_sphere_color_cloud(color: Color) -> void:
 	var local_dir := _get_visible_sphere_local_direction()
 	_add_color_to_core(color)
+	_play_sphere_hit_beacon(color, local_dir)
 	var cut: Dictionary = _add_shell_cut(local_dir)
-	_add_core_color_patch(color, cut, crack_spread_sec)
+	_add_core_dye_to_mask(color, cut)
+	_register_crack_overflow(color, cut)
 
 
 func _add_color_to_core(color: Color) -> void:
@@ -1159,132 +1493,213 @@ func _add_color_to_core(color: Color) -> void:
 		1.0
 	)
 	mixed = mixed.lerp(color, 0.28)
+	_register_core_flow_color(color)
 	if _core_material != null:
 		_core_material.set_shader_parameter("pulse_color", color)
 
 
-func _add_core_color_patch(color: Color, cut: Dictionary, spread_sec: float) -> void:
-	if _core_patch_root == null or not is_instance_valid(_core_patch_root):
+func _register_core_flow_color(color: Color) -> void:
+	var clean := Color(color.r, color.g, color.b, 1.0)
+	if _core_flow_palette.size() < 4:
+		_core_flow_palette.append(clean)
+	else:
+		var slot: int = (_core_color_count - 1) % 4
+		_core_flow_palette[slot] = _core_flow_palette[slot].lerp(clean, 0.58)
+	_update_core_flow_palette()
+
+
+func _update_core_flow_palette() -> void:
+	if _core_material == null:
 		return
-	var patch := MeshInstance3D.new()
-	patch.name = "CoreColorPatch_%d" % _core_color_count
-	patch.mesh = _build_core_color_patch_mesh(cut)
-	var material := _create_core_patch_material(color)
-	patch.material_override = material
-	_core_patch_root.add_child(patch)
-	patch.scale = Vector3.ONE * 0.12
+	var fallback: Array[Color] = [
+		Color(0.9, 0.12, 0.08, 1.0),
+		Color(0.1, 0.36, 0.9, 1.0),
+		Color(0.96, 0.72, 0.12, 1.0),
+		Color(0.18, 0.62, 0.34, 1.0),
+	]
+	for i in range(4):
+		var color := fallback[i]
+		if i < _core_flow_palette.size():
+			color = _core_flow_palette[i]
+		_core_material.set_shader_parameter("flow_color_%d" % i, color)
+
+
+func _add_core_dye_to_mask(color: Color, cut: Dictionary) -> void:
+	if _core_dye_image == null or _core_dye_texture == null:
+		return
+	_core_dye_queue.append({
+		"color": color,
+		"cut": cut,
+		"candidate_cells": cut.get("dye_candidate_cells", []),
+		"index": 0,
+	})
+
+
+func _process_core_dye_queue() -> void:
+	if _core_dye_queue.is_empty():
+		if _core_dye_upload_pending and _core_dye_texture != null:
+			_core_dye_texture.update(_core_dye_image)
+			_core_dye_upload_pending = false
+		return
+	var budget: int = 42
+	while budget > 0 and not _core_dye_queue.is_empty():
+		var entry: Dictionary = _core_dye_queue[0]
+		var color: Color = entry["color"] as Color
+		var cut: Dictionary = entry["cut"] as Dictionary
+		var candidate_cells: Array = entry["candidate_cells"] as Array
+		var index: int = int(entry["index"])
+		while budget > 0 and index < candidate_cells.size():
+			var cell_index: int = int(candidate_cells[index])
+			var dir: Vector3 = _shell_cell_dirs[cell_index]
+			if _does_cut_hit_direction(cut, dir, 1.0, core_dye_width_scale):
+				var y: int = int(cell_index / shell_longitude_segments)
+				var x: int = cell_index % shell_longitude_segments
+				_paint_core_dye_cell(color, y, x)
+				_core_dye_upload_pending = true
+			index += 1
+			budget -= 1
+		if index >= candidate_cells.size():
+			_core_dye_queue.pop_front()
+		else:
+			entry["index"] = index
+			_core_dye_queue[0] = entry
+	if _core_dye_upload_pending and _core_dye_texture != null:
+		_core_dye_texture.update(_core_dye_image)
+		_core_dye_upload_pending = false
+
+
+func _paint_core_dye_cell(color: Color, y: int, x: int) -> void:
+	var px0: int = int(floor(float(x) / float(shell_longitude_segments) * float(_core_dye_mask_size.x)))
+	var px1: int = int(ceil(float(x + 1) / float(shell_longitude_segments) * float(_core_dye_mask_size.x)))
+	var py0: int = int(floor(float(y) / float(shell_latitude_segments) * float(_core_dye_mask_size.y)))
+	var py1: int = int(ceil(float(y + 1) / float(shell_latitude_segments) * float(_core_dye_mask_size.y)))
+	var pad_x: int = 1
+	var pad_y: int = 1
+	for py in range(maxi(0, py0 - pad_y), mini(_core_dye_mask_size.y, py1 + pad_y + 1)):
+		for px in range(px0 - pad_x, px1 + pad_x + 1):
+			var wrapped_px: int = posmod(px, _core_dye_mask_size.x)
+			var current: Color = _core_dye_image.get_pixel(wrapped_px, py)
+			if current.a <= 0.01:
+				_core_dye_image.set_pixel(wrapped_px, py, Color(color.r, color.g, color.b, 0.74))
+			else:
+				var existing_weight: float = clampf(current.a, 0.0, 1.0)
+				var new_weight: float = 0.42
+				var total_weight: float = existing_weight + new_weight
+				var mixed := Color(
+					(current.r * existing_weight + color.r * new_weight) / total_weight,
+					(current.g * existing_weight + color.g * new_weight) / total_weight,
+					(current.b * existing_weight + color.b * new_weight) / total_weight,
+					clampf(current.a + 0.16, 0.0, 1.0)
+				)
+				_core_dye_image.set_pixel(wrapped_px, py, mixed)
+
+
+func _play_sphere_hit_beacon(color: Color, local_dir: Vector3) -> void:
+	var dir: Vector3 = local_dir.normalized()
+	var beam := MeshInstance3D.new()
+	beam.name = "PersistentSphereHitBeacon"
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 0.006
+	mesh.bottom_radius = 0.014
+	mesh.height = 0.76
+	mesh.radial_segments = 16
+	beam.mesh = mesh
+	beam.material_override = _create_beacon_material(color)
+	beam.position = dir * (left_sphere_radius + 0.38)
+	beam.basis = Basis(Quaternion(Vector3.UP, -dir))
+	model_root.add_child(beam)
+
+
+func _create_beacon_material(color: Color) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = Color(color.r, color.g, color.b, 0.50)
+	material.emission_enabled = true
+	material.emission = color
+	material.emission_energy_multiplier = 1.65
+	return material
+
+
+func _register_crack_overflow(color: Color, cut: Dictionary) -> void:
+	_active_crack_emitters.append({
+		"color": color,
+		"cut": cut,
+	})
+
+
+func _update_crack_overflow_emitters(delta: float) -> void:
+	if _paint_roll_running or _paint_roll_finished:
+		return
+	if _active_crack_emitters.is_empty():
+		return
+	_overflow_emit_timer -= delta
+	if _overflow_emit_timer > 0.0:
+		return
+	_overflow_emit_timer = 0.055
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var emitter_count: int = mini(_active_crack_emitters.size(), 5)
+	for i in range(emitter_count):
+		var emitter_index: int = rng.randi_range(0, _active_crack_emitters.size() - 1)
+		var emitter: Dictionary = _active_crack_emitters[emitter_index]
+		_emit_one_crack_overflow_particle(emitter["color"] as Color, emitter["cut"] as Dictionary, rng)
+
+
+func _emit_one_crack_overflow_particle(color: Color, cut: Dictionary, rng: RandomNumberGenerator) -> void:
+	var center: Vector3 = cut["center"] as Vector3
+	var tangent_a: Vector3 = cut["tangent_a"] as Vector3
+	var tangent_b: Vector3 = cut["tangent_b"] as Vector3
+	var segments: Array = cut["segments"] as Array
+	if segments.is_empty():
+		return
+	var segment: Dictionary = segments[rng.randi_range(0, segments.size() - 1)]
+	var a: Vector2 = segment["a"] as Vector2
+	var b: Vector2 = segment["b"] as Vector2
+	var offset: Vector2 = a.lerp(b, rng.randf_range(0.04, 0.98))
+	var dir: Vector3 = (center + tangent_a * offset.x + tangent_b * offset.y).normalized()
+	var side: Vector3 = (tangent_a * rng.randf_range(-0.5, 0.5) + tangent_b * rng.randf_range(-0.5, 0.5)).normalized()
+	_spawn_overflow_particle(color, dir, side, rng)
+
+
+func _spawn_overflow_particle(color: Color, dir: Vector3, side: Vector3, rng: RandomNumberGenerator) -> void:
+	var particle := MeshInstance3D.new()
+	particle.name = "CrackOverflowParticle"
+	var mesh := SphereMesh.new()
+	var radius: float = rng.randf_range(0.009, 0.022)
+	mesh.radius = radius
+	mesh.height = radius * 2.0
+	mesh.radial_segments = 8
+	mesh.rings = 4
+	particle.mesh = mesh
+	var material := _create_overflow_particle_material(color, rng)
+	particle.material_override = material
+	particle.position = dir * (left_sphere_radius + 0.035)
+	model_root.add_child(particle)
+	var target: Vector3 = particle.position + dir * rng.randf_range(0.12, 0.26) + side * rng.randf_range(0.04, 0.16)
+	var life: float = rng.randf_range(1.15, 1.85)
 	var tween: Tween = create_tween()
 	tween.set_parallel(true)
-	tween.tween_property(patch, "scale", Vector3.ONE, spread_sec).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tween.tween_method(
-		func(alpha: float) -> void:
-			material.albedo_color = Color(color.r, color.g, color.b, alpha)
-			material.emission_energy_multiplier = lerpf(0.2, 1.7, alpha),
-		0.0,
-		0.92,
-		spread_sec
-	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_property(particle, "position", target, life).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
+	tween.tween_property(particle, "scale", Vector3.ONE * rng.randf_range(0.12, 0.30), life).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(material, "albedo_color", Color(color.r, color.g, color.b, 0.0), life).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tween.tween_property(material, "emission_energy_multiplier", 0.0, life).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tween.chain().tween_callback(func() -> void:
+		if is_instance_valid(particle):
+			particle.queue_free()
+	)
 
 
-func _build_core_color_patch_mesh(cut: Dictionary) -> ArrayMesh:
-	var vertices: PackedVector3Array = PackedVector3Array()
-	var normals: PackedVector3Array = PackedVector3Array()
-	var uvs: PackedVector2Array = PackedVector2Array()
-	var indices: PackedInt32Array = PackedInt32Array()
-	var radius: float = _core_radius + 0.006
-	for y in range(shell_latitude_segments):
-		for x in range(shell_longitude_segments):
-			var index: int = _shell_cell_index(y, x)
-			var dir: Vector3 = _shell_cell_dirs[index]
-			if _does_cut_hit_direction(cut, dir, 1.0, core_dye_width_scale):
-				_append_core_patch_cell(vertices, normals, uvs, indices, y, x, radius)
-	var arrays: Array = []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_TEX_UV] = uvs
-	arrays[Mesh.ARRAY_INDEX] = indices
-	var mesh: ArrayMesh = ArrayMesh.new()
-	if not vertices.is_empty():
-		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	return mesh
-
-
-func _append_core_patch_cell(
-	vertices: PackedVector3Array,
-	normals: PackedVector3Array,
-	uvs: PackedVector2Array,
-	indices: PackedInt32Array,
-	y: int,
-	x: int,
-	radius: float
-) -> void:
-	var d00: Vector3 = _grid_shell_dir(y, x)
-	var d10: Vector3 = _grid_shell_dir(y, x + 1)
-	var d11: Vector3 = _grid_shell_dir(y + 1, x + 1)
-	var d01: Vector3 = _grid_shell_dir(y + 1, x)
-	var base: int = vertices.size()
-	vertices.append(d00 * radius)
-	vertices.append(d10 * radius)
-	vertices.append(d11 * radius)
-	vertices.append(d01 * radius)
-	normals.append(d00)
-	normals.append(d10)
-	normals.append(d11)
-	normals.append(d01)
-	uvs.append(Vector2.ZERO)
-	uvs.append(Vector2.RIGHT)
-	uvs.append(Vector2.ONE)
-	uvs.append(Vector2.DOWN)
-	indices.append(base)
-	indices.append(base + 1)
-	indices.append(base + 2)
-	indices.append(base)
-	indices.append(base + 2)
-	indices.append(base + 3)
-
-
-func _append_core_patch_disk(
-	vertices: PackedVector3Array,
-	normals: PackedVector3Array,
-	uvs: PackedVector2Array,
-	indices: PackedInt32Array,
-	center: Vector3,
-	tangent_a: Vector3,
-	tangent_b: Vector3,
-	radius_2d: float,
-	radius: float
-) -> void:
-	var base: int = vertices.size()
-	vertices.append(center * radius)
-	normals.append(center)
-	uvs.append(Vector2(0.5, 0.5))
-	var ring_count: int = 18
-	for i in range(ring_count):
-		var angle: float = TAU * float(i) / float(ring_count)
-		var offset: Vector2 = Vector2(cos(angle), sin(angle)) * radius_2d
-		var dir: Vector3 = _core_patch_dir(center, tangent_a, tangent_b, offset)
-		vertices.append(dir * radius)
-		normals.append(dir)
-		uvs.append(Vector2(0.5, 0.5) + offset)
-	for i in range(ring_count):
-		indices.append(base)
-		indices.append(base + 1 + i)
-		indices.append(base + 1 + ((i + 1) % ring_count))
-
-
-func _core_patch_dir(center: Vector3, tangent_a: Vector3, tangent_b: Vector3, offset: Vector2) -> Vector3:
-	return (center + tangent_a * offset.x + tangent_b * offset.y).normalized()
-
-
-func _create_core_patch_material(color: Color) -> StandardMaterial3D:
+func _create_overflow_particle_material(color: Color, rng: RandomNumberGenerator) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.albedo_color = Color(color.r, color.g, color.b, 0.92)
+	var shifted := color.lerp(Color(1.0, 1.0, 1.0, 1.0), rng.randf_range(0.0, 0.18))
+	material.albedo_color = Color(shifted.r, shifted.g, shifted.b, rng.randf_range(0.62, 0.84))
 	material.emission_enabled = true
-	material.emission = color
-	material.emission_energy_multiplier = 1.7
+	material.emission = shifted
+	material.emission_energy_multiplier = rng.randf_range(0.9, 1.7)
 	return material
 
 
@@ -1300,15 +1715,15 @@ func _add_shell_cut(local_dir: Vector3) -> Dictionary:
 
 
 func _animate_shell_cut(cut: Dictionary, spread_sec: float) -> void:
-	var step_count: int = 12
+	var step_count: int = 5
 	for step in range(1, step_count + 1):
 		var progress: float = float(step) / float(step_count)
 		var delay: float = spread_sec * float(step - 1) / float(step_count)
 		var timer := get_tree().create_timer(delay)
 		timer.timeout.connect(
 			func() -> void:
-				_apply_shell_cut_to_cells(cut, progress)
-				_rebuild_cracked_shell(),
+				var dirty_chunks: Array[int] = _apply_shell_cut_to_cells(cut, progress)
+				_rebuild_shell_chunks(dirty_chunks),
 			CONNECT_ONE_SHOT
 		)
 
@@ -1334,6 +1749,8 @@ func _create_shell_cut(center_dir: Vector3, rng: RandomNumberGenerator) -> Dicti
 		segment["reveal_end"] = clampf(rotated_b.length() / maxf(crack_max_angular_length, 0.001), 0.0, 1.0)
 		max_radius = maxf(max_radius, maxf(rotated_a.length(), rotated_b.length()) + float(segment["width"]))
 		segments[i] = segment
+	var candidate_cells: Array[int] = _collect_cut_candidate_cells(center_dir, max_radius)
+	var dye_candidate_cells: Array[int] = _collect_cut_candidate_cells(center_dir, max_radius * core_dye_width_scale)
 	return {
 		"center": center_dir,
 		"tangent_a": tangent_a,
@@ -1341,7 +1758,38 @@ func _create_shell_cut(center_dir: Vector3, rng: RandomNumberGenerator) -> Dicti
 		"segments": segments,
 		"cavity_radius": cavity_radius,
 		"max_radius": max_radius,
+		"candidate_cells": candidate_cells,
+		"dye_candidate_cells": dye_candidate_cells,
 	}
+
+
+func _collect_cut_candidate_cells(center_dir: Vector3, max_radius: float) -> Array[int]:
+	var cells: Array[int] = []
+	var center_theta: float = acos(clampf(center_dir.y, -1.0, 1.0))
+	var center_phi: float = atan2(center_dir.z, center_dir.x)
+	if center_phi < 0.0:
+		center_phi += TAU
+	var theta0: float = clampf(center_theta - max_radius, 0.0, PI)
+	var theta1: float = clampf(center_theta + max_radius, 0.0, PI)
+	var y0: int = clampi(int(floor(theta0 / PI * float(shell_latitude_segments))) - 1, 0, shell_latitude_segments - 1)
+	var y1: int = clampi(int(ceil(theta1 / PI * float(shell_latitude_segments))) + 1, 0, shell_latitude_segments - 1)
+	for y in range(y0, y1 + 1):
+		var theta: float = PI * (float(y) + 0.5) / float(shell_latitude_segments)
+		var phi_span: float = max_radius / maxf(0.12, sin(theta))
+		if phi_span >= PI:
+			for x_all in range(shell_longitude_segments):
+				var index_all: int = _shell_cell_index(y, x_all)
+				if center_dir.angle_to(_shell_cell_dirs[index_all]) <= max_radius:
+					cells.append(index_all)
+			continue
+		var x0: int = int(floor((center_phi - phi_span) / TAU * float(shell_longitude_segments))) - 1
+		var x1: int = int(ceil((center_phi + phi_span) / TAU * float(shell_longitude_segments))) + 1
+		for x_raw in range(x0, x1 + 1):
+			var x: int = posmod(x_raw, shell_longitude_segments)
+			var index: int = _shell_cell_index(y, x)
+			if center_dir.angle_to(_shell_cell_dirs[index]) <= max_radius:
+				cells.append(index)
+	return cells
 
 
 func _generate_shell_cut_segments(pattern: int, rng: RandomNumberGenerator) -> Array[Dictionary]:
@@ -1414,21 +1862,42 @@ func _append_shell_cut_fork(
 		previous = fork_pos
 
 
-func _apply_shell_cut_to_cells(cut: Dictionary, progress: float = 1.0) -> void:
-	for i in range(_shell_cell_dirs.size()):
+func _apply_shell_cut_to_cells(cut: Dictionary, progress: float = 1.0) -> Array[int]:
+	var dirty: Dictionary = {}
+	var candidate_cells: Array = cut.get("candidate_cells", [])
+	for cell_variant in candidate_cells:
+		var i: int = int(cell_variant)
 		if bool(_shell_cut_cells[i]):
 			continue
 		if _does_cut_hit_direction(cut, _shell_cell_dirs[i], progress):
 			_shell_cut_cells[i] = true
+			var chunk_index: int = int(_shell_cell_to_chunk[i])
+			dirty[chunk_index] = true
+			_mark_neighbor_chunks_dirty(dirty, i)
+	var dirty_chunks: Array[int] = []
+	for key in dirty.keys():
+		dirty_chunks.append(int(key))
+	return dirty_chunks
 
 
-func _does_cut_hit_direction(cut: Dictionary, dir: Vector3, progress: float = 1.0) -> bool:
+func _mark_neighbor_chunks_dirty(dirty: Dictionary, cell_index: int) -> void:
+	var y: int = int(cell_index / shell_longitude_segments)
+	var x: int = cell_index % shell_longitude_segments
+	dirty[_shell_chunk_index_for_cell(y, x - 1)] = true
+	dirty[_shell_chunk_index_for_cell(y, x + 1)] = true
+	if y > 0:
+		dirty[_shell_chunk_index_for_cell(y - 1, x)] = true
+	if y < shell_latitude_segments - 1:
+		dirty[_shell_chunk_index_for_cell(y + 1, x)] = true
+
+
+func _does_cut_hit_direction(cut: Dictionary, dir: Vector3, progress: float = 1.0, width_scale: float = 1.0) -> bool:
 	var center: Vector3 = cut["center"] as Vector3
 	var angle: float = center.angle_to(dir)
-	var max_radius: float = float(cut.get("max_radius", crack_max_angular_length))
+	var max_radius: float = float(cut.get("max_radius", crack_max_angular_length)) * width_scale
 	if angle > max_radius:
 		return false
-	var cavity_radius: float = float(cut["cavity_radius"])
+	var cavity_radius: float = float(cut["cavity_radius"]) * width_scale
 	if progress > 0.02 and angle < cavity_radius:
 		return true
 	var tangent_a: Vector3 = cut["tangent_a"] as Vector3
@@ -1448,7 +1917,7 @@ func _does_cut_hit_direction(cut: Dictionary, dir: Vector3, progress: float = 1.
 			var span: float = maxf(0.001, reveal_end - reveal_start)
 			var local_progress: float = clampf((progress - reveal_start) / span, 0.0, 1.0)
 			b = a.lerp(b, local_progress)
-		var width: float = float(segment["width"])
+		var width: float = float(segment["width"]) * width_scale
 		if _distance_to_cut_segment(point, a, b) <= width:
 			return true
 	return false
@@ -1478,6 +1947,368 @@ func _count_nearby_crack_dirs(center_dir: Vector3, angular_threshold: float) -> 
 		if center_dir.angle_to(dir) < angular_threshold:
 			count += 1
 	return count
+
+
+func _start_final_shell_reveal() -> void:
+	if _final_reveal_running:
+		return
+	_final_reveal_running = true
+	_final_reveal_elapsed = 0.0
+	_final_break_cursor = 0
+	_final_detached_chunks.clear()
+	_final_detach_tween_count = 0
+	_final_break_order = _build_final_break_order()
+	_update_core_fill_color()
+	if _core_material != null:
+		_core_material.set_shader_parameter("fill_progress", 0.0)
+	_status_label.text = ""
+
+
+func _build_final_break_order() -> Array[int]:
+	var scored: Array[Dictionary] = []
+	for i in range(_shell_cell_dirs.size()):
+		var dir: Vector3 = _shell_cell_dirs[i]
+		var score: float = 10.0
+		for crack_dir in _crack_surface_dirs:
+			score = minf(score, dir.angle_to(crack_dir))
+		score += abs(dir.y) * 0.08
+		scored.append({"index": i, "score": score})
+	scored.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a["score"]) < float(b["score"])
+	)
+	var order: Array[int] = []
+	for item in scored:
+		order.append(int(item["index"]))
+	return order
+
+
+func _update_core_fill_color() -> void:
+	if _core_material == null:
+		return
+	_update_core_flow_palette()
+
+
+func _update_final_shell_reveal(delta: float) -> void:
+	if not _final_reveal_running:
+		return
+	_final_reveal_elapsed += delta
+	var progress: float = clampf(_final_reveal_elapsed / final_reveal_sec, 0.0, 1.0)
+	var fill_progress: float = smoothstep(0.03, 0.62, progress)
+	if _core_material != null:
+		_core_material.set_shader_parameter("fill_progress", fill_progress)
+	_update_final_shell_cut(progress)
+	if progress > 0.58:
+		_detach_final_shell_chunks(progress)
+	if progress >= 1.0 and _shell_rebuild_queue.is_empty() and _final_detach_tween_count <= 0:
+		_final_reveal_running = false
+		_start_paint_roll_transition()
+
+
+func _update_final_shell_cut(progress: float) -> void:
+	if _final_break_order.is_empty():
+		return
+	var eased: float = smoothstep(0.04, 0.86, progress)
+	var target_count: int = clampi(int(float(_final_break_order.size()) * eased), 0, _final_break_order.size())
+	var dirty: Dictionary = {}
+	var budget: int = 42
+	while _final_break_cursor < target_count and budget > 0:
+		var cell_index: int = _final_break_order[_final_break_cursor]
+		_final_break_cursor += 1
+		if bool(_shell_cut_cells[cell_index]):
+			continue
+		_shell_cut_cells[cell_index] = true
+		dirty[int(_shell_cell_to_chunk[cell_index])] = true
+		_mark_neighbor_chunks_dirty(dirty, cell_index)
+		budget -= 1
+	var dirty_chunks: Array[int] = []
+	for key in dirty.keys():
+		dirty_chunks.append(int(key))
+	_rebuild_shell_chunks(dirty_chunks)
+
+
+func _detach_final_shell_chunks(progress: float) -> void:
+	var detach_progress: float = smoothstep(0.58, 0.96, progress)
+	var target_count: int = int(float(_shell_chunks.size()) * detach_progress)
+	var detached_count: int = _final_detached_chunks.size()
+	if detached_count >= target_count:
+		return
+	for chunk_index in range(_shell_chunks.size()):
+		if detached_count >= target_count:
+			return
+		if bool(_final_detached_chunks.get(chunk_index, false)):
+			continue
+		_final_detached_chunks[chunk_index] = true
+		_animate_shell_chunk_detach(chunk_index)
+		detached_count += 1
+
+
+func _animate_shell_chunk_detach(chunk_index: int) -> void:
+	if chunk_index < 0 or chunk_index >= _shell_chunks.size():
+		return
+	var chunk := _shell_chunks[chunk_index]
+	if chunk == null or not is_instance_valid(chunk):
+		return
+	var center_dir: Vector3 = _shell_chunk_center_dir(chunk_index)
+	_final_detach_tween_count += 1
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(chunk, "position", center_dir * 0.42, 2.4).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_property(chunk, "rotation", Vector3(center_dir.z, center_dir.x, center_dir.y) * 1.8, 2.4).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_property(chunk, "scale", Vector3.ONE * 0.62, 2.4).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.chain().tween_callback(func() -> void:
+		if is_instance_valid(chunk):
+			chunk.visible = false
+		_final_detach_tween_count = maxi(0, _final_detach_tween_count - 1)
+	)
+
+
+func _shell_chunk_center_dir(chunk_index: int) -> Vector3:
+	var chunk_col: int = chunk_index % _shell_chunk_cols
+	var chunk_row: int = int(chunk_index / _shell_chunk_cols)
+	var y: int = clampi(chunk_row * _shell_chunk_cell_size + _shell_chunk_cell_size / 2, 0, shell_latitude_segments - 1)
+	var x: int = posmod(chunk_col * _shell_chunk_cell_size + _shell_chunk_cell_size / 2, shell_longitude_segments)
+	return _shell_cell_dirs[_shell_cell_index(y, x)]
+
+
+func _start_paint_roll_transition() -> void:
+	if _paint_roll_running or _paint_roll_finished:
+		return
+	_transition_running = true
+	_prepare_ball_for_paint_roll()
+	_fade_crack_residue_for_paint_roll()
+	_layout_paint_roll_scene()
+	_paint_roll_root.visible = true
+	_paint_roll_root.modulate.a = 0.0
+	_paint_roll_view_uv = Vector2(0.5, 0.5)
+	_update_paint_roll_canvas_transform()
+
+	var root_global := get_global_rect().position
+	var source_rect := left_3d.get_global_rect()
+	if left_3d.get_parent() != self:
+		left_3d.reparent(self)
+	left_3d.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	left_3d.position = source_rect.position - root_global
+	left_3d.size = source_rect.size
+	left_3d.custom_minimum_size = Vector2.ZERO
+	left_3d.z_index = 20
+	left_3d.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	left_3d.stretch = true
+
+	var viewport_size := get_viewport_rect().size
+	if size.x > 1.0 and size.y > 1.0:
+		viewport_size = size
+	var render_box_size := _paint_roll_ball_diameter_px / maxf(0.15, _paint_roll_sphere_fill_ratio)
+	var target_size := Vector2(render_box_size, render_box_size)
+	var target_pos := viewport_size * 0.5 - target_size * 0.5
+
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(_paint_roll_root, "modulate:a", 1.0, 1.15).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(right_panel, "modulate:a", 0.0, 0.8).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(left_3d, "position", target_pos, 1.15).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(left_3d, "size", target_size, 1.15).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	await tween.finished
+	_paint_roll_running = true
+	_paint_roll_completion_timer = 0.0
+	_paint_roll_finished = false
+	_status_label.text = ""
+	_paint_roll_at(_paint_roll_view_uv, _get_paint_roll_brush_radius_uv(), 0.35)
+
+
+func _prepare_ball_for_paint_roll() -> void:
+	if left_viewport != null:
+		left_viewport.transparent_bg = true
+	if _left_environment != null:
+		_left_environment.background_color = Color(0.0, 0.0, 0.0, 0.0)
+	if sphere_mesh != null:
+		sphere_mesh.visible = false
+	if _shell_root != null and is_instance_valid(_shell_root):
+		_shell_root.visible = false
+	if _core_mesh != null and is_instance_valid(_core_mesh):
+		_core_mesh.visible = true
+	if _core_material != null:
+		_core_material.set_shader_parameter("fill_progress", 1.0)
+
+
+func _fade_crack_residue_for_paint_roll() -> void:
+	_active_crack_emitters.clear()
+	_overflow_emit_timer = 9999.0
+	if model_root == null:
+		return
+	for child in model_root.get_children():
+		if child == null or not is_instance_valid(child):
+			continue
+		if child.name.begins_with("PersistentSphereHitBeacon") or child.name.begins_with("CrackOverflowParticle"):
+			_fade_and_remove_mesh_instance(child as Node3D, 0.75)
+
+
+func _fade_and_remove_mesh_instance(node: Node3D, duration: float) -> void:
+	if node == null or not is_instance_valid(node):
+		return
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(node, "scale", Vector3.ONE * 0.01, duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	if node is MeshInstance3D:
+		var mesh_instance := node as MeshInstance3D
+		var material := mesh_instance.material_override
+		if material is StandardMaterial3D:
+			var standard := material as StandardMaterial3D
+			tween.tween_property(standard, "albedo_color", Color(standard.albedo_color.r, standard.albedo_color.g, standard.albedo_color.b, 0.0), duration)
+			if standard.emission_enabled:
+				tween.tween_property(standard, "emission_energy_multiplier", 0.0, duration)
+	tween.chain().tween_callback(func() -> void:
+		if is_instance_valid(node):
+			node.queue_free()
+	)
+
+
+func _update_paint_roll_input(delta: float) -> void:
+	var input_vec := Vector2.ZERO
+	if Input.is_key_pressed(KEY_A):
+		input_vec.x -= 1.0
+	if Input.is_key_pressed(KEY_D):
+		input_vec.x += 1.0
+	if Input.is_key_pressed(KEY_W):
+		input_vec.y -= 1.0
+	if Input.is_key_pressed(KEY_S):
+		input_vec.y += 1.0
+
+	if input_vec.length_squared() > 0.0:
+		input_vec = input_vec.normalized()
+		_paint_roll_view_uv += input_vec * paint_roll_speed_uv * delta
+		_clamp_paint_roll_view_uv()
+		_update_paint_roll_canvas_transform()
+		var rotate_amount := deg_to_rad(sphere_rotate_speed_deg) * delta
+		model_root.rotate_y(-input_vec.x * rotate_amount)
+		model_root.rotate_object_local(Vector3.RIGHT, -input_vec.y * rotate_amount)
+		_paint_roll_at(_paint_roll_view_uv, _get_paint_roll_brush_radius_uv(), delta)
+
+	_paint_roll_completion_timer -= delta
+	if _paint_roll_completion_timer <= 0.0:
+		_paint_roll_completion_timer = 0.45
+		_check_paint_roll_completion()
+
+
+func _update_paint_roll_canvas_transform() -> void:
+	if _paint_roll_canvas == null or _paint_roll_root == null:
+		return
+	var viewport_size := _paint_roll_root.size
+	if viewport_size.x <= 1.0 or viewport_size.y <= 1.0 or _paint_roll_canvas_size.x <= 1.0:
+		return
+	_clamp_paint_roll_view_uv()
+	_paint_roll_canvas.size = _paint_roll_canvas_size
+	_paint_roll_canvas.position = viewport_size * 0.5 - _paint_roll_view_uv * _paint_roll_canvas_size
+
+
+func _clamp_paint_roll_view_uv() -> void:
+	if _paint_roll_root == null or _paint_roll_canvas_size.x <= 1.0 or _paint_roll_canvas_size.y <= 1.0:
+		_paint_roll_view_uv.x = clampf(_paint_roll_view_uv.x, 0.0, 1.0)
+		_paint_roll_view_uv.y = clampf(_paint_roll_view_uv.y, 0.0, 1.0)
+		return
+	var viewport_size := _paint_roll_root.size
+	var margin_x: float = clampf((viewport_size.x * 0.5) / _paint_roll_canvas_size.x, 0.0, 0.5)
+	var margin_y: float = clampf((viewport_size.y * 0.5) / _paint_roll_canvas_size.y, 0.0, 0.5)
+	_paint_roll_view_uv.x = clampf(_paint_roll_view_uv.x, margin_x, 1.0 - margin_x)
+	_paint_roll_view_uv.y = clampf(_paint_roll_view_uv.y, margin_y, 1.0 - margin_y)
+
+
+func _get_paint_roll_brush_radius_uv() -> float:
+	if _paint_roll_canvas_size.x <= 1.0 or _paint_roll_canvas_size.y <= 1.0:
+		return paint_roll_brush_radius_uv
+	var contact_radius_px: float = _paint_roll_ball_diameter_px * 0.42
+	var radius_uv: float = contact_radius_px / minf(_paint_roll_canvas_size.x, _paint_roll_canvas_size.y)
+	return clampf(radius_uv, paint_roll_brush_radius_uv * 0.75, paint_roll_brush_radius_uv * 1.75)
+
+
+func _paint_roll_at(uv: Vector2, radius_uv: float, delta: float) -> void:
+	if _paint_roll_mask_image == null:
+		return
+	var center := Vector2(
+		uv.x * float(_paint_roll_mask_size.x - 1),
+		uv.y * float(_paint_roll_mask_size.y - 1)
+	)
+	var radius_px: float = radius_uv * float(mini(_paint_roll_mask_size.x, _paint_roll_mask_size.y))
+	var spread_px: float = radius_px * 1.72
+	var x0: int = maxi(0, int(floor(center.x - spread_px)))
+	var x1: int = mini(_paint_roll_mask_size.x - 1, int(ceil(center.x + spread_px)))
+	var y0: int = maxi(0, int(floor(center.y - spread_px)))
+	var y1: int = mini(_paint_roll_mask_size.y - 1, int(ceil(center.y + spread_px)))
+	var ordinary_gain: float = 6.4 * maxf(delta, 0.016)
+	var apple_gain: float = 0.82 * maxf(delta, 0.016)
+	for y in range(y0, y1 + 1):
+		for x in range(x0, x1 + 1):
+			var offset := Vector2(float(x), float(y)) - center
+			var dist: float = offset.length()
+			if dist > spread_px:
+				continue
+			var inner: float = 1.0 - smoothstep(radius_px * 0.18, radius_px * 0.92, dist)
+			var bleed: float = 1.0 - smoothstep(radius_px * 0.82, spread_px, dist)
+			var falloff: float = maxf(inner, bleed * 0.38)
+			if falloff <= 0.0:
+				continue
+			var px_uv := Vector2(float(x) / float(_paint_roll_mask_size.x - 1), float(y) / float(_paint_roll_mask_size.y - 1))
+			var is_apple := _is_paint_roll_apple_uv(px_uv)
+			var gain := apple_gain if is_apple else ordinary_gain
+			var current := _paint_roll_mask_image.get_pixel(x, y)
+			var wet_lift: float = 0.018 if current.a > 0.08 and not is_apple else 0.006
+			var next_alpha: float = clampf(current.a + gain * falloff + wet_lift * bleed, 0.0, 1.0)
+			_paint_roll_mask_image.set_pixel(x, y, Color(1.0, 1.0, 1.0, next_alpha))
+	_paint_roll_mask_texture.update(_paint_roll_mask_image)
+
+
+func _is_paint_roll_apple_uv(uv: Vector2) -> bool:
+	if _paint_roll_source_image == null or _paint_roll_source_image.is_empty():
+		return false
+	var sx: int = clampi(int(uv.x * float(_paint_roll_source_image.get_width() - 1)), 0, _paint_roll_source_image.get_width() - 1)
+	var sy: int = clampi(int(uv.y * float(_paint_roll_source_image.get_height() - 1)), 0, _paint_roll_source_image.get_height() - 1)
+	var c := _paint_roll_source_image.get_pixel(sx, sy)
+	var red_like := c.r > 0.34 and c.r > c.g * 1.12 and c.r > c.b * 1.18
+	var yellow_like := c.r > 0.45 and c.g > 0.28 and c.b < 0.28 and c.r > c.b * 1.45
+	return red_like or yellow_like
+
+
+func _check_paint_roll_completion() -> void:
+	if _paint_roll_finished or _paint_roll_mask_image == null:
+		return
+	var sample_step: int = 8
+	var total: int = 0
+	var restored: int = 0
+	var apple_total: int = 0
+	var apple_restored: int = 0
+	for y in range(0, _paint_roll_mask_size.y, sample_step):
+		for x in range(0, _paint_roll_mask_size.x, sample_step):
+			var uv := Vector2(float(x) / float(_paint_roll_mask_size.x - 1), float(y) / float(_paint_roll_mask_size.y - 1))
+			var alpha: float = _paint_roll_mask_image.get_pixel(x, y).a
+			var is_apple := _is_paint_roll_apple_uv(uv)
+			total += 1
+			if alpha >= 0.62:
+				restored += 1
+			if is_apple:
+				apple_total += 1
+				if alpha >= 0.88:
+					apple_restored += 1
+	var coverage: float = float(restored) / float(maxi(1, total))
+	var apple_coverage: float = 1.0 if apple_total <= 0 else float(apple_restored) / float(apple_total)
+	if coverage >= paint_roll_complete_threshold and apple_coverage >= 0.82:
+		_finish_paint_roll_stage()
+
+
+func _finish_paint_roll_stage() -> void:
+	if _paint_roll_finished:
+		return
+	_paint_roll_finished = true
+	_paint_roll_running = false
+	var tween := create_tween()
+	tween.tween_method(
+		func(value: float) -> void:
+			if _paint_roll_material != null:
+				_paint_roll_material.set_shader_parameter("final_fill", value),
+		0.0,
+		1.0,
+		0.95
+	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	await tween.finished
+	_emit_completed()
 
 
 func _pulse_sphere(color: Color) -> void:
@@ -1526,7 +2357,12 @@ func _run_stage_complete_transition() -> void:
 	await straighten.finished
 
 	if _stage_index >= _stage_data.size() - 1:
-		_emit_completed()
+		var final_exit := create_tween()
+		final_exit.set_parallel(true)
+		final_exit.tween_property(_frame_root, "modulate:a", 0.0, stage_pan_sec * 0.9).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+		final_exit.tween_property(_frame_root, "scale", Vector2.ONE * 0.96, stage_pan_sec * 0.9).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+		await final_exit.finished
+		_start_final_shell_reveal()
 		return
 
 	var base_pos := _frame_root.position
@@ -1552,6 +2388,8 @@ func _update_layout_if_needed() -> void:
 		return
 	if right_panel.size.distance_to(_right_panel_size) > 1.0:
 		_layout_right_scene()
+	if _paint_roll_running:
+		_layout_paint_roll_scene()
 
 
 func _emit_completed() -> void:
