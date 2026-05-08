@@ -156,6 +156,9 @@ func _spawn_next_chapter() -> void:
 
 	if chapter.has_method("_set_game_started"):
 		chapter.call("_set_game_started", true)
+	if _current_chapter_scene_index == 4 and _requested_start_chapter_scene_index == 4:
+		if chapter.has_method("_set_dev_paint_roll_skip_enabled"):
+			chapter.call("_set_dev_paint_roll_skip_enabled", true)
 	_update_chapter_audio_state(_current_chapter_scene_index)
 
 	if chapter.has_signal("chapter_completed"):

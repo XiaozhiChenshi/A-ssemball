@@ -1,5 +1,5 @@
 63f7b34db8d8cdea90c76aacccf841ec
-::res://::1778147992
+::res://::1778218807
 export_presets.cfg::TextFile::-1::1777386046::0::1::::<><><>0<>0<><>::
 icon.svg::CompressedTexture2D::3214789299660626481::1776264585::1776685005::1::::<><><>0<>0<>0e18217a1b12bd39cad6ff478ec9cd87<>res://.godot/imported/icon.svg-218a8f2b3041327d8a5756f3a245f83b.ctex::
 README.md::TextFile::-1::1777854972::0::1::::<><><>0<>0<><>::
@@ -91,9 +91,10 @@ wood_rings.jpg::CompressedTexture2D::1996663958620231544::1777393300::1777393702
 left_1.png::CompressedTexture2D::6161288418870512457::1777974120::1777974355::1::::<><><>0<>0<>4563ed2b1f3abab61f4d880b4e8d3787<>res://.godot/imported/left_1.png-bc02fd57940399295550bc2ec6443000.ctex::
 left_2.png::CompressedTexture2D::8785096905886855431::1777969254::1777972374::1::::<><><>0<>0<>74f4b589b3c9ce79285617392b3918b1<>res://.godot/imported/left_2.png-c715de822f06e7feb238901a0f46baeb.ctex::
 left_3.png::CompressedTexture2D::4703068846644067625::1777969244::1777972374::1::::<><><>0<>0<>dfb81179b60f192f559895fde0879a16<>res://.godot/imported/left_3.png-b168a800b7945891ef1b115b83104d8e.ctex::
-::res://assets/ui/chapter_3/giving/::1778150645
+::res://assets/ui/chapter_3/giving/::1778218944
 right_4_bw.png::CompressedTexture2D::2391869679049526705::1778149778::1778150981::1::::<><><>0<>0<>3716786d9c22d260156fd620f8ea94ce<>res://.godot/imported/right_4_bw.png-e6d4c0ff0c43ae13c29251f70555ae68.ctex::
 right_4_color.png::CompressedTexture2D::110020098025253454::1777969470::1778150981::1::::<><><>0<>0<>e67d253c01739c33ef73a0087c907d77<>res://.godot/imported/right_4_color.png-0c25bad3a7a63bcebae92c853764c4c4.ctex::
+right_5_color.jpg::CompressedTexture2D::6068824242658544669::1778171364::1778219161::1::::<><><>0<>0<>006e9f84745249c6037bce7c286f8c87<>res://.godot/imported/right_5_color.jpg-2051d21f1dab66efb466a5f628ef7bb9.ctex::
 ::res://scenes/::1777967626
 chapter_1.tscn::PackedScene::4146410834738425259::1776947049::0::1::::<><><>0<>0<><>::res://scripts/chapter_1.gd<>uid://dgpdnfijmh76q::::res://scripts/line_canvas_2d.gd
 chapter_3.tscn::PackedScene::1860886321712457765::1777386046::0::1::::<><><>0<>0<><>::uid://dgpdnfijmh76q::::res://scripts/line_canvas_2d.gd
@@ -131,7 +132,7 @@ level_1.gd::GDScript::1782513284385078474::1777854972::0::1::::LevelC2L1<>Contro
 level_2.gd::GDScript::7468757368321466161::1777967626::0::1::::LevelC2L2<>Control<><>0<>0<><>::
 ::res://scripts/levels/chapter_3/::1778055971
 color_reticle.gd::GDScript::3932972878555233693::1777972322::0::1::::<>Control<><>0<>0<><>::
-level_1.gd::GDScript::4134058100086338719::1778150944::0::1::::LevelC3L1<>Control<><>0<>0<><>::
+level_1.gd::GDScript::4134058100086338719::1778219051::0::1::::LevelC3L1<>Control<><>0<>0<><>::
 ::res://scripts/structure/::1776695024
 goldberg_topology_generator.gd::GDScript::2508364101458508646::1776692706::0::1::::GoldbergTopologyGenerator<>RefCounted<><>0<>0<><>::
 structure_cell_data.gd::GDScript::2282641638337752863::1776689976::0::1::::StructureCellData<>RefCounted<><>0<>0<><>::

@@ -10,6 +10,7 @@ const PAINTING_TEXTURES: Array[Texture2D] = [
 ]
 const PAINT_ROLL_COLOR_TEXTURE: Texture2D = preload("res://assets/ui/chapter_3/giving/right_4_color.png")
 const PAINT_ROLL_BW_TEXTURE: Texture2D = preload("res://assets/ui/chapter_3/giving/right_4_bw.png")
+const PAINT_ROLL_RIGHT_5_TEXTURE: Texture2D = preload("res://assets/ui/chapter_3/giving/right_5_color.jpg")
 const ColorReticleRef = preload("res://scripts/levels/chapter_3/color_reticle.gd")
 
 @export var chapter_index: int = 3
@@ -52,8 +53,14 @@ const ColorReticleRef = preload("res://scripts/levels/chapter_3/color_reticle.gd
 @export_range(0.12, 0.32, 0.005) var paint_roll_ball_screen_scale: float = 0.20
 @export_range(0.02, 0.16, 0.002) var paint_roll_brush_radius_uv: float = 0.055
 @export_range(0.04, 0.32, 0.005) var paint_roll_speed_uv: float = 0.14
+@export_range(0.15, 2.5, 0.01) var paint_roll_acceleration_uv: float = 1.25
+@export_range(0.12, 1.8, 0.01) var paint_roll_max_speed_uv: float = 0.92
+@export_range(0.05, 4.0, 0.01) var paint_roll_friction_uv: float = 0.52
+@export_range(0.1, 0.9, 0.01) var paint_roll_bounce: float = 0.42
 @export_range(0.8, 1.8, 0.01) var paint_roll_canvas_zoom: float = 1.22
-@export_range(0.72, 0.98, 0.01) var paint_roll_complete_threshold: float = 0.90
+@export_range(0.90, 0.999, 0.001) var paint_roll_complete_threshold: float = 0.985
+@export_range(2.0, 16.0, 0.1) var paint_roll_mirror_wait_sec: float = 10.0
+@export_range(2.0, 16.0, 0.1) var paint_roll_mirror_collapse_sec: float = 10.0
 @export_range(24, 72, 1) var shell_latitude_segments: int = 56
 @export_range(48, 144, 1) var shell_longitude_segments: int = 112
 @export_range(0.01, 0.16, 0.001) var shell_thickness: float = 0.055
@@ -130,25 +137,57 @@ var _core_color_accum: Color = Color(0.0, 0.0, 0.0, 1.0)
 var _core_color_count: int = 0
 var _core_flow_palette: Array[Color] = []
 var _paint_roll_root: Control
+var _paint_roll_frame: ColorRect
 var _paint_roll_canvas: Control
+var _paint_roll_mirror_back: ColorRect
 var _paint_roll_bw: TextureRect
 var _paint_roll_color: TextureRect
+var _paint_roll_trail: TextureRect
+var _paint_roll_mirror_overlay: Control
+var _paint_roll_mirror_plate: ColorRect
+var _paint_roll_mirror: TextureRect
+var _paint_roll_mirror_material: ShaderMaterial
+var _paint_roll_shard_root: Control
+var _paint_roll_shards: Array[Dictionary] = []
 var _paint_roll_material: ShaderMaterial
+var _paint_roll_trail_material: ShaderMaterial
 var _paint_roll_mask_image: Image
 var _paint_roll_mask_texture: ImageTexture
-var _paint_roll_mask_size: Vector2i = Vector2i(512, 512)
+var _paint_roll_trail_image: Image
+var _paint_roll_trail_texture: ImageTexture
+var _paint_roll_deposit_image: Image
+var _paint_roll_resistance_image: Image
+var _paint_roll_mask_size: Vector2i = Vector2i(256, 256)
 var _paint_roll_source_image: Image
+var _paint_roll_bw_reference_image: Image
+var _paint_roll_stage_data: Array[Dictionary] = []
+var _paint_roll_stage_index: int = 0
 var _paint_roll_view_uv: Vector2 = Vector2(0.5, 0.5)
+var _paint_roll_velocity_uv: Vector2 = Vector2.ZERO
 var _paint_roll_running: bool = false
+var _paint_roll_transitioning: bool = false
 var _paint_roll_completion_timer: float = 0.0
 var _paint_roll_canvas_size: Vector2 = Vector2.ZERO
 var _paint_roll_finished: bool = false
+var _paint_roll_stage_transitioning: bool = false
+var _paint_roll_mirror_elapsed: float = 0.0
+var _paint_roll_mirror_collapsing: bool = false
+var _paint_roll_mirror_done: bool = false
+var _paint_roll_finish_start_uv: Vector2 = Vector2(0.5, 0.5)
+var _paint_roll_finish_overview_scale: float = 1.0
 var _paint_roll_ball_diameter_px: float = 160.0
 var _paint_roll_sphere_fill_ratio: float = 0.52
+var _core_drag_vector: Vector2 = Vector2.ZERO
+var _core_drag_strength: float = 0.0
+var _paint_roll_trail_decay_timer: float = 0.0
+var _dev_paint_roll_skip_enabled: bool = false
+var _dev_paint_roll_skip_hold_sec: float = 0.0
+var _dev_paint_roll_skip_triggered: bool = false
 
 
 func _ready() -> void:
 	_stage_data = _build_stage_data()
+	_paint_roll_stage_data = _build_paint_roll_stage_data()
 	_setup_sphere_material()
 	_setup_right_panel()
 	_setup_fx_layer()
@@ -162,6 +201,10 @@ func _process(delta: float) -> void:
 	_process_core_dye_queue()
 	_update_crack_overflow_emitters(delta)
 	_update_final_shell_reveal(delta)
+	_update_dev_paint_roll_skip(delta)
+	_update_paint_roll_diffusion(delta)
+	_update_paint_roll_trail_decay(delta)
+	_update_paint_roll_mirror_stage(delta)
 	_update_idle_rotation(delta)
 	_update_rotation_and_reticle(delta)
 	_update_collect_cooldown(delta)
@@ -177,6 +220,12 @@ func _input(event: InputEvent) -> void:
 		if _stage_index >= _stage_data.size() - 1 and _collected_in_stage >= _stage_spots.size():
 			get_viewport().set_input_as_handled()
 			_emit_completed()
+
+
+func _set_dev_paint_roll_skip_enabled(enabled: bool) -> void:
+	_dev_paint_roll_skip_enabled = enabled
+	_dev_paint_roll_skip_hold_sec = 0.0
+	_dev_paint_roll_skip_triggered = false
 
 
 func _build_stage_data() -> Array[Dictionary]:
@@ -222,6 +271,27 @@ func _build_stage_data() -> Array[Dictionary]:
 	]
 
 
+func _build_paint_roll_stage_data() -> Array[Dictionary]:
+	return [
+		{
+			"color_texture": PAINT_ROLL_COLOR_TEXTURE,
+			"reference_texture": PAINT_ROLL_BW_TEXTURE,
+			"start_uv": Vector2(0.5, 0.5),
+		},
+		{
+			"color_texture": PAINT_ROLL_RIGHT_5_TEXTURE,
+			"reference_texture": null,
+			"start_uv": Vector2(0.5, 0.5),
+		},
+		{
+			"color_texture": PAINT_ROLL_RIGHT_5_TEXTURE,
+			"reference_texture": null,
+			"start_uv": Vector2(0.5, 0.5),
+			"type": "mirror",
+		},
+	]
+
+
 func _setup_sphere_material() -> void:
 	_sphere_material = _create_glass_sphere_material()
 	sphere_mesh.material_override = _sphere_material
@@ -262,6 +332,8 @@ func _update_left_color_flow(delta: float) -> void:
 
 func _update_idle_rotation(delta: float) -> void:
 	if model_root == null:
+		return
+	if _paint_roll_running or _paint_roll_transitioning or _paint_roll_finished:
 		return
 	if sphere_idle_rotate_speed_deg == 0.0:
 		return
@@ -378,7 +450,10 @@ uniform vec4 flow_color_0 : source_color = vec4(0.9, 0.12, 0.08, 1.0);
 uniform vec4 flow_color_1 : source_color = vec4(0.1, 0.36, 0.9, 1.0);
 uniform vec4 flow_color_2 : source_color = vec4(0.96, 0.72, 0.12, 1.0);
 uniform vec4 flow_color_3 : source_color = vec4(0.18, 0.62, 0.34, 1.0);
+uniform vec2 drag_vector = vec2(0.0, 0.0);
+uniform float drag_strength = 0.0;
 uniform float fill_progress = 0.0;
+uniform float roll_flow_boost = 0.0;
 uniform float pulse_mix = 0.0;
 uniform float time = 0.0;
 
@@ -390,6 +465,15 @@ float hash(vec3 p) {
 
 float wave(vec3 p, float offset) {
 	return 0.5 + 0.5 * sin(dot(p, vec3(2.7, 4.1, 3.3)) + offset);
+}
+
+float luminance(vec3 color) {
+	return dot(color, vec3(0.299, 0.587, 0.114));
+}
+
+vec3 quiet_ink_color(vec3 color, float keep_saturation, float value_scale) {
+	float luma = luminance(color);
+	return mix(vec3(luma), color, keep_saturation) * value_scale;
 }
 
 vec2 sphere_uv(vec3 dir) {
@@ -407,6 +491,59 @@ vec3 palette_flow(vec3 dir) {
 	vec3 first = mix(flow_color_0.rgb, flow_color_1.rgb, smoothstep(0.18, 0.86, a));
 	vec3 second = mix(flow_color_2.rgb, flow_color_3.rgb, smoothstep(0.15, 0.88, b));
 	return mix(first, second, smoothstep(0.12, 0.92, c));
+}
+
+vec2 flow_vector(vec3 dir, float phase) {
+	float swirl_a = sin(dir.y * 5.7 + dir.z * 3.2 + phase * 0.83);
+	float swirl_b = cos(dir.x * 4.9 - dir.y * 2.6 - phase * 0.67);
+	float swirl_c = sin(dot(dir, vec3(3.4, -5.1, 4.2)) + phase);
+	return vec2(swirl_a + swirl_c * 0.55, swirl_b - swirl_c * 0.45);
+}
+
+vec3 mineralize_color(vec3 color, float band) {
+	vec3 vivid = quiet_ink_color(color, 0.92, 0.82);
+	vec3 depth_tint = mix(vec3(0.05, 0.045, 0.052), vec3(0.07, 0.085, 0.10), smoothstep(-0.45, 0.55, band));
+	return mix(vivid, depth_tint, 0.10);
+}
+
+vec4 sample_source_dye_flow(vec2 uv, vec3 dir, float lift) {
+	float band = sin(dir.y * 13.0 + sin(dir.y * 5.0) * 0.65);
+	vec2 wobble_dir = normalize(vec2(
+		sin(dot(dir, vec3(2.8, 5.1, -3.3)) + 1.7),
+		cos(dot(dir, vec3(-4.0, 2.7, 3.6)) - 0.4)
+	));
+	float wobble_phase = sin(time * 0.58 + dot(dir, vec3(3.1, -2.4, 4.6)));
+	vec2 wobble = wobble_dir * wobble_phase * mix(0.006, 0.018, lift);
+	vec2 drag_dir = drag_vector;
+	float drag_len = length(drag_dir);
+	if (drag_len > 0.001) {
+		drag_dir /= drag_len;
+	}
+	float pull = clamp(drag_strength, 0.0, 1.0) * lift;
+	vec2 trail = drag_dir * pull * 0.48;
+	vec2 lift_wobble = wobble * lift;
+	vec4 d0 = texture(dye_mask, safe_uv(uv + lift_wobble));
+	vec4 d1 = texture(dye_mask, safe_uv(uv + lift_wobble - trail * 0.55));
+	vec4 d2 = texture(dye_mask, safe_uv(uv + lift_wobble - trail * 1.15));
+	vec4 d3 = texture(dye_mask, safe_uv(uv + lift_wobble - trail * 1.95));
+	vec4 d4 = texture(dye_mask, safe_uv(uv - lift_wobble * 0.65 + trail * 0.32));
+	vec4 d5 = texture(dye_mask, safe_uv(uv + wobble_dir.yx * vec2(-1.0, 1.0) * 0.018 * lift));
+	vec4 d6 = texture(dye_mask, safe_uv(uv - wobble_dir.yx * vec2(-1.0, 1.0) * 0.024 * lift));
+	float w0 = d0.a * mix(2.8, 1.25, lift);
+	float w1 = d1.a * mix(0.45, 1.75, pull);
+	float w2 = d2.a * mix(0.22, 1.55, pull);
+	float w3 = d3.a * mix(0.08, 1.18, pull);
+	float w4 = d4.a * mix(0.24, 0.86, pull);
+	float w5 = d5.a * mix(0.42, 0.72, pull);
+	float w6 = d6.a * mix(0.34, 0.62, pull);
+	float weight = w0 + w1 + w2 + w3 + w4 + w5 + w6;
+	if (weight <= 0.001) {
+		return vec4(0.0);
+	}
+	vec3 color = (d0.rgb * w0 + d1.rgb * w1 + d2.rgb * w2 + d3.rgb * w3 + d4.rgb * w4 + d5.rgb * w5 + d6.rgb * w6) / weight;
+	color = mineralize_color(color, band);
+	float alpha = clamp(weight / mix(2.2, 4.6, lift), 0.0, 1.0);
+	return vec4(color, alpha);
 }
 
 vec4 sample_flowing_dye(vec2 uv, vec3 dir, float spread) {
@@ -446,23 +583,40 @@ void fragment() {
 	vec2 dye_uv = sphere_uv(dir);
 	vec4 dye = texture(dye_mask, dye_uv);
 	float progress = smoothstep(0.0, 1.0, fill_progress);
-	float liquid = smoothstep(0.10, 0.82, progress);
-	float spread = mix(0.002, 0.115, liquid);
+	float source_lift = clamp(max(smoothstep(0.52, 1.0, progress), roll_flow_boost), 0.0, 1.0);
+	float liquid = max(smoothstep(0.10, 0.82, progress), source_lift * 0.92);
+	float spread = mix(0.002, 0.074, liquid);
+	vec4 source_flow = sample_source_dye_flow(dye_uv, dir, source_lift);
 	vec4 flowing_dye = sample_flowing_dye(dye_uv, dir, spread);
+	flowing_dye.rgb = mix(flowing_dye.rgb, source_flow.rgb, source_flow.a);
+	flowing_dye.a = max(flowing_dye.a, source_flow.a);
 	vec3 palette = palette_flow(dir);
-	float grain = hash(floor((dir + vec3(time * 0.025, -time * 0.017, time * 0.021)) * 28.0));
+	float grain = hash(floor((dir + vec3(time * 0.035, -time * 0.024, time * 0.029)) * mix(28.0, 34.0, roll_flow_boost)));
 	float fresnel = pow(1.0 - clamp(dot(normalize(NORMAL), VIEW), 0.0, 1.0), 2.1);
-	vec3 base_color = mix(core_color.rgb, pulse_color.rgb, pulse_mix * 0.12);
-	vec3 anchored_color = mix(base_color, dye.rgb, clamp(dye.a, 0.0, 1.0));
-	vec3 advected_color = mix(anchored_color, flowing_dye.rgb, flowing_dye.a * liquid);
+	vec3 deep_base = vec3(0.014, 0.015, 0.018);
+	vec3 pulse_tint = quiet_ink_color(pulse_color.rgb, 0.48, 0.34);
+	vec3 base_color = mix(deep_base, pulse_tint, pulse_mix * 0.10);
+	float band_value = sin(dir.y * 13.0 + sin(dir.y * 5.0) * 0.65);
+	vec3 quiet_dye = mineralize_color(dye.rgb, band_value);
+	vec3 quiet_flow = mineralize_color(flowing_dye.rgb, band_value);
+	vec3 quiet_palette = mineralize_color(palette, band_value) * 0.92;
+	vec3 anchored_color = mix(base_color, quiet_dye, clamp(dye.a, 0.0, 1.0));
+	vec3 advected_color = mix(anchored_color, quiet_flow, flowing_dye.a * liquid);
 	float late_fill = smoothstep(0.34, 1.0, progress);
-	float open_coverage = max(dye.a, max(flowing_dye.a * liquid, late_fill));
-	vec3 filled_color = mix(advected_color, palette, max(0.0, late_fill - flowing_dye.a * 0.65));
-	vec3 color = mix(base_color, filled_color, clamp(open_coverage, 0.0, 1.0));
-	ALBEDO = color * (0.76 + grain * 0.045);
-	ROUGHNESS = 0.46;
+	float seeded_fill = smoothstep(0.16, 0.92, late_fill + source_flow.a * 0.85);
+	float open_coverage = max(dye.a, max(flowing_dye.a * liquid, seeded_fill));
+	vec3 quiet_source = source_flow.rgb;
+	vec3 seeded_color = mix(quiet_palette, quiet_source, source_flow.a);
+	vec3 filled_color = mix(advected_color, seeded_color, max(0.0, seeded_fill - dye.a * 0.38));
+	vec3 lifted_flow = mix(filled_color, mix(filled_color, seeded_color, 0.28 + flowing_dye.a * 0.24), source_lift * 0.68);
+	vec3 color = mix(base_color, lifted_flow, clamp(open_coverage + source_lift * 0.38, 0.0, 1.0));
+	float cloud_band = 0.90 + band_value * 0.045 + sin(dir.y * 29.0 + time * 0.05) * 0.018;
+	float contrast = mix(0.82 + grain * 0.020, cloud_band, source_lift);
+	ALBEDO = color * contrast;
+	ROUGHNESS = 0.58;
 	METALLIC = 0.0;
-	EMISSION = color * (0.38 + fresnel * 0.72 + pulse_mix * 0.45 + liquid * 0.16);
+	float source_glow = clamp(source_flow.a * 0.16 + dye.a * 0.08, 0.0, 0.22);
+	EMISSION = color * (0.06 + fresnel * 0.16 + pulse_mix * 0.10 + source_glow);
 	ALPHA = 1.0;
 }
 """
@@ -474,7 +628,10 @@ void fragment() {
 	material.set_shader_parameter("flow_color_1", Color(0.1, 0.36, 0.9, 1.0))
 	material.set_shader_parameter("flow_color_2", Color(0.96, 0.72, 0.12, 1.0))
 	material.set_shader_parameter("flow_color_3", Color(0.18, 0.62, 0.34, 1.0))
+	material.set_shader_parameter("drag_vector", Vector2.ZERO)
+	material.set_shader_parameter("drag_strength", 0.0)
 	material.set_shader_parameter("fill_progress", 0.0)
+	material.set_shader_parameter("roll_flow_boost", 0.0)
 	material.set_shader_parameter("pulse_mix", 0.0)
 	material.set_shader_parameter("time", 0.0)
 	return material
@@ -863,20 +1020,42 @@ func _setup_paint_roll_scene() -> void:
 	_paint_roll_canvas = Control.new()
 	_paint_roll_canvas.name = "RollingPaintingCanvas"
 	_paint_roll_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_paint_roll_canvas.z_index = 1
+
+	_paint_roll_frame = ColorRect.new()
+	_paint_roll_frame.name = "RollingPaintingFrame"
+	_paint_roll_frame.color = Color(0.20, 0.145, 0.075, 1.0)
+	_paint_roll_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_paint_roll_frame.z_index = 0
+	_paint_roll_root.add_child(_paint_roll_frame)
+
 	_paint_roll_root.add_child(_paint_roll_canvas)
+
+	_paint_roll_mirror_back = ColorRect.new()
+	_paint_roll_mirror_back.name = "MirrorFrameInterior"
+	_paint_roll_mirror_back.color = Color.WHITE
+	_paint_roll_mirror_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_paint_roll_mirror_back.visible = false
+	_paint_roll_mirror_back.material = _create_paint_roll_mirror_back_material()
+	_paint_roll_canvas.add_child(_paint_roll_mirror_back)
 
 	_paint_roll_bw = TextureRect.new()
 	_paint_roll_bw.name = "BlackWhitePainting"
-	_paint_roll_bw.texture = PAINT_ROLL_BW_TEXTURE
+	_paint_roll_bw.texture = PAINT_ROLL_COLOR_TEXTURE
 	_paint_roll_bw.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_paint_roll_bw.stretch_mode = TextureRect.STRETCH_SCALE
+	_paint_roll_bw.material = _create_grayscale_material()
 	_paint_roll_bw.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_paint_roll_canvas.add_child(_paint_roll_bw)
 
 	_paint_roll_mask_image = Image.create(_paint_roll_mask_size.x, _paint_roll_mask_size.y, false, Image.FORMAT_RGBA8)
 	_paint_roll_mask_image.fill(Color(0.0, 0.0, 0.0, 0.0))
+	_paint_roll_trail_image = Image.create(_paint_roll_mask_size.x, _paint_roll_mask_size.y, false, Image.FORMAT_RGBA8)
+	_paint_roll_trail_image.fill(Color(0.0, 0.0, 0.0, 0.0))
+	_paint_roll_trail_texture = ImageTexture.create_from_image(_paint_roll_trail_image)
+	_paint_roll_deposit_image = Image.create(_paint_roll_mask_size.x, _paint_roll_mask_size.y, false, Image.FORMAT_RGBA8)
+	_paint_roll_deposit_image.fill(Color(0.0, 0.0, 0.0, 0.0))
 	_paint_roll_mask_texture = ImageTexture.create_from_image(_paint_roll_mask_image)
-	_paint_roll_source_image = PAINT_ROLL_COLOR_TEXTURE.get_image()
 
 	_paint_roll_color = TextureRect.new()
 	_paint_roll_color.name = "RestoredColorPainting"
@@ -888,6 +1067,51 @@ func _setup_paint_roll_scene() -> void:
 	_paint_roll_color.material = _paint_roll_material
 	_paint_roll_canvas.add_child(_paint_roll_color)
 
+	_paint_roll_trail = TextureRect.new()
+	_paint_roll_trail.name = "MotionColorTrails"
+	_paint_roll_trail.texture = _paint_roll_trail_texture
+	_paint_roll_trail.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_paint_roll_trail.stretch_mode = TextureRect.STRETCH_SCALE
+	_paint_roll_trail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_paint_roll_trail_material = _create_paint_roll_trail_material()
+	_paint_roll_trail.material = _paint_roll_trail_material
+	_paint_roll_canvas.add_child(_paint_roll_trail)
+
+	_paint_roll_mirror_overlay = Control.new()
+	_paint_roll_mirror_overlay.name = "MirrorOverlay"
+	_paint_roll_mirror_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_paint_roll_mirror_overlay.visible = false
+	_paint_roll_mirror_overlay.z_index = 2
+	_paint_roll_canvas.add_child(_paint_roll_mirror_overlay)
+
+	_paint_roll_mirror_plate = ColorRect.new()
+	_paint_roll_mirror_plate.name = "MirrorGlassPlate"
+	_paint_roll_mirror_plate.color = Color.WHITE
+	_paint_roll_mirror_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_paint_roll_mirror_plate.visible = false
+	_paint_roll_mirror_overlay.add_child(_paint_roll_mirror_plate)
+
+	_paint_roll_mirror = TextureRect.new()
+	_paint_roll_mirror.name = "SphereMirrorReflection"
+	_paint_roll_mirror.texture = left_viewport.get_texture()
+	_paint_roll_mirror.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_paint_roll_mirror.stretch_mode = TextureRect.STRETCH_SCALE
+	_paint_roll_mirror.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_paint_roll_mirror.visible = false
+	_paint_roll_mirror_material = _create_paint_roll_mirror_material()
+	_paint_roll_mirror.material = _paint_roll_mirror_material
+	_paint_roll_mirror_overlay.add_child(_paint_roll_mirror)
+	_update_right6_mirror_shader()
+
+	_paint_roll_shard_root = Control.new()
+	_paint_roll_shard_root.name = "PaintRollLargeShardCollapse"
+	_paint_roll_shard_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_paint_roll_shard_root.visible = false
+	_paint_roll_shard_root.z_index = 8
+	_paint_roll_canvas.add_child(_paint_roll_shard_root)
+
+	_apply_paint_roll_stage(0)
+
 
 func _create_paint_roll_reveal_material() -> ShaderMaterial:
 	var shader := Shader.new()
@@ -898,19 +1122,75 @@ uniform sampler2D reveal_mask;
 uniform float edge_softness = 0.18;
 uniform float final_fill = 0.0;
 uniform float wet_strength = 0.62;
+uniform float burn_progress : hint_range(0.0, 1.0) = 0.0;
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
 }
 
+float noise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	float a = hash(i);
+	float b = hash(i + vec2(1.0, 0.0));
+	float c = hash(i + vec2(0.0, 1.0));
+	float d = hash(i + vec2(1.0, 1.0));
+	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+float burn_field(vec2 uv, vec2 origin, float radius, float stretch) {
+	vec2 p = uv - origin;
+	p.x *= stretch;
+	float coarse = noise(uv * 7.0 + vec2(TIME * 0.08, -TIME * 0.05));
+	float fine = noise(uv * 34.0 + vec2(floor(TIME * 14.0), floor(TIME * 11.0)));
+	float tear = sin((uv.y + coarse * 0.12) * 38.0 + TIME * 4.0) * 0.018;
+	return radius - length(p) + (coarse - 0.5) * 0.115 + (fine - 0.5) * 0.038 + tear;
+}
+
+float burn_total_field(vec2 uv) {
+	float radius = mix(-0.06, 1.02, burn_progress);
+	float field = max(burn_field(uv, vec2(0.45, 0.50), radius, 0.92), burn_field(uv, vec2(0.62, 0.42), radius * 0.90, 1.12));
+	field = max(field, burn_field(uv, vec2(0.52, 0.58), radius * 1.06, 0.84));
+	field = max(field, burn_field(uv, vec2(0.38, 0.55), radius * 0.82, 1.00));
+	field = max(field, burn_field(uv, vec2(0.56, 0.47), radius * 0.88, 0.95));
+	field = max(field, burn_field(uv, vec2(0.70, 0.38), radius * 0.78, 1.08));
+	field = max(field, burn_field(uv, vec2(0.48, 0.64), radius * 0.92, 0.90));
+	field = max(field, smoothstep(0.68, 1.0, burn_progress) * 0.42 - distance(uv, vec2(0.5)) * 0.55);
+	if (burn_progress >= 0.995) {
+		field = 1.0;
+	}
+	return field;
+}
+
 void fragment() {
 	vec4 c = texture(TEXTURE, UV);
-	float m = max(texture(reveal_mask, UV).a, final_fill);
+	vec2 px = TEXTURE_PIXEL_SIZE * 7.0;
+	float m0 = texture(reveal_mask, UV).a;
+	float m = m0;
+	m = max(m, texture(reveal_mask, UV + vec2(px.x, 0.0)).a * 0.76);
+	m = max(m, texture(reveal_mask, UV - vec2(px.x, 0.0)).a * 0.76);
+	m = max(m, texture(reveal_mask, UV + vec2(0.0, px.y)).a * 0.76);
+	m = max(m, texture(reveal_mask, UV - vec2(0.0, px.y)).a * 0.76);
+	m = max(m, texture(reveal_mask, UV + px).a * 0.52);
+	m = max(m, texture(reveal_mask, UV - px).a * 0.52);
+	m = max(m, final_fill);
+	float visible = step(0.001, m);
 	float grain = hash(floor(UV * 420.0));
-	float edge = smoothstep(0.02, edge_softness, m + (grain - 0.5) * 0.055);
-	float wet_edge = smoothstep(0.015, 0.22, m) * (1.0 - smoothstep(0.58, 0.98, m));
-	vec3 wet_color = mix(c.rgb, vec3(1.0), wet_edge * wet_strength * 0.18);
-	COLOR = vec4(wet_color, c.a * edge);
+	float full_reveal = smoothstep(0.86, 0.98, m);
+	float partial_reveal = smoothstep(0.02, edge_softness, m + (grain - 0.5) * 0.055) * visible;
+	float color_amount = mix(partial_reveal * 0.33, 1.0, full_reveal);
+	float wet_edge = partial_reveal * (1.0 - full_reveal) * visible;
+	vec3 muted = mix(vec3(dot(c.rgb, vec3(0.299, 0.587, 0.114))), c.rgb, 0.33);
+	vec3 visible_color = mix(muted, c.rgb, full_reveal);
+	visible_color = mix(visible_color, vec3(1.0), wet_edge * wet_strength * 0.04);
+	float burn_field_value = burn_total_field(UV);
+	float hole = smoothstep(0.0, 0.105, burn_field_value);
+	float edge = smoothstep(-0.105, 0.105, burn_field_value) * (1.0 - hole);
+	float charred = smoothstep(-0.15, 0.105, burn_field_value) * (1.0 - hole);
+	visible_color = mix(visible_color, vec3(0.06, 0.043, 0.032), charred * 0.78);
+	visible_color += vec3(0.80, 0.48, 0.18) * edge * 0.36;
+	COLOR = vec4(visible_color, c.a * color_amount * (1.0 - hole));
 }
 """
 	var material := ShaderMaterial.new()
@@ -918,7 +1198,327 @@ void fragment() {
 	material.set_shader_parameter("reveal_mask", _paint_roll_mask_texture)
 	material.set_shader_parameter("final_fill", 0.0)
 	material.set_shader_parameter("wet_strength", 0.62)
+	material.set_shader_parameter("burn_progress", 0.0)
 	return material
+
+
+func _create_paint_roll_trail_material() -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+
+float hash(vec2 p) {
+	return fract(sin(dot(p, vec2(41.7, 289.3))) * 43758.5453123);
+}
+
+void fragment() {
+	vec4 t = texture(TEXTURE, UV);
+	float n = hash(floor(UV * 360.0));
+	float edge = smoothstep(0.02, 0.34, t.a + (n - 0.5) * 0.045);
+	vec3 color = mix(t.rgb * 0.62, t.rgb, edge);
+	COLOR = vec4(color, t.a * edge * 0.72);
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	return material
+
+
+func _create_paint_roll_mirror_back_material() -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+
+uniform float burn_progress : hint_range(0.0, 1.0) = 0.0;
+
+float hash(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	float a = hash(i);
+	float b = hash(i + vec2(1.0, 0.0));
+	float c = hash(i + vec2(0.0, 1.0));
+	float d = hash(i + vec2(1.0, 1.0));
+	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+float burn_field(vec2 uv, vec2 origin, float radius, float stretch) {
+	vec2 p = uv - origin;
+	p.x *= stretch;
+	float coarse = noise(uv * 7.0 + vec2(TIME * 0.08, -TIME * 0.05));
+	float fine = noise(uv * 34.0 + vec2(floor(TIME * 14.0), floor(TIME * 11.0)));
+	float tear = sin((uv.y + coarse * 0.12) * 38.0 + TIME * 4.0) * 0.018;
+	return radius - length(p) + (coarse - 0.5) * 0.115 + (fine - 0.5) * 0.038 + tear;
+}
+
+float burn_total_field(vec2 uv) {
+	if (burn_progress >= 0.995) {
+		return 1.0;
+	}
+	float radius = mix(-0.06, 1.02, burn_progress);
+	float field = max(burn_field(uv, vec2(0.45, 0.50), radius, 0.92), burn_field(uv, vec2(0.62, 0.42), radius * 0.90, 1.12));
+	field = max(field, burn_field(uv, vec2(0.52, 0.58), radius * 1.06, 0.84));
+	field = max(field, burn_field(uv, vec2(0.38, 0.55), radius * 0.82, 1.00));
+	field = max(field, burn_field(uv, vec2(0.56, 0.47), radius * 0.88, 0.95));
+	field = max(field, burn_field(uv, vec2(0.70, 0.38), radius * 0.78, 1.08));
+	field = max(field, burn_field(uv, vec2(0.48, 0.64), radius * 0.92, 0.90));
+	field = max(field, smoothstep(0.68, 1.0, burn_progress) * 0.42 - distance(uv, vec2(0.5)) * 0.55);
+	return field;
+}
+
+void fragment() {
+	vec2 uv = UV;
+	float paper = noise(uv * vec2(8.0, 5.0)) * 0.08 + noise(uv * vec2(36.0, 28.0)) * 0.035;
+	float vignette = smoothstep(0.92, 0.18, distance(uv, vec2(0.5)));
+	vec3 base = mix(vec3(0.105, 0.090, 0.075), vec3(0.24, 0.205, 0.155), vignette);
+	base += vec3(paper);
+	float inner_line = max(
+		max(1.0 - smoothstep(0.018, 0.034, uv.x), smoothstep(0.966, 0.982, uv.x)),
+		max(1.0 - smoothstep(0.018, 0.034, uv.y), smoothstep(0.966, 0.982, uv.y))
+	);
+	base = mix(base, vec3(0.46, 0.35, 0.19), inner_line * 0.58);
+	float mirror_shadow = smoothstep(0.38, 0.12, distance((uv - vec2(0.5)) * vec2(1.0, 1.0), vec2(0.0)));
+	base *= 1.0 - mirror_shadow * 0.20;
+	float burn_field_value = burn_total_field(uv);
+	float hole = smoothstep(0.0, 0.105, burn_field_value);
+	float edge = smoothstep(-0.105, 0.105, burn_field_value) * (1.0 - hole);
+	float charred = smoothstep(-0.15, 0.105, burn_field_value) * (1.0 - hole);
+	base = mix(base, vec3(0.055, 0.041, 0.032), charred * 0.82);
+	base += vec3(0.72, 0.42, 0.16) * edge * 0.30;
+	COLOR = vec4(clamp(base, vec3(0.0), vec3(1.0)), 1.0 - hole);
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	material.set_shader_parameter("burn_progress", 0.0)
+	return material
+
+
+func _create_paint_roll_mirror_plate_material() -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+
+uniform float burn_progress : hint_range(0.0, 1.0) = 0.0;
+
+float hash(vec2 p) {
+	return fract(sin(dot(p, vec2(91.7, 271.3))) * 43758.5453123);
+}
+
+void fragment() {
+	vec2 p = UV * 2.0 - 1.0;
+	p.x *= 0.82;
+	float r = length(p);
+	if (r > 1.0) {
+		discard;
+	}
+	float rim = smoothstep(0.72, 0.98, r);
+	float outer_rim = smoothstep(0.88, 0.99, r);
+	float glass = smoothstep(1.0, 0.0, r);
+	float highlight = pow(max(0.0, 1.0 - distance(UV, vec2(0.34, 0.25)) * 2.5), 5.0);
+	float lower_sheen = pow(max(0.0, 1.0 - distance(UV, vec2(0.64, 0.72)) * 2.2), 3.0);
+	float grain = hash(floor(UV * 180.0) + vec2(floor(TIME * 8.0), floor(TIME * 6.0)));
+	vec3 deep = vec3(0.035, 0.047, 0.060);
+	vec3 blue = vec3(0.13, 0.19, 0.24);
+	vec3 metal = vec3(0.64, 0.50, 0.28);
+	vec3 color = mix(deep, blue, glass);
+	color += vec3(0.62, 0.78, 0.88) * highlight * 0.72;
+	color += vec3(0.26, 0.36, 0.42) * lower_sheen * 0.28;
+	color = mix(color, metal, outer_rim);
+	color += (grain - 0.5) * 0.018;
+	float burn_noise = hash(floor(UV * vec2(48.0, 60.0)) + vec2(floor(TIME * 6.0), floor(TIME * 5.0)));
+	float burn_value = UV.y + burn_noise * 0.20 + r * 0.16;
+	float burn_front = 1.12 - burn_progress * 1.32;
+	float burn_line = smoothstep(burn_front, burn_front + 0.16, burn_value);
+	if (burn_progress <= 0.001) {
+		burn_line = 0.0;
+	}
+	float alpha = (0.88 + rim * 0.12) * (1.0 - burn_line);
+	COLOR = vec4(clamp(color, vec3(0.0), vec3(1.0)), alpha);
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	material.set_shader_parameter("burn_progress", 0.0)
+	return material
+
+
+func _create_paint_roll_mirror_material() -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+
+uniform float burn_progress : hint_range(0.0, 1.0) = 0.0;
+uniform vec3 ball_center = vec3(0.0, 0.0, 1.35);
+uniform float ball_radius = 0.24;
+uniform vec2 ball_velocity = vec2(0.0, 0.0);
+uniform float camera_distance = 3.2;
+uniform vec4 flow_color_0 : source_color = vec4(0.9, 0.12, 0.08, 1.0);
+uniform vec4 flow_color_1 : source_color = vec4(0.1, 0.36, 0.9, 1.0);
+uniform vec4 flow_color_2 : source_color = vec4(0.96, 0.72, 0.12, 1.0);
+uniform vec4 flow_color_3 : source_color = vec4(0.18, 0.62, 0.34, 1.0);
+uniform float flow_time = 0.0;
+
+float hash(vec2 p) {
+	return fract(sin(dot(p, vec2(121.7, 317.3))) * 43758.5453123);
+}
+
+float noise(vec3 p) {
+	vec3 i = floor(p);
+	vec3 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	float n000 = hash(i.xy + vec2(i.z, 0.0));
+	float n100 = hash(i.xy + vec2(1.0 + i.z, 0.0));
+	float n010 = hash(i.xy + vec2(i.z, 1.0));
+	float n110 = hash(i.xy + vec2(1.0 + i.z, 1.0));
+	float n001 = hash(i.xy + vec2(i.z, 2.0));
+	float n101 = hash(i.xy + vec2(1.0 + i.z, 2.0));
+	float n011 = hash(i.xy + vec2(i.z, 3.0));
+	float n111 = hash(i.xy + vec2(1.0 + i.z, 3.0));
+	float n00 = mix(n000, n100, f.x);
+	float n10 = mix(n010, n110, f.x);
+	float n01 = mix(n001, n101, f.x);
+	float n11 = mix(n011, n111, f.x);
+	return mix(mix(n00, n10, f.y), mix(n01, n11, f.y), f.z);
+}
+
+float ray_sphere(vec3 ro, vec3 rd, vec3 center, float radius) {
+	vec3 oc = ro - center;
+	float b = dot(oc, rd);
+	float c = dot(oc, oc) - radius * radius;
+	float h = b * b - c;
+	if (h < 0.0) {
+		return -1.0;
+	}
+	return -b - sqrt(h);
+}
+
+vec3 sky_reflection(vec3 rd, vec2 p, float r) {
+	float horizon = smoothstep(-0.35, 0.75, rd.y);
+	vec3 deep = vec3(0.030, 0.036, 0.044);
+	vec3 wall = vec3(0.155, 0.135, 0.105);
+	vec3 color = mix(deep, wall, horizon);
+	float side = smoothstep(0.30, 1.0, abs(rd.x));
+	color = mix(color, vec3(0.055, 0.064, 0.072), side * 0.45);
+	float floor_line = smoothstep(-0.88, -0.38, rd.y) * (1.0 - smoothstep(-0.34, 0.08, rd.y));
+	color += vec3(0.09, 0.075, 0.052) * floor_line;
+	float radial = smoothstep(0.0, 1.0, r);
+	color *= 0.86 + 0.14 * (1.0 - radial);
+	color += vec3(0.020, 0.025, 0.030) * sin((p.x + rd.x) * 9.0 + rd.y * 4.0);
+	return clamp(color, vec3(0.0), vec3(1.0));
+}
+
+vec3 flowing_ball_color(vec3 n, vec2 drag) {
+	float band = sin(n.y * 12.0 + sin(n.x * 5.2 + flow_time * 0.42) * 0.85 + flow_time * 0.34);
+	float storm = noise(n * 5.0 + vec3(flow_time * 0.09, -flow_time * 0.05, flow_time * 0.07));
+	float streak = sin((n.x + drag.x * 0.22) * 18.0 + n.y * 7.0 + flow_time * 0.48 + storm * 1.6);
+	vec3 c01 = mix(flow_color_0.rgb, flow_color_1.rgb, smoothstep(-0.72, 0.72, band));
+	vec3 c23 = mix(flow_color_2.rgb, flow_color_3.rgb, smoothstep(-0.48, 0.86, streak));
+	vec3 color = mix(c01, c23, smoothstep(0.18, 0.92, storm));
+	float luma = dot(color, vec3(0.299, 0.587, 0.114));
+	color = mix(vec3(luma), color, 0.95) * 0.86;
+	color += vec3(0.08, 0.10, 0.12) * pow(1.0 - abs(n.z), 1.7);
+	return clamp(color, vec3(0.0), vec3(1.0));
+}
+
+void fragment() {
+	vec2 p = UV * 2.0 - 1.0;
+	float r = length(p);
+	if (r > 1.0) {
+		discard;
+	}
+	float z = -sqrt(max(0.0, 1.0 - r * r));
+	vec3 surface = vec3(p.x, -p.y, z);
+	vec3 normal = normalize(surface);
+	vec3 camera = vec3(0.0, 0.0, -camera_distance);
+	vec3 incident = normalize(surface - camera);
+	vec3 ray_dir = normalize(reflect(incident, normal));
+	float t = ray_sphere(surface + normal * 0.004, ray_dir, ball_center, ball_radius);
+	float gloss = pow(max(0.0, dot(normalize(vec3(-0.42, -0.58, -0.70)), normal)), 28.0);
+	float grain = hash(floor(UV * 180.0) + vec2(floor(TIME * 12.0), floor(TIME * 9.0)));
+	vec3 color = sky_reflection(ray_dir, p, r);
+	if (t > 0.0) {
+		vec3 hit = surface + ray_dir * t;
+		vec3 n = normalize(hit - ball_center);
+		vec3 ball_color = flowing_ball_color(n, ball_velocity);
+		float shade = 0.42 + 0.58 * max(0.0, dot(n, normalize(vec3(-0.35, -0.52, -0.78))));
+		float edge = pow(1.0 - max(0.0, dot(n, -ray_dir)), 2.4);
+		float reflected_size = clamp(ball_radius / max(0.001, length(hit - surface)), 0.0, 1.0);
+		vec3 reflected_ball = mix(ball_color * shade, vec3(0.92, 0.96, 1.0), edge * 0.14);
+		color = mix(color, reflected_ball, smoothstep(0.01, 0.10, reflected_size + edge * 0.04));
+	}
+	float fresnel = pow(1.0 - max(0.0, dot(-incident, normal)), 2.0);
+	color += vec3(0.92, 0.96, 1.0) * gloss * 0.58;
+	color += vec3(0.18, 0.22, 0.26) * fresnel * 0.34;
+	color += (grain - 0.5) * 0.025;
+	float alpha = smoothstep(1.0, 0.94, r);
+	COLOR = vec4(clamp(color, vec3(0.0), vec3(1.0)), alpha);
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	material.set_shader_parameter("burn_progress", 0.0)
+	material.set_shader_parameter("ball_center", Vector3(0.0, 0.0, -1.55))
+	material.set_shader_parameter("ball_radius", 0.24)
+	material.set_shader_parameter("ball_velocity", Vector2.ZERO)
+	material.set_shader_parameter("camera_distance", 3.2)
+	material.set_shader_parameter("flow_color_0", Color(0.9, 0.12, 0.08, 1.0))
+	material.set_shader_parameter("flow_color_1", Color(0.1, 0.36, 0.9, 1.0))
+	material.set_shader_parameter("flow_color_2", Color(0.96, 0.72, 0.12, 1.0))
+	material.set_shader_parameter("flow_color_3", Color(0.18, 0.62, 0.34, 1.0))
+	material.set_shader_parameter("flow_time", 0.0)
+	return material
+
+
+func _build_paint_roll_resistance_image() -> void:
+	_paint_roll_resistance_image = Image.create(_paint_roll_mask_size.x, _paint_roll_mask_size.y, false, Image.FORMAT_RGBA8)
+	if _paint_roll_source_image == null or _paint_roll_source_image.is_empty() or _paint_roll_bw_reference_image == null or _paint_roll_bw_reference_image.is_empty():
+		_paint_roll_resistance_image.fill(Color(0.0, 0.0, 0.0, 1.0))
+		return
+	for y in range(_paint_roll_mask_size.y):
+		for x in range(_paint_roll_mask_size.x):
+			var uv := Vector2(float(x) / float(_paint_roll_mask_size.x - 1), float(y) / float(_paint_roll_mask_size.y - 1))
+			var resistance: float = _sample_paint_roll_reference_difference(uv)
+			_paint_roll_resistance_image.set_pixel(x, y, Color(resistance, resistance, resistance, 1.0))
+	_soften_paint_roll_resistance()
+
+
+func _sample_paint_roll_reference_difference(uv: Vector2) -> float:
+	var color_size := Vector2i(_paint_roll_source_image.get_width(), _paint_roll_source_image.get_height())
+	var bw_size := Vector2i(_paint_roll_bw_reference_image.get_width(), _paint_roll_bw_reference_image.get_height())
+	var cx: int = clampi(int(uv.x * float(color_size.x - 1)), 0, color_size.x - 1)
+	var cy: int = clampi(int(uv.y * float(color_size.y - 1)), 0, color_size.y - 1)
+	var bx: int = clampi(int(uv.x * float(bw_size.x - 1)), 0, bw_size.x - 1)
+	var by: int = clampi(int(uv.y * float(bw_size.y - 1)), 0, bw_size.y - 1)
+	var color_px := _paint_roll_source_image.get_pixel(cx, cy)
+	var bw_px := _paint_roll_bw_reference_image.get_pixel(bx, by)
+	var diff: float = abs(color_px.r - bw_px.r) + abs(color_px.g - bw_px.g) + abs(color_px.b - bw_px.b)
+	var color_saturation: float = maxf(color_px.r, maxf(color_px.g, color_px.b)) - minf(color_px.r, minf(color_px.g, color_px.b))
+	var bw_saturation: float = maxf(bw_px.r, maxf(bw_px.g, bw_px.b)) - minf(bw_px.r, minf(bw_px.g, bw_px.b))
+	var saturation_drop: float = maxf(0.0, color_saturation - bw_saturation)
+	return clampf(smoothstep(0.06, 0.32, diff + saturation_drop * 1.8), 0.0, 1.0)
+
+
+func _soften_paint_roll_resistance() -> void:
+	if _paint_roll_resistance_image == null:
+		return
+	for pass_index in range(2):
+		var source := _paint_roll_resistance_image.duplicate()
+		for y in range(_paint_roll_mask_size.y):
+			for x in range(_paint_roll_mask_size.x):
+				var max_value: float = source.get_pixel(x, y).r
+				for oy in range(-2, 3):
+					for ox in range(-2, 3):
+						var sx: int = clampi(x + ox, 0, _paint_roll_mask_size.x - 1)
+						var sy: int = clampi(y + oy, 0, _paint_roll_mask_size.y - 1)
+						var distance := Vector2(float(ox), float(oy)).length()
+						var weight: float = clampf(1.0 - distance / 3.0, 0.0, 1.0)
+						max_value = maxf(max_value, source.get_pixel(sx, sy).r * weight)
+				_paint_roll_resistance_image.set_pixel(x, y, Color(max_value, max_value, max_value, 1.0))
 
 
 func _create_grayscale_material() -> ShaderMaterial:
@@ -1077,7 +1677,10 @@ func _layout_paint_roll_scene() -> void:
 	if viewport_size.x <= 1.0 or viewport_size.y <= 1.0:
 		return
 	_paint_roll_root.size = viewport_size
-	var texture_size := PAINT_ROLL_COLOR_TEXTURE.get_size()
+	var texture: Texture2D = _paint_roll_color.texture if _paint_roll_color != null else PAINT_ROLL_COLOR_TEXTURE
+	if texture == null:
+		return
+	var texture_size := texture.get_size()
 	if texture_size.x <= 1.0 or texture_size.y <= 1.0:
 		return
 	var viewport_aspect := viewport_size.x / viewport_size.y
@@ -1089,11 +1692,149 @@ func _layout_paint_roll_scene() -> void:
 		_paint_roll_canvas_size.x = _paint_roll_canvas_size.y * texture_aspect
 	_paint_roll_ball_diameter_px = _compute_paint_roll_ball_diameter(viewport_size)
 	_update_paint_roll_canvas_transform()
-	for rect in [_paint_roll_bw, _paint_roll_color]:
+	for rect in [_paint_roll_mirror_back, _paint_roll_bw, _paint_roll_color, _paint_roll_trail]:
 		if rect == null:
 			continue
 		rect.position = Vector2.ZERO
 		rect.size = _paint_roll_canvas_size
+	_layout_paint_roll_mirror_and_ash()
+
+
+func _layout_paint_roll_mirror_and_ash() -> void:
+	if _paint_roll_canvas_size.x <= 1.0 or _paint_roll_canvas_size.y <= 1.0:
+		return
+	_sync_paint_roll_mirror_overlay()
+	if _paint_roll_shard_root != null:
+		_paint_roll_shard_root.position = Vector2.ZERO
+		_paint_roll_shard_root.size = _paint_roll_canvas_size
+
+
+func _sync_paint_roll_mirror_overlay() -> void:
+	if _paint_roll_mirror_overlay == null:
+		return
+	if _paint_roll_canvas_size.x <= 1.0 or _paint_roll_canvas_size.y <= 1.0:
+		return
+	var diameter := minf(_paint_roll_canvas_size.x, _paint_roll_canvas_size.y) * 0.92
+	var plate_size := Vector2(diameter, diameter)
+	var center := Vector2(_paint_roll_canvas_size.x * 0.5, _paint_roll_canvas_size.y * 0.50)
+	_paint_roll_mirror_overlay.position = center - plate_size * 0.5
+	_paint_roll_mirror_overlay.size = plate_size
+	_paint_roll_mirror_overlay.pivot_offset = plate_size * 0.5
+	_paint_roll_mirror_overlay.rotation_degrees = 0.0
+	if _paint_roll_mirror_plate != null:
+		_paint_roll_mirror_plate.position = Vector2.ZERO
+		_paint_roll_mirror_plate.size = plate_size
+		_paint_roll_mirror_plate.pivot_offset = plate_size * 0.5
+		_paint_roll_mirror_plate.visible = false
+	if _paint_roll_mirror != null:
+		var reflection_size := Vector2(diameter, diameter)
+		_paint_roll_mirror.size = reflection_size
+		_paint_roll_mirror.pivot_offset = reflection_size * 0.5
+		_paint_roll_mirror.position = plate_size * 0.5 - reflection_size * 0.5
+
+
+func _update_right6_mirror_shader() -> void:
+	if _paint_roll_mirror_material == null:
+		return
+	var mirror_uv := Vector2(0.5, 0.5)
+	var rel := _paint_roll_view_uv - mirror_uv
+	var distance := rel.length()
+	var z := -1.42 - clampf(distance, 0.0, 0.85) * 0.72
+	var center := Vector3(rel.x * 2.15, -rel.y * 2.15, z)
+	var radius := clampf(_get_paint_roll_ball_radius_uv() * 2.35, 0.18, 0.36)
+	var velocity := _paint_roll_velocity_uv / maxf(0.001, paint_roll_max_speed_uv)
+	_paint_roll_mirror_material.set_shader_parameter("ball_center", center)
+	_paint_roll_mirror_material.set_shader_parameter("ball_radius", radius)
+	_paint_roll_mirror_material.set_shader_parameter("ball_velocity", velocity)
+	_paint_roll_mirror_material.set_shader_parameter("camera_distance", 3.2)
+	_paint_roll_mirror_material.set_shader_parameter("flow_time", _color_flow_time)
+	var palette := _get_core_flow_palette_for_shader()
+	_paint_roll_mirror_material.set_shader_parameter("flow_color_0", palette[0])
+	_paint_roll_mirror_material.set_shader_parameter("flow_color_1", palette[1])
+	_paint_roll_mirror_material.set_shader_parameter("flow_color_2", palette[2])
+	_paint_roll_mirror_material.set_shader_parameter("flow_color_3", palette[3])
+
+
+func _get_core_flow_palette_for_shader() -> Array[Color]:
+	var fallback: Array[Color] = [
+		Color(0.9, 0.12, 0.08, 1.0),
+		Color(0.1, 0.36, 0.9, 1.0),
+		Color(0.96, 0.72, 0.12, 1.0),
+		Color(0.18, 0.62, 0.34, 1.0),
+	]
+	if _core_flow_palette.is_empty():
+		return fallback
+	var result: Array[Color] = []
+	for i in range(4):
+		result.append(_core_flow_palette[i % _core_flow_palette.size()])
+	return result
+
+
+func _apply_paint_roll_stage(stage_index: int) -> void:
+	if _paint_roll_stage_data.is_empty():
+		return
+	_paint_roll_stage_index = clampi(stage_index, 0, _paint_roll_stage_data.size() - 1)
+	var stage := _paint_roll_stage_data[_paint_roll_stage_index]
+	var color_texture: Texture2D = stage["color_texture"]
+	var reference_texture: Texture2D = stage["reference_texture"]
+	var is_mirror_stage := _is_paint_roll_mirror_stage()
+	_paint_roll_source_image = color_texture.get_image() if color_texture != null else null
+	_paint_roll_bw_reference_image = reference_texture.get_image() if reference_texture != null else null
+	if _paint_roll_bw != null:
+		_paint_roll_bw.texture = color_texture
+		_paint_roll_bw.visible = not is_mirror_stage
+	if _paint_roll_color != null:
+		_paint_roll_color.texture = color_texture
+		_paint_roll_color.visible = not is_mirror_stage
+	if _paint_roll_trail != null:
+		_paint_roll_trail.visible = not is_mirror_stage
+	if _paint_roll_mirror_overlay != null:
+		_paint_roll_mirror_overlay.visible = is_mirror_stage
+		_paint_roll_mirror_overlay.modulate.a = 1.0
+	if _paint_roll_mirror_back != null:
+		_paint_roll_mirror_back.visible = is_mirror_stage
+		if _paint_roll_mirror_back.material is ShaderMaterial:
+			(_paint_roll_mirror_back.material as ShaderMaterial).set_shader_parameter("burn_progress", 0.0)
+	if _paint_roll_mirror_plate != null:
+		_paint_roll_mirror_plate.visible = false
+		_paint_roll_mirror_plate.modulate.a = 1.0
+		if _paint_roll_mirror_plate.material is ShaderMaterial:
+			(_paint_roll_mirror_plate.material as ShaderMaterial).set_shader_parameter("burn_progress", 0.0)
+	if _paint_roll_mirror != null:
+		_paint_roll_mirror.visible = is_mirror_stage
+		_paint_roll_mirror.modulate.a = 1.0
+	if _paint_roll_mirror_material != null:
+		_paint_roll_mirror_material.set_shader_parameter("burn_progress", 0.0)
+		_update_right6_mirror_shader()
+	_clear_paint_roll_shards()
+	if _paint_roll_canvas != null:
+		_paint_roll_canvas.modulate.a = 1.0
+	if _paint_roll_frame != null:
+		_paint_roll_frame.modulate.a = 1.0
+	_paint_roll_view_uv = stage.get("start_uv", Vector2(0.5, 0.5))
+	_paint_roll_velocity_uv = Vector2.ZERO
+	_paint_roll_completion_timer = 0.0
+	_paint_roll_finished = false
+	_paint_roll_mirror_elapsed = 0.0
+	_paint_roll_mirror_collapsing = false
+	_paint_roll_mirror_done = false
+	_reset_paint_roll_mask()
+	_build_paint_roll_resistance_image()
+	if is_mirror_stage and _paint_roll_material != null:
+		_paint_roll_material.set_shader_parameter("final_fill", 1.0)
+		_paint_roll_material.set_shader_parameter("burn_progress", 0.0)
+	if _paint_roll_root != null and _paint_roll_root.size.x > 1.0:
+		_layout_paint_roll_scene()
+	if is_mirror_stage:
+		_sync_paint_roll_mirror_overlay()
+		_update_right6_mirror_shader()
+
+
+func _is_paint_roll_mirror_stage() -> bool:
+	if _paint_roll_stage_data.is_empty():
+		return false
+	var stage := _paint_roll_stage_data[clampi(_paint_roll_stage_index, 0, _paint_roll_stage_data.size() - 1)]
+	return String(stage.get("type", "")) == "mirror"
 
 
 func _compute_paint_roll_ball_diameter(viewport_size: Vector2) -> float:
@@ -1607,6 +2348,7 @@ func _play_sphere_hit_beacon(color: Color, local_dir: Vector3) -> void:
 	beam.material_override = _create_beacon_material(color)
 	beam.position = dir * (left_sphere_radius + 0.38)
 	beam.basis = Basis(Quaternion(Vector3.UP, -dir))
+	beam.add_to_group("c3l1_crack_residue")
 	model_root.add_child(beam)
 
 
@@ -1676,6 +2418,7 @@ func _spawn_overflow_particle(color: Color, dir: Vector3, side: Vector3, rng: Ra
 	var material := _create_overflow_particle_material(color, rng)
 	particle.material_override = material
 	particle.position = dir * (left_sphere_radius + 0.035)
+	particle.add_to_group("c3l1_crack_residue")
 	model_root.add_child(particle)
 	var target: Vector3 = particle.position + dir * rng.randf_range(0.12, 0.26) + side * rng.randf_range(0.04, 0.16)
 	var life: float = rng.randf_range(1.15, 1.85)
@@ -1996,6 +2739,8 @@ func _update_final_shell_reveal(delta: float) -> void:
 	var fill_progress: float = smoothstep(0.03, 0.62, progress)
 	if _core_material != null:
 		_core_material.set_shader_parameter("fill_progress", fill_progress)
+		var reveal_flow: float = smoothstep(0.54, 0.94, progress) * 0.72
+		_core_material.set_shader_parameter("roll_flow_boost", reveal_flow)
 	_update_final_shell_cut(progress)
 	if progress > 0.58:
 		_detach_final_shell_chunks(progress)
@@ -2074,13 +2819,14 @@ func _start_paint_roll_transition() -> void:
 	if _paint_roll_running or _paint_roll_finished:
 		return
 	_transition_running = true
+	_paint_roll_transitioning = true
 	_prepare_ball_for_paint_roll()
 	_fade_crack_residue_for_paint_roll()
+	_apply_paint_roll_stage(0)
 	_layout_paint_roll_scene()
 	_paint_roll_root.visible = true
 	_paint_roll_root.modulate.a = 0.0
-	_paint_roll_view_uv = Vector2(0.5, 0.5)
-	_update_paint_roll_canvas_transform()
+	_paint_roll_velocity_uv = Vector2.ZERO
 
 	var root_global := get_global_rect().position
 	var source_rect := left_3d.get_global_rect()
@@ -2107,12 +2853,96 @@ func _start_paint_roll_transition() -> void:
 	tween.tween_property(right_panel, "modulate:a", 0.0, 0.8).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	tween.tween_property(left_3d, "position", target_pos, 1.15).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	tween.tween_property(left_3d, "size", target_size, 1.15).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	_run_paint_roll_stage_entry(false)
 	await tween.finished
+	while _paint_roll_stage_transitioning:
+		await get_tree().process_frame
 	_paint_roll_running = true
+	_paint_roll_transitioning = false
 	_paint_roll_completion_timer = 0.0
 	_paint_roll_finished = false
 	_status_label.text = ""
-	_paint_roll_at(_paint_roll_view_uv, _get_paint_roll_brush_radius_uv(), 0.35)
+	_ease_core_flow_into_paint_roll()
+
+
+func _run_paint_roll_stage_entry(from_stage_switch: bool) -> void:
+	if _paint_roll_root == null or _paint_roll_canvas == null:
+		return
+	_paint_roll_stage_transitioning = true
+	_paint_roll_running = false
+	_layout_paint_roll_scene()
+	var viewport_size := _paint_roll_root.size
+	var start_scale := 0.52 if from_stage_switch else 0.58
+	var start_offset := Vector2(viewport_size.x * 0.86, 0.0)
+	_set_paint_roll_picture_transform(_paint_roll_view_uv, 1.0, painting_tilt_degrees, Vector2.ZERO)
+	var target_canvas_position := _paint_roll_canvas.position
+	var target_frame_position := _paint_roll_frame.position
+	var target_canvas_scale := _paint_roll_canvas.scale
+	var target_frame_scale := _paint_roll_frame.scale
+	var target_canvas_rotation := _paint_roll_canvas.rotation_degrees
+	var target_frame_rotation := _paint_roll_frame.rotation_degrees
+	_set_paint_roll_picture_transform(_paint_roll_view_uv, start_scale, 0.0, start_offset)
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(_paint_roll_canvas, "position", target_canvas_position, 1.05).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_property(_paint_roll_frame, "position", target_frame_position, 1.05).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_property(_paint_roll_canvas, "scale", target_canvas_scale, 1.05).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_property(_paint_roll_frame, "scale", target_frame_scale, 1.05).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_property(_paint_roll_canvas, "rotation_degrees", target_canvas_rotation, 1.05).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_property(_paint_roll_frame, "rotation_degrees", target_frame_rotation, 1.05).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	await tween.finished
+	_set_paint_roll_picture_transform(_paint_roll_view_uv, 1.0, painting_tilt_degrees, Vector2.ZERO)
+	_paint_roll_stage_transitioning = false
+
+
+func _reset_paint_roll_mask() -> void:
+	if _paint_roll_mask_image == null:
+		return
+	_paint_roll_mask_image.fill(Color(0.0, 0.0, 0.0, 0.0))
+	if _paint_roll_deposit_image != null:
+		_paint_roll_deposit_image.fill(Color(0.0, 0.0, 0.0, 0.0))
+	if _paint_roll_trail_image != null:
+		_paint_roll_trail_image.fill(Color(0.0, 0.0, 0.0, 0.0))
+		if _paint_roll_trail_texture != null:
+			_paint_roll_trail_texture.update(_paint_roll_trail_image)
+	if _paint_roll_mask_texture != null:
+		_paint_roll_mask_texture.update(_paint_roll_mask_image)
+	if _paint_roll_material != null:
+		_paint_roll_material.set_shader_parameter("final_fill", 0.0)
+		_paint_roll_material.set_shader_parameter("burn_progress", 0.0)
+
+
+func _update_dev_paint_roll_skip(delta: float) -> void:
+	if not _dev_paint_roll_skip_enabled:
+		return
+	if not _paint_roll_running or _paint_roll_stage_transitioning or _paint_roll_finished:
+		_dev_paint_roll_skip_hold_sec = 0.0
+		_dev_paint_roll_skip_triggered = false
+		return
+	if _is_paint_roll_mirror_stage():
+		_dev_paint_roll_skip_hold_sec = 0.0
+		_dev_paint_roll_skip_triggered = false
+		return
+	if not Input.is_key_pressed(KEY_SPACE):
+		_dev_paint_roll_skip_hold_sec = 0.0
+		_dev_paint_roll_skip_triggered = false
+		return
+	_dev_paint_roll_skip_hold_sec += delta
+	if _dev_paint_roll_skip_hold_sec >= 3.0 and not _dev_paint_roll_skip_triggered:
+		_dev_paint_roll_skip_triggered = true
+		_dev_fill_current_paint_roll_stage()
+
+
+func _dev_fill_current_paint_roll_stage() -> void:
+	if _paint_roll_mask_image == null or _paint_roll_mask_texture == null:
+		return
+	for y in range(_paint_roll_mask_size.y):
+		for x in range(_paint_roll_mask_size.x):
+			_paint_roll_mask_image.set_pixel(x, y, Color(1.0, 1.0, 1.0, 1.0))
+	_paint_roll_mask_texture.update(_paint_roll_mask_image)
+	if _paint_roll_material != null:
+		_paint_roll_material.set_shader_parameter("final_fill", 1.0)
+	_finish_paint_roll_stage()
 
 
 func _prepare_ball_for_paint_roll() -> void:
@@ -2128,18 +2958,51 @@ func _prepare_ball_for_paint_roll() -> void:
 		_core_mesh.visible = true
 	if _core_material != null:
 		_core_material.set_shader_parameter("fill_progress", 1.0)
+		_core_material.set_shader_parameter("pulse_mix", 0.0)
+		_update_core_flow_palette()
+
+
+func _ease_core_flow_into_paint_roll() -> void:
+	if _core_material == null:
+		return
+	var current_boost: float = 0.72
+	var current_variant: Variant = _core_material.get_shader_parameter("roll_flow_boost")
+	if current_variant is float:
+		current_boost = float(current_variant)
+	var tween := create_tween()
+	tween.tween_method(
+		Callable(self, "_set_core_roll_flow_boost_for_tween"),
+		current_boost,
+		0.92,
+		2.8
+	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+func _set_core_roll_flow_boost_for_tween(value: float) -> void:
+	if _core_material != null:
+		_core_material.set_shader_parameter("roll_flow_boost", value)
 
 
 func _fade_crack_residue_for_paint_roll() -> void:
 	_active_crack_emitters.clear()
 	_overflow_emit_timer = 9999.0
+	for node in get_tree().get_nodes_in_group("c3l1_crack_residue"):
+		if node is Node3D:
+			_fade_and_remove_mesh_instance(node as Node3D, 0.45)
 	if model_root == null:
 		return
-	for child in model_root.get_children():
+	_fade_crack_residue_recursive(model_root)
+
+
+func _fade_crack_residue_recursive(node: Node) -> void:
+	for child in node.get_children():
 		if child == null or not is_instance_valid(child):
 			continue
 		if child.name.begins_with("PersistentSphereHitBeacon") or child.name.begins_with("CrackOverflowParticle"):
-			_fade_and_remove_mesh_instance(child as Node3D, 0.75)
+			if child is Node3D:
+				_fade_and_remove_mesh_instance(child as Node3D, 0.45)
+		else:
+			_fade_crack_residue_recursive(child)
 
 
 func _fade_and_remove_mesh_instance(node: Node3D, duration: float) -> void:
@@ -2156,13 +3019,12 @@ func _fade_and_remove_mesh_instance(node: Node3D, duration: float) -> void:
 			tween.tween_property(standard, "albedo_color", Color(standard.albedo_color.r, standard.albedo_color.g, standard.albedo_color.b, 0.0), duration)
 			if standard.emission_enabled:
 				tween.tween_property(standard, "emission_energy_multiplier", 0.0, duration)
-	tween.chain().tween_callback(func() -> void:
-		if is_instance_valid(node):
-			node.queue_free()
-	)
+	tween.chain().tween_callback(Callable(node, "queue_free"))
 
 
 func _update_paint_roll_input(delta: float) -> void:
+	if _paint_roll_stage_transitioning:
+		return
 	var input_vec := Vector2.ZERO
 	if Input.is_key_pressed(KEY_A):
 		input_vec.x -= 1.0
@@ -2175,41 +3037,137 @@ func _update_paint_roll_input(delta: float) -> void:
 
 	if input_vec.length_squared() > 0.0:
 		input_vec = input_vec.normalized()
-		_paint_roll_view_uv += input_vec * paint_roll_speed_uv * delta
-		_clamp_paint_roll_view_uv()
-		_update_paint_roll_canvas_transform()
-		var rotate_amount := deg_to_rad(sphere_rotate_speed_deg) * delta
-		model_root.rotate_y(-input_vec.x * rotate_amount)
-		model_root.rotate_object_local(Vector3.RIGHT, -input_vec.y * rotate_amount)
-		_paint_roll_at(_paint_roll_view_uv, _get_paint_roll_brush_radius_uv(), delta)
+		_paint_roll_velocity_uv += input_vec * paint_roll_acceleration_uv * delta
+	else:
+		_paint_roll_velocity_uv = _paint_roll_velocity_uv.move_toward(Vector2.ZERO, paint_roll_friction_uv * delta)
 
-	_paint_roll_completion_timer -= delta
-	if _paint_roll_completion_timer <= 0.0:
-		_paint_roll_completion_timer = 0.45
-		_check_paint_roll_completion()
+	if _paint_roll_velocity_uv.length() > paint_roll_max_speed_uv:
+		_paint_roll_velocity_uv = _paint_roll_velocity_uv.normalized() * paint_roll_max_speed_uv
+
+	_update_core_drag_flow()
+	var previous_uv := _paint_roll_view_uv
+	_paint_roll_view_uv += _paint_roll_velocity_uv * delta
+	_bounce_paint_roll_at_edges()
+	_update_paint_roll_canvas_transform()
+	if _is_paint_roll_mirror_stage():
+		_update_right6_mirror_shader()
+	var movement := _paint_roll_view_uv - previous_uv
+	if movement.length_squared() > 0.00000001:
+		var movement_dir := movement.normalized()
+		_roll_sphere_for_paint_movement(movement_dir, movement.length())
+		if not _is_paint_roll_mirror_stage():
+			_paint_roll_at(_paint_roll_view_uv)
+			_paint_roll_trail_at(previous_uv, _paint_roll_view_uv, movement_dir)
+
+	if not _is_paint_roll_mirror_stage():
+		_paint_roll_completion_timer -= delta
+		if _paint_roll_completion_timer <= 0.0:
+			_paint_roll_completion_timer = 0.45
+			_check_paint_roll_completion()
+
+
+func _update_core_drag_flow() -> void:
+	if _core_material == null:
+		return
+	var speed_ratio: float = clampf(_paint_roll_velocity_uv.length() / maxf(0.001, paint_roll_max_speed_uv * 0.72), 0.0, 1.0)
+	var target_vec := _core_drag_vector
+	if _paint_roll_velocity_uv.length_squared() > 0.000001:
+		target_vec = _paint_roll_velocity_uv.normalized()
+	_core_drag_vector = _core_drag_vector.lerp(target_vec, 0.28)
+	if _core_drag_vector.length_squared() > 0.000001:
+		_core_drag_vector = _core_drag_vector.normalized()
+	_core_drag_strength = lerpf(_core_drag_strength, speed_ratio, 0.34) if speed_ratio > _core_drag_strength else lerpf(_core_drag_strength, speed_ratio, 0.028)
+	_core_material.set_shader_parameter("drag_vector", _core_drag_vector)
+	_core_material.set_shader_parameter("drag_strength", _core_drag_strength)
+
+
+func _bounce_paint_roll_at_edges() -> void:
+	if _paint_roll_view_uv.x < 0.0:
+		_paint_roll_view_uv.x = 0.0
+		_paint_roll_velocity_uv.x = absf(_paint_roll_velocity_uv.x) * paint_roll_bounce
+	elif _paint_roll_view_uv.x > 1.0:
+		_paint_roll_view_uv.x = 1.0
+		_paint_roll_velocity_uv.x = -absf(_paint_roll_velocity_uv.x) * paint_roll_bounce
+	if _paint_roll_view_uv.y < 0.0:
+		_paint_roll_view_uv.y = 0.0
+		_paint_roll_velocity_uv.y = absf(_paint_roll_velocity_uv.y) * paint_roll_bounce
+	elif _paint_roll_view_uv.y > 1.0:
+		_paint_roll_view_uv.y = 1.0
+		_paint_roll_velocity_uv.y = -absf(_paint_roll_velocity_uv.y) * paint_roll_bounce
+
+
+func _roll_sphere_for_paint_movement(input_vec: Vector2, uv_distance: float) -> void:
+	if model_root == null or left_camera == null:
+		return
+	var camera_basis := left_camera.global_transform.basis
+	var screen_right := camera_basis.x.normalized()
+	var screen_up := camera_basis.y.normalized()
+	var surface_normal_toward_camera := camera_basis.z.normalized()
+	var screen_motion := (screen_right * input_vec.x - screen_up * input_vec.y).normalized()
+	if screen_motion.length_squared() <= 0.0001:
+		return
+	var axis_world := surface_normal_toward_camera.cross(screen_motion).normalized()
+	var axis_local := (model_root.global_transform.basis.inverse() * axis_world).normalized()
+	var contact_radius_px: float = maxf(1.0, _paint_roll_ball_diameter_px * 0.5)
+	var pixel_distance: float = uv_distance * minf(_paint_roll_canvas_size.x, _paint_roll_canvas_size.y)
+	var angle: float = pixel_distance / contact_radius_px
+	model_root.rotate_object_local(axis_local, angle)
 
 
 func _update_paint_roll_canvas_transform() -> void:
 	if _paint_roll_canvas == null or _paint_roll_root == null:
 		return
+	_set_paint_roll_picture_transform(_paint_roll_view_uv, 1.0, painting_tilt_degrees, Vector2.ZERO)
+
+
+func _set_paint_roll_picture_transform(view_uv: Vector2, visual_scale: float, rotation_deg: float, center_offset: Vector2 = Vector2.ZERO) -> void:
+	if _paint_roll_canvas == null or _paint_roll_root == null:
+		return
 	var viewport_size := _paint_roll_root.size
 	if viewport_size.x <= 1.0 or viewport_size.y <= 1.0 or _paint_roll_canvas_size.x <= 1.0:
 		return
-	_clamp_paint_roll_view_uv()
+	view_uv.x = clampf(view_uv.x, 0.0, 1.0)
+	view_uv.y = clampf(view_uv.y, 0.0, 1.0)
 	_paint_roll_canvas.size = _paint_roll_canvas_size
-	_paint_roll_canvas.position = viewport_size * 0.5 - _paint_roll_view_uv * _paint_roll_canvas_size
+	_paint_roll_canvas.pivot_offset = view_uv * _paint_roll_canvas_size
+	_paint_roll_canvas.position = viewport_size * 0.5 + center_offset - _paint_roll_canvas.pivot_offset
+	_paint_roll_canvas.scale = Vector2.ONE * visual_scale
+	_paint_roll_canvas.rotation_degrees = rotation_deg
+	_sync_paint_roll_frame_transform(visual_scale, rotation_deg)
+
+
+func _sync_paint_roll_frame_transform(visual_scale: float, rotation_deg: float) -> void:
+	if _paint_roll_frame == null or _paint_roll_canvas == null:
+		return
+	var margin := _get_paint_roll_frame_margin()
+	var margin_vec := Vector2(margin, margin)
+	_paint_roll_frame.size = _paint_roll_canvas_size + margin_vec * 2.0
+	_paint_roll_frame.pivot_offset = _paint_roll_canvas.pivot_offset + margin_vec
+	_paint_roll_frame.position = _paint_roll_canvas.position - margin_vec
+	_paint_roll_frame.scale = Vector2.ONE * visual_scale
+	_paint_roll_frame.rotation_degrees = rotation_deg
+
+
+func _get_paint_roll_frame_margin() -> float:
+	if _paint_roll_canvas_size.x <= 1.0 or _paint_roll_canvas_size.y <= 1.0:
+		return 24.0
+	return maxf(18.0, minf(_paint_roll_canvas_size.x, _paint_roll_canvas_size.y) * gallery_frame_margin_uv)
+
+
+func _get_paint_roll_overview_scale() -> float:
+	if _paint_roll_root == null:
+		return 0.72
+	var viewport_size := _paint_roll_root.size
+	var margin := _get_paint_roll_frame_margin()
+	var framed_size := _paint_roll_canvas_size + Vector2(margin, margin) * 2.0
+	if framed_size.x <= 1.0 or framed_size.y <= 1.0:
+		return 0.72
+	return clampf(minf(viewport_size.x / framed_size.x, viewport_size.y / framed_size.y) * 0.82, 0.18, 1.0)
 
 
 func _clamp_paint_roll_view_uv() -> void:
-	if _paint_roll_root == null or _paint_roll_canvas_size.x <= 1.0 or _paint_roll_canvas_size.y <= 1.0:
-		_paint_roll_view_uv.x = clampf(_paint_roll_view_uv.x, 0.0, 1.0)
-		_paint_roll_view_uv.y = clampf(_paint_roll_view_uv.y, 0.0, 1.0)
-		return
-	var viewport_size := _paint_roll_root.size
-	var margin_x: float = clampf((viewport_size.x * 0.5) / _paint_roll_canvas_size.x, 0.0, 0.5)
-	var margin_y: float = clampf((viewport_size.y * 0.5) / _paint_roll_canvas_size.y, 0.0, 0.5)
-	_paint_roll_view_uv.x = clampf(_paint_roll_view_uv.x, margin_x, 1.0 - margin_x)
-	_paint_roll_view_uv.y = clampf(_paint_roll_view_uv.y, margin_y, 1.0 - margin_y)
+	_paint_roll_view_uv.x = clampf(_paint_roll_view_uv.x, 0.0, 1.0)
+	_paint_roll_view_uv.y = clampf(_paint_roll_view_uv.y, 0.0, 1.0)
 
 
 func _get_paint_roll_brush_radius_uv() -> float:
@@ -2220,43 +3178,295 @@ func _get_paint_roll_brush_radius_uv() -> float:
 	return clampf(radius_uv, paint_roll_brush_radius_uv * 0.75, paint_roll_brush_radius_uv * 1.75)
 
 
-func _paint_roll_at(uv: Vector2, radius_uv: float, delta: float) -> void:
+func _get_paint_roll_ball_radius_uv() -> float:
+	if _paint_roll_canvas_size.x <= 1.0 or _paint_roll_canvas_size.y <= 1.0:
+		return paint_roll_brush_radius_uv
+	var radius_uv: float = (_paint_roll_ball_diameter_px * 0.5) / minf(_paint_roll_canvas_size.x, _paint_roll_canvas_size.y)
+	return maxf(radius_uv, 0.001)
+
+
+func _paint_roll_at(uv: Vector2) -> void:
 	if _paint_roll_mask_image == null:
 		return
 	var center := Vector2(
 		uv.x * float(_paint_roll_mask_size.x - 1),
 		uv.y * float(_paint_roll_mask_size.y - 1)
 	)
-	var radius_px: float = radius_uv * float(mini(_paint_roll_mask_size.x, _paint_roll_mask_size.y))
-	var spread_px: float = radius_px * 1.72
-	var x0: int = maxi(0, int(floor(center.x - spread_px)))
-	var x1: int = mini(_paint_roll_mask_size.x - 1, int(ceil(center.x + spread_px)))
-	var y0: int = maxi(0, int(floor(center.y - spread_px)))
-	var y1: int = mini(_paint_roll_mask_size.y - 1, int(ceil(center.y + spread_px)))
-	var ordinary_gain: float = 6.4 * maxf(delta, 0.016)
-	var apple_gain: float = 0.82 * maxf(delta, 0.016)
+	var ball_radius_uv: float = _get_paint_roll_ball_radius_uv()
+	var radius_scale: float = 1.0 / 3.0
+	var strong_radius_px: float = ball_radius_uv * 3.0 * radius_scale * float(mini(_paint_roll_mask_size.x, _paint_roll_mask_size.y))
+	var weak_radius_px: float = ball_radius_uv * 4.0 * radius_scale * float(mini(_paint_roll_mask_size.x, _paint_roll_mask_size.y))
+	var x0: int = maxi(0, int(floor(center.x - weak_radius_px)))
+	var x1: int = mini(_paint_roll_mask_size.x - 1, int(ceil(center.x + weak_radius_px)))
+	var y0: int = maxi(0, int(floor(center.y - weak_radius_px)))
+	var y1: int = mini(_paint_roll_mask_size.y - 1, int(ceil(center.y + weak_radius_px)))
+	var ordinary_gain: float = 1.0
+	var apple_strong_gain: float = 0.34
+	var apple_weak_gain: float = 0.08
 	for y in range(y0, y1 + 1):
 		for x in range(x0, x1 + 1):
 			var offset := Vector2(float(x), float(y)) - center
 			var dist: float = offset.length()
-			if dist > spread_px:
+			if dist > weak_radius_px:
 				continue
-			var inner: float = 1.0 - smoothstep(radius_px * 0.18, radius_px * 0.92, dist)
-			var bleed: float = 1.0 - smoothstep(radius_px * 0.82, spread_px, dist)
-			var falloff: float = maxf(inner, bleed * 0.38)
+			var strong: float = 1.0 - smoothstep(strong_radius_px * 0.72, strong_radius_px, dist)
+			var weak: float = 1.0 - smoothstep(strong_radius_px, weak_radius_px, dist)
+			var falloff: float = maxf(strong, weak * 0.22)
 			if falloff <= 0.0:
 				continue
 			var px_uv := Vector2(float(x) / float(_paint_roll_mask_size.x - 1), float(y) / float(_paint_roll_mask_size.y - 1))
-			var is_apple := _is_paint_roll_apple_uv(px_uv)
-			var gain := apple_gain if is_apple else ordinary_gain
+			var resistance: float = _get_paint_roll_resistance(x, y)
+			var is_apple := resistance > 0.35
 			var current := _paint_roll_mask_image.get_pixel(x, y)
-			var wet_lift: float = 0.018 if current.a > 0.08 and not is_apple else 0.006
-			var next_alpha: float = clampf(current.a + gain * falloff + wet_lift * bleed, 0.0, 1.0)
+			var next_alpha: float
+			if is_apple:
+				var gain: float = apple_strong_gain * strong + apple_weak_gain * weak * (1.0 - strong)
+				next_alpha = clampf(current.a + gain * lerpf(1.0, 0.62, resistance), 0.0, 1.0)
+			else:
+				next_alpha = maxf(current.a, clampf(falloff * ordinary_gain, 0.0, 1.0))
 			_paint_roll_mask_image.set_pixel(x, y, Color(1.0, 1.0, 1.0, next_alpha))
 	_paint_roll_mask_texture.update(_paint_roll_mask_image)
 
 
+func _update_paint_roll_diffusion(delta: float) -> void:
+	return
+
+
+func _paint_roll_trail_at(previous_uv: Vector2, current_uv: Vector2, movement_dir: Vector2) -> void:
+	if _paint_roll_trail_image == null:
+		return
+	var speed_ratio: float = clampf(_paint_roll_velocity_uv.length() / maxf(0.001, paint_roll_max_speed_uv), 0.0, 1.0)
+	if speed_ratio <= 0.03:
+		return
+	var color := _get_current_trail_color()
+	var dir := movement_dir.normalized()
+	var side := Vector2(-dir.y, dir.x)
+	var center := Vector2(
+		current_uv.x * float(_paint_roll_mask_size.x - 1),
+		current_uv.y * float(_paint_roll_mask_size.y - 1)
+	)
+	var ball_radius_px: float = _get_paint_roll_ball_radius_uv() * float(mini(_paint_roll_mask_size.x, _paint_roll_mask_size.y))
+	var trail_length: float = ball_radius_px * lerpf(1.8, 4.8, speed_ratio)
+	var trail_width: float = maxf(2.0, ball_radius_px * lerpf(0.18, 0.38, speed_ratio))
+	var back := -dir
+	var p0 := center + back * ball_radius_px * 0.7
+	var p1 := center + back * trail_length
+	var min_x: int = maxi(0, int(floor(minf(p0.x, p1.x) - trail_width * 2.5)))
+	var max_x: int = mini(_paint_roll_mask_size.x - 1, int(ceil(maxf(p0.x, p1.x) + trail_width * 2.5)))
+	var min_y: int = maxi(0, int(floor(minf(p0.y, p1.y) - trail_width * 2.5)))
+	var max_y: int = mini(_paint_roll_mask_size.y - 1, int(ceil(maxf(p0.y, p1.y) + trail_width * 2.5)))
+	var segment := p1 - p0
+	var segment_len_sq: float = maxf(0.001, segment.length_squared())
+	for y in range(min_y, max_y + 1):
+		for x in range(min_x, max_x + 1):
+			var p := Vector2(float(x), float(y))
+			var t: float = clampf((p - p0).dot(segment) / segment_len_sq, 0.0, 1.0)
+			var closest := p0.lerp(p1, t)
+			var dist: float = p.distance_to(closest)
+			var taper: float = 1.0 - t
+			var strand: float = 0.72 + 0.28 * sin(t * TAU * 2.7 + side.dot(p) * 0.17)
+			var width: float = trail_width * lerpf(1.0, 0.22, t) * strand
+			if dist > width:
+				continue
+			var alpha: float = (1.0 - smoothstep(width * 0.35, width, dist)) * taper * lerpf(0.28, 0.72, speed_ratio)
+			var current := _paint_roll_trail_image.get_pixel(x, y)
+			var next_alpha: float = clampf(current.a + alpha, 0.0, 0.82)
+			var next_color := Color(
+				lerpf(current.r, color.r, alpha),
+				lerpf(current.g, color.g, alpha),
+				lerpf(current.b, color.b, alpha),
+				next_alpha
+			)
+			_paint_roll_trail_image.set_pixel(x, y, next_color)
+	_paint_roll_trail_texture.update(_paint_roll_trail_image)
+
+
+func _get_current_trail_color() -> Color:
+	if _core_flow_palette.is_empty():
+		return Color(0.9, 0.18, 0.12, 1.0)
+	var color := Color(0.0, 0.0, 0.0, 1.0)
+	for c in _core_flow_palette:
+		color.r += c.r
+		color.g += c.g
+		color.b += c.b
+	var inv: float = 1.0 / float(_core_flow_palette.size())
+	color.r *= inv
+	color.g *= inv
+	color.b *= inv
+	var slot: int = int(Time.get_ticks_msec() / 700) % _core_flow_palette.size()
+	color = color.lerp(_core_flow_palette[slot], 0.45)
+	return Color(color.r, color.g, color.b, 1.0)
+
+
+func _update_paint_roll_trail_decay(delta: float) -> void:
+	if _paint_roll_trail_image == null or _paint_roll_trail_texture == null:
+		return
+	if not _paint_roll_running:
+		return
+	_paint_roll_trail_decay_timer -= delta
+	if _paint_roll_trail_decay_timer > 0.0:
+		return
+	_paint_roll_trail_decay_timer = 0.045
+	for y in range(_paint_roll_mask_size.y):
+		for x in range(_paint_roll_mask_size.x):
+			var c := _paint_roll_trail_image.get_pixel(x, y)
+			if c.a <= 0.004:
+				if c.a > 0.0:
+					_paint_roll_trail_image.set_pixel(x, y, Color(0.0, 0.0, 0.0, 0.0))
+				continue
+			var next_alpha: float = maxf(0.0, c.a - 0.055)
+			_paint_roll_trail_image.set_pixel(x, y, Color(c.r, c.g, c.b, next_alpha))
+	_paint_roll_trail_texture.update(_paint_roll_trail_image)
+
+
+func _update_paint_roll_mirror_stage(delta: float) -> void:
+	if not _paint_roll_running or not _is_paint_roll_mirror_stage() or _paint_roll_mirror_done:
+		return
+	_update_right6_mirror_shader()
+	_paint_roll_mirror_elapsed += delta
+	var collapse_start := paint_roll_mirror_wait_sec
+	var collapse_end := paint_roll_mirror_wait_sec + paint_roll_mirror_collapse_sec
+	if _paint_roll_mirror_elapsed < collapse_start:
+		return
+	var progress: float = clampf((_paint_roll_mirror_elapsed - collapse_start) / maxf(0.001, paint_roll_mirror_collapse_sec), 0.0, 1.0)
+	if not _paint_roll_mirror_collapsing:
+		_start_paint_roll_mirror_collapse()
+	_paint_roll_apply_collapse_progress(progress)
+	if _paint_roll_mirror_elapsed >= collapse_end:
+		_finish_paint_roll_mirror_stage()
+
+
+func _start_paint_roll_mirror_collapse() -> void:
+	_paint_roll_mirror_collapsing = true
+	_build_paint_roll_large_shards()
+
+
+func _paint_roll_apply_collapse_progress(progress: float) -> void:
+	var fall_progress := smoothstep(0.38, 1.0, progress)
+	if _paint_roll_canvas != null:
+		_paint_roll_canvas.modulate.a = 1.0 - smoothstep(0.76, 1.0, progress)
+	_update_paint_roll_large_shards(fall_progress)
+
+
+func _clear_paint_roll_shards() -> void:
+	_paint_roll_shards.clear()
+	if _paint_roll_shard_root == null:
+		return
+	for child in _paint_roll_shard_root.get_children():
+		child.queue_free()
+	_paint_roll_shard_root.visible = false
+
+
+func _build_paint_roll_large_shards() -> void:
+	if _paint_roll_shard_root == null or _paint_roll_canvas_size.x <= 1.0 or _paint_roll_canvas_size.y <= 1.0:
+		return
+	_clear_paint_roll_shards()
+	_paint_roll_shard_root.visible = true
+	_paint_roll_shard_root.position = Vector2.ZERO
+	_paint_roll_shard_root.size = _paint_roll_canvas_size
+	var cols := 5
+	var rows := 4
+	var cell := Vector2(_paint_roll_canvas_size.x / float(cols), _paint_roll_canvas_size.y / float(rows))
+	for y in range(rows):
+		for x in range(cols):
+			var seed := float(y * cols + x + 1)
+			var base := Vector2(float(x), float(y)) * cell
+			var jitter := minf(cell.x, cell.y) * 0.10
+			var points := PackedVector2Array([
+				Vector2(base.x + _hash_2d(Vector2(seed, 1.0)) * jitter, base.y + _hash_2d(Vector2(seed, 2.0)) * jitter),
+				Vector2(base.x + cell.x + (_hash_2d(Vector2(seed, 3.0)) - 1.0) * jitter, base.y + _hash_2d(Vector2(seed, 4.0)) * jitter),
+				Vector2(base.x + cell.x + (_hash_2d(Vector2(seed, 5.0)) - 1.0) * jitter, base.y + cell.y + (_hash_2d(Vector2(seed, 6.0)) - 1.0) * jitter),
+				Vector2(base.x + _hash_2d(Vector2(seed, 7.0)) * jitter, base.y + cell.y + (_hash_2d(Vector2(seed, 8.0)) - 1.0) * jitter),
+			])
+			var center := Vector2.ZERO
+			for point in points:
+				center += point
+			center /= float(points.size())
+			var local_points := PackedVector2Array()
+			for point in points:
+				local_points.append(point - center)
+			var shard := Polygon2D.new()
+			shard.name = "PaintRollShard%02d_%02d" % [x, y]
+			shard.polygon = local_points
+			shard.position = center
+			shard.color = _sample_right6_shard_color(Vector2(
+				center.x / maxf(1.0, _paint_roll_canvas_size.x),
+				center.y / maxf(1.0, _paint_roll_canvas_size.y)
+			))
+			shard.visible = false
+			_paint_roll_shard_root.add_child(shard)
+			_paint_roll_shards.append({
+				"node": shard,
+				"origin": center,
+				"delay": float(y) / float(rows) * 0.26 + _hash_2d(Vector2(seed, 9.0)) * 0.18,
+				"drift": lerpf(-0.28, 0.28, _hash_2d(Vector2(seed, 10.0))) * _paint_roll_canvas_size.x,
+				"drop": lerpf(0.95, 1.55, _hash_2d(Vector2(seed, 11.0))) * _paint_roll_canvas_size.y,
+				"spin": lerpf(-0.42, 0.42, _hash_2d(Vector2(seed, 12.0))) * TAU,
+			})
+
+
+func _update_paint_roll_large_shards(progress: float) -> void:
+	if _paint_roll_shard_root == null or _paint_roll_shards.is_empty():
+		return
+	_paint_roll_shard_root.visible = true
+	for shard_data in _paint_roll_shards:
+		var node := shard_data.get("node", null) as Polygon2D
+		if node == null or not is_instance_valid(node):
+			continue
+		var delay := float(shard_data.get("delay", 0.0))
+		var local := smoothstep(delay, minf(1.0, delay + 0.54), progress)
+		node.visible = local > 0.001 and local < 0.995
+		var origin := shard_data.get("origin", Vector2.ZERO) as Vector2
+		var drift := float(shard_data.get("drift", 0.0)) * local
+		var drop := float(shard_data.get("drop", 0.0)) * local * local
+		node.position = origin + Vector2(drift, drop)
+		node.rotation = float(shard_data.get("spin", 0.0)) * local
+		node.modulate.a = pow(1.0 - local, 0.32)
+
+
+func _sample_right6_shard_color(uv: Vector2) -> Color:
+	var center_distance := uv.distance_to(Vector2(0.5, 0.5))
+	var warm := Color(0.23, 0.19, 0.14, 1.0).lerp(Color(0.10, 0.09, 0.08, 1.0), clampf(center_distance * 1.35, 0.0, 1.0))
+	var mirror := Color(0.10, 0.14, 0.17, 1.0)
+	return warm.lerp(mirror, smoothstep(0.08, 0.46, 0.48 - center_distance))
+
+
+func _hash_2d(p: Vector2) -> float:
+	var value := sin(p.dot(Vector2(127.1, 311.7))) * 43758.5453123
+	return value - floorf(value)
+
+
+func _finish_paint_roll_mirror_stage() -> void:
+	if _paint_roll_mirror_done:
+		return
+	_paint_roll_mirror_done = true
+	_paint_roll_running = false
+	_paint_roll_stage_transitioning = true
+	_paint_roll_apply_collapse_progress(1.0)
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(_paint_roll_canvas, "modulate:a", 0.0, 0.75).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(_paint_roll_frame, "modulate:a", 0.0, 0.75).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	if _paint_roll_mirror_overlay != null:
+		tween.tween_property(_paint_roll_mirror_overlay, "modulate:a", 0.0, 0.75).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	await tween.finished
+	_emit_completed()
+
+
+func _get_paint_roll_resistance(x: int, y: int) -> float:
+	if _paint_roll_resistance_image == null:
+		return 0.0
+	return _paint_roll_resistance_image.get_pixel(
+		clampi(x, 0, _paint_roll_mask_size.x - 1),
+		clampi(y, 0, _paint_roll_mask_size.y - 1)
+	).r
+
+
 func _is_paint_roll_apple_uv(uv: Vector2) -> bool:
+	if _paint_roll_resistance_image != null:
+		var x: int = clampi(int(uv.x * float(_paint_roll_mask_size.x - 1)), 0, _paint_roll_mask_size.x - 1)
+		var y: int = clampi(int(uv.y * float(_paint_roll_mask_size.y - 1)), 0, _paint_roll_mask_size.y - 1)
+		return _paint_roll_resistance_image.get_pixel(x, y).r > 0.35
 	if _paint_roll_source_image == null or _paint_roll_source_image.is_empty():
 		return false
 	var sx: int = clampi(int(uv.x * float(_paint_roll_source_image.get_width() - 1)), 0, _paint_roll_source_image.get_width() - 1)
@@ -2281,34 +3491,77 @@ func _check_paint_roll_completion() -> void:
 			var alpha: float = _paint_roll_mask_image.get_pixel(x, y).a
 			var is_apple := _is_paint_roll_apple_uv(uv)
 			total += 1
-			if alpha >= 0.62:
+			if alpha >= 0.95:
 				restored += 1
 			if is_apple:
 				apple_total += 1
-				if alpha >= 0.88:
+				if alpha >= 0.95:
 					apple_restored += 1
 	var coverage: float = float(restored) / float(maxi(1, total))
 	var apple_coverage: float = 1.0 if apple_total <= 0 else float(apple_restored) / float(apple_total)
-	if coverage >= paint_roll_complete_threshold and apple_coverage >= 0.82:
+	if coverage >= paint_roll_complete_threshold and apple_coverage >= 0.98:
 		_finish_paint_roll_stage()
 
 
 func _finish_paint_roll_stage() -> void:
-	if _paint_roll_finished:
+	if _paint_roll_finished or _paint_roll_stage_transitioning:
 		return
 	_paint_roll_finished = true
 	_paint_roll_running = false
-	var tween := create_tween()
-	tween.tween_method(
-		func(value: float) -> void:
-			if _paint_roll_material != null:
-				_paint_roll_material.set_shader_parameter("final_fill", value),
+	_paint_roll_stage_transitioning = true
+	_paint_roll_velocity_uv = Vector2.ZERO
+	_paint_roll_finish_start_uv = _paint_roll_view_uv
+	_paint_roll_finish_overview_scale = _get_paint_roll_overview_scale()
+	var settle := create_tween()
+	settle.set_parallel(true)
+	settle.tween_method(
+		Callable(self, "_set_paint_roll_final_fill_for_tween"),
 		0.0,
 		1.0,
-		0.95
+		0.75
 	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	await tween.finished
-	_emit_completed()
+	settle.tween_method(
+		Callable(self, "_set_paint_roll_finish_overview_for_tween"),
+		0.0,
+		1.0,
+		1.05
+	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	await settle.finished
+
+	var viewport_size := _paint_roll_root.size
+	var exit_offset := Vector2(-viewport_size.x * 1.18, 0.0)
+	var exit := create_tween()
+	exit.set_parallel(true)
+	exit.tween_property(_paint_roll_canvas, "position", _paint_roll_canvas.position + exit_offset, 0.82).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	exit.tween_property(_paint_roll_frame, "position", _paint_roll_frame.position + exit_offset, 0.82).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	await exit.finished
+
+	var next_stage_index := _paint_roll_stage_index + 1
+	if next_stage_index < _paint_roll_stage_data.size():
+		_apply_paint_roll_stage(next_stage_index)
+		await _run_paint_roll_stage_entry(true)
+		_paint_roll_running = true
+		_paint_roll_finished = false
+		_paint_roll_stage_transitioning = false
+		_paint_roll_completion_timer = 0.0
+	else:
+		_paint_roll_stage_transitioning = false
+		_emit_completed()
+
+
+func _set_paint_roll_final_fill_for_tween(value: float) -> void:
+	if _paint_roll_material != null:
+		_paint_roll_material.set_shader_parameter("final_fill", value)
+
+
+func _set_paint_roll_finish_overview_for_tween(value: float) -> void:
+	_paint_roll_view_uv = _paint_roll_finish_start_uv.lerp(Vector2(0.5, 0.5), value)
+	_set_paint_roll_picture_transform(
+		_paint_roll_view_uv,
+		lerpf(1.0, _paint_roll_finish_overview_scale, value),
+		lerpf(painting_tilt_degrees, 0.0, value),
+		Vector2.ZERO
+	)
 
 
 func _pulse_sphere(color: Color) -> void:

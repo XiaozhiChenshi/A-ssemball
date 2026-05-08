@@ -17,6 +17,8 @@ signal chapter_completed(chapter_index: int)
 
 var _completed: bool = false
 var _has_forwarded_source_signal: bool = false
+var _source_node: Node
+var _pending_dev_paint_roll_skip_enabled: bool = false
 
 
 func _ready() -> void:
@@ -40,6 +42,7 @@ func _load_source_scene() -> void:
 	if source_scene == null:
 		return
 	var node := source_scene.instantiate()
+	_source_node = node
 	content_root.add_child(node)
 	if node is Control:
 		var c := node as Control
@@ -51,6 +54,7 @@ func _load_source_scene() -> void:
 	if node.has_signal("chapter_completed"):
 		_has_forwarded_source_signal = true
 		node.connect("chapter_completed", Callable(self, "_on_source_completed"), CONNECT_ONE_SHOT)
+	_forward_dev_paint_roll_skip()
 
 
 func _setup_placeholder_ui() -> void:
@@ -65,6 +69,18 @@ func _setup_placeholder_ui() -> void:
 
 func _on_source_completed(_source_chapter_index: int = 0) -> void:
 	_emit_completed_once()
+
+
+func _set_dev_paint_roll_skip_enabled(enabled: bool) -> void:
+	_pending_dev_paint_roll_skip_enabled = enabled
+	_forward_dev_paint_roll_skip()
+
+
+func _forward_dev_paint_roll_skip() -> void:
+	if _source_node == null or not is_instance_valid(_source_node):
+		return
+	if _source_node.has_method("_set_dev_paint_roll_skip_enabled"):
+		_source_node.call("_set_dev_paint_roll_skip_enabled", _pending_dev_paint_roll_skip_enabled)
 
 
 func _emit_completed_once() -> void:
