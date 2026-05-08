@@ -148,7 +148,7 @@ var _status_label: Label
 var _noise_overlay: ColorRect
 var _noise_material: ShaderMaterial
 var _flash_overlay: ColorRect
-var _sphere_click_audio_player: AudioStreamPlayer3D
+var _sphere_click_audio_player: AudioStreamPlayer
 var _stage_event_audio_player: AudioStreamPlayer
 var _stage_event_audio_player_b: AudioStreamPlayer
 var _clock_loop_audio_player: AudioStreamPlayer
@@ -210,12 +210,10 @@ func _ensure_audio_players() -> void:
 	if _sphere_click_audio_player != null and is_instance_valid(_sphere_click_audio_player):
 		pass
 	else:
-		_sphere_click_audio_player = AudioStreamPlayer3D.new()
+		_sphere_click_audio_player = AudioStreamPlayer.new()
 		_sphere_click_audio_player.name = "SphereClickAudioPlayer"
 		_sphere_click_audio_player.stream = SPHERE_CLICK_AUDIO
-		_sphere_click_audio_player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_DISABLED
-		_sphere_click_audio_player.unit_size = 1.0
-		sphere.add_child(_sphere_click_audio_player)
+		add_child(_sphere_click_audio_player)
 
 	if _stage_event_audio_player != null and is_instance_valid(_stage_event_audio_player):
 		pass
@@ -254,7 +252,6 @@ func _ensure_audio_players() -> void:
 func _play_sphere_click_audio() -> void:
 	if _sphere_click_audio_player == null or not is_instance_valid(_sphere_click_audio_player):
 		return
-	_sphere_click_audio_player.global_position = sphere.global_position
 	_sphere_click_audio_player.stop()
 	_sphere_click_audio_player.play()
 

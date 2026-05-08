@@ -30,7 +30,6 @@ signal goal_clicked
 @export var board_2_trigger_progress: float = 0.666
 @export var board_hidden_offset_y: float = 8.0
 @export var board_rise_speed: float = 12.0
-@export_range(0.1, 1.0, 0.01) var board_rise_move_speed_scale: float = 0.7
 @export var board_ground_y: float = 0.0
 @export var board_ground_clearance: float = 0.4
 @export var board_target_height_offset_y: float = 0.8
@@ -330,21 +329,8 @@ func _update_move_speed_factor(delta: float, moving: bool) -> void:
 			_move_speed_random_timer = maxf(0.05, interval)
 			_move_speed_factor_target = randf_range(1.0 - rand_strength, 1.0 + rand_strength)
 
-	if _is_any_board_rising():
-		_move_speed_factor_target *= clampf(board_rise_move_speed_scale, 0.1, 1.0)
-
 	var smooth_t := clampf(4.2 * delta, 0.0, 1.0)
 	_move_speed_factor_current = lerpf(_move_speed_factor_current, _move_speed_factor_target, smooth_t)
-
-
-func _is_any_board_rising() -> bool:
-	if material_board_1 != null and _board_1_triggered:
-		if absf(material_board_1.position.y - _board_1_target_y) > 0.01:
-			return true
-	if material_board_2 != null and _board_2_triggered:
-		if absf(material_board_2.position.y - _board_2_target_y) > 0.01:
-			return true
-	return false
 
 
 func _update_camera_motion(delta: float, moving: bool) -> void:

@@ -61,6 +61,11 @@ const TRANSITION_SETTLE_IN_SEC: float = 3.2
 @export_range(15.0, 180.0, 1.0) var rotation_pitch_speed_deg: float = 66.0
 @export_range(10.0, 89.0, 1.0) var pitch_limit_deg: float = 72.0
 @export_range(0.2, 2.0, 0.01) var hand_wipe_duration_sec: float = 1.15
+@export_range(0.8, 1.6, 0.01) var route_tone_pitch_min: float = 0.94
+@export_range(0.8, 1.6, 0.01) var route_tone_pitch_peak: float = 1.22
+@export_range(0.8, 1.6, 0.01) var route_tone_pitch_end: float = 1.0
+@export_range(0.2, 0.95, 0.01) var route_tone_peak_ratio: float = 0.65
+@export_range(0.0, 0.08, 0.001) var route_tone_pitch_jitter: float = 0.018
 
 @onready var chapter_1_split: HSplitContainer = $Chapter1Split
 @onready var left_3d: SubViewportContainer = $Chapter1Split/Left3D
@@ -174,6 +179,7 @@ var _transition_burn_progress: float = 0.0
 var _transition_burn_route_points: PackedVector2Array = PackedVector2Array()
 var _transition_burn_route_closed: bool = false
 var _sphere_click_audio_player: AudioStreamPlayer
+var _route_tone_rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 
 func _ready() -> void:
@@ -194,6 +200,7 @@ func _ready() -> void:
 	_stage_data = _build_stage_data()
 	_ensure_cell_root()
 	_ensure_audio_players()
+	_route_tone_rng.randomize()
 	sphere.rotation = Vector3.ZERO
 
 	resized.connect(_on_layout_changed)
@@ -941,11 +948,11 @@ void fragment() {
 	float soft = mix(0.05, 0.22, progress);
 	float local = max(radial(uv, origin_a, local_radius, soft), radial(uv, origin_b, local_radius * 0.88, soft));
 	local = max(local, radial(uv, origin_c, local_radius * 1.08, soft));
-	float global = smoothstep(0.45, 1.0, progress);
+	float global_flash = smoothstep(0.45, 1.0, progress);
 	float grain = hash(floor(uv * vec2(96.0, 72.0)) + vec2(floor(TIME * 34.0), floor(TIME * 29.0)));
 	float scan = max(0.0, sin((uv.y + TIME * 0.95) * 92.0));
 	float tear = smoothstep(0.78, 1.0, hash(vec2(floor(TIME * 22.0), floor(uv.y * 18.0))));
-	float exposure = clamp((local + global * 0.85) * intensity, 0.0, 1.35);
+	float exposure = clamp((local + global_flash * 0.85) * intensity, 0.0, 1.35);
 	exposure += grain * 0.18 * intensity * progress;
 	exposure += scan * 0.12 * intensity * progress;
 	exposure += tear * 0.18 * intensity * progress;
@@ -2581,6 +2588,25 @@ func _ensure_audio_players() -> void:
 func _play_sphere_click_audio() -> void:
 	if _sphere_click_audio_player == null or not is_instance_valid(_sphere_click_audio_player):
 		return
+	_sphere_click_audio_player.pitch_scale = 1.0
+	_sphere_click_audio_player.stop()
+	_sphere_click_audio_player.play()
+
+
+func _play_route_progress_tone(step_count: int, total_steps: int) -> void:
+	if _sphere_click_audio_player == null or not is_instance_valid(_sphere_click_audio_player):
+		return
+	if total_steps <= 0:
+		return
+
+	var t := clampf(float(step_count) / float(total_steps), 0.0, 1.0)
+	var pitch := lerpf(route_tone_pitch_min, route_tone_pitch_peak, t)
+
+	var jitter := route_tone_pitch_jitter
+	if jitter > 0.0:
+		pitch += _route_tone_rng.randf_range(-jitter, jitter)
+
+	_sphere_click_audio_player.pitch_scale = clampf(pitch, 0.8, 1.6)
 	_sphere_click_audio_player.stop()
 	_sphere_click_audio_player.play()
 
@@ -2675,6 +2701,7 @@ func _commit_current_target_cell() -> void:
 		return
 
 	_selected_route_ids.append(target_id)
+	_play_route_progress_tone(_selected_route_ids.size(), _current_stage_route_ids.size())
 	_drag_anchor_cell_id = target_id
 	_hover_cell_id = -1
 	_hover_hold_elapsed = 0.0
@@ -3424,12 +3451,9 @@ func _get_pointer_hand_wrist_vector(target: Vector2, hand_size: Vector2) -> Vect
 func _load_pointer_hand_texture() -> Texture2D:
 	if _hand_pointer_texture != null:
 		return _hand_pointer_texture
-	var image := Image.new()
-	var error := image.load(ProjectSettings.globalize_path(HAND_POINTER_TEXTURE_PATH))
-	if error != OK:
+	_hand_pointer_texture = load(HAND_POINTER_TEXTURE_PATH) as Texture2D
+	if _hand_pointer_texture == null:
 		push_warning("Missing tracing hand pointer texture: %s" % HAND_POINTER_TEXTURE_PATH)
-		return null
-	_hand_pointer_texture = ImageTexture.create_from_image(image)
 	return _hand_pointer_texture
 
 

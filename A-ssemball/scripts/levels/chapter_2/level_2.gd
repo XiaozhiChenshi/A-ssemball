@@ -573,7 +573,7 @@ func _setup_stage_runtime_ui() -> void:
 		for i in range(8):
 			var foot := stage_root.get_node_or_null("FootLight_%d" % i) as ColorRect
 			if foot != null:
-				_foot_lights.append(foot)
+				foot.visible = false
 		for i in range(4):
 			var top := stage_root.get_node_or_null("TopLight_%d" % i) as ColorRect
 			if top != null:
@@ -594,14 +594,6 @@ func _setup_stage_runtime_ui() -> void:
 	_stage_flash.color = Color(1.0, 0.94, 0.72, 0.0)
 	_stage_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage_root.add_child(_stage_flash)
-
-	for i in range(8):
-		var foot := ColorRect.new()
-		foot.name = "FootLight_%d" % i
-		foot.color = Color(0.24, 0.42, 0.62, 0.28)
-		foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		stage_root.add_child(foot)
-		_foot_lights.append(foot)
 
 	for i in range(4):
 		var top := ColorRect.new()
@@ -681,13 +673,14 @@ func _layout_stage_runtime_ui() -> void:
 			icon.size = icon_size
 		icon.move_to_front()
 
-		var foot := _foot_lights[i]
-		var foot_pos := icon.position + Vector2(icon.size.x * 0.5 - 48.0 * scale.x, 126.0 * scale.y)
-		if doll != null:
-			foot_pos = doll.position + Vector2(doll.size.x * 0.5 - 48.0 * scale.x, doll.size.y * 0.92)
-		foot.position = foot_pos
-		foot.size = Vector2(96.0, 8.0) * scale
-		foot.move_to_front()
+		if i < _foot_lights.size():
+			var foot := _foot_lights[i]
+			var foot_pos := icon.position + Vector2(icon.size.x * 0.5 - 48.0 * scale.x, 126.0 * scale.y)
+			if doll != null:
+				foot_pos = doll.position + Vector2(doll.size.x * 0.5 - 48.0 * scale.x, doll.size.y * 0.92)
+			foot.position = foot_pos
+			foot.size = Vector2(96.0, 8.0) * scale
+			foot.move_to_front()
 
 	for i in range(_top_lights.size()):
 		var top := _top_lights[i]

@@ -1,8 +1,4 @@
-res://scripts/levels/chapter_1/level_1.gd
-res://scripts/levels/chapter_2/level_1.gd
-res://scripts/levels/chapter_2/level_2.gd
-res://scripts/main_entry.gd
-res://scripts/levels/level_bridge.gd
-res://scenes/levels/chapter_2/level_1.tscn
 res://scripts/intro_interactive.gd
-res://scenes/intro_interactive.tscn
+res://scripts/levels/chapter_2/level_2.gd
+res://scripts/levels/chapter_1/level_1.gd
+res://scripts/levels/chapter_1/level_2.gd
