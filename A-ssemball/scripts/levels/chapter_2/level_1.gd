@@ -10,6 +10,12 @@ const RIGHT_SCENE_TEXTURES: Array[Texture2D] = [
 	preload("res://assets/materials/2-3m.png"),
 	preload("res://assets/materials/2-4m.png"),
 ]
+const RIGHT_SCENE_CANVAS_TEXTURES: Array[Texture2D] = [
+	preload("res://assets/materials/paint1.png"),
+	preload("res://assets/materials/paint2.png"),
+	preload("res://assets/materials/paint3.png"),
+	preload("res://assets/materials/paint4.png"),
+]
 const RIGHT_SCENE_CANVAS_PLACEHOLDER_TEXTS: Array[String] = [
 	"钢琴",
 	"长笛",
@@ -1940,6 +1946,21 @@ func _setup_right_placeholder() -> void:
 		canvas_fx.color = Color(1.0, 1.0, 1.0, 1.0)
 		canvas_fx.material = _create_overlay_scanline_shader_material(0.9)
 
+		var canvas_image := canvas_layer.get_node_or_null("CanvasImage") as TextureRect
+		if canvas_image == null:
+			canvas_image = TextureRect.new()
+			canvas_image.name = "CanvasImage"
+			canvas_layer.add_child(canvas_image)
+		canvas_image.set_anchors_preset(Control.PRESET_FULL_RECT)
+		canvas_image.offset_left = 0.0
+		canvas_image.offset_top = 0.0
+		canvas_image.offset_right = 0.0
+		canvas_image.offset_bottom = 0.0
+		canvas_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		canvas_image.stretch_mode = TextureRect.STRETCH_SCALE
+		canvas_image.texture = RIGHT_SCENE_CANVAS_TEXTURES[posmod(i, RIGHT_SCENE_CANVAS_TEXTURES.size())]
+		canvas_image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
 		var canvas_label := canvas_layer.get_node_or_null("CanvasText") as Label
 		if canvas_label == null:
 			push_warning("Missing static node: %s/CardLayerRoot/CanvasLayer/CanvasText" % card_name)
@@ -1951,6 +1972,10 @@ func _setup_right_placeholder() -> void:
 		canvas_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 1.0))
 		canvas_label.add_theme_font_size_override("font_size", 42)
 		canvas_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		canvas_label.visible = false
+
+		canvas_image.move_to_front()
+		canvas_fx.move_to_front()
 
 		var focus_clip := layer_root.get_node_or_null("FocusContentClip") as Control
 		if focus_clip == null:
@@ -2097,9 +2122,9 @@ func _setup_moire_overlays() -> void:
 		var left_mat := _left_moire_overlay.material as ShaderMaterial
 		left_mat.set_shader_parameter("effect_strength", moire_strength * clampf(left_moire_intensity_scale, 0.0, 1.0))
 
-	_right_moire_overlay = _create_moire_overlay("RightMoireOverlay")
-	left_3d.add_child(_right_moire_overlay)
-	_right_moire_overlay.move_to_front()
+	if _right_moire_overlay != null and is_instance_valid(_right_moire_overlay):
+		_right_moire_overlay.queue_free()
+	_right_moire_overlay = null
 
 
 func _setup_camera_data_fragment_overlay() -> void:

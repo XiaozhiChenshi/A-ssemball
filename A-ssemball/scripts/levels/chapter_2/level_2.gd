@@ -93,6 +93,12 @@ const RANDOM_FLASH_ATTACK_SEC: float = 0.95
 const RANDOM_FLASH_DECAY_SEC: float = 0.55
 const MATCH_FLASH_PERIOD_SEC: float = 1.05
 const MATCH_FLASH_ATTACK_RATIO: float = 0.52
+const CLICKABLE_FRONT_FACING_MIN: float = 0.12
+const ENTRY_ANIM_DURATION_SEC: float = 0.72
+const ENTRY_RANDOM_ROTATE_DELAY_SEC: float = 1.0
+const ENTRY_FALLBACK_TRIGGER_SEC: float = 1.6
+const ENTRY_START_SCALE: float = 0.9
+const ENTRY_START_ROTATION_DEG: Vector3 = Vector3(-12.0, -22.0, 0.0)
 
 @export var chapter_index: int = 2
 @export_range(0.2, 2.0, 0.01) var slot_radius: float = 0.54
@@ -144,6 +150,10 @@ var _selected_piece: int = -1
 var _fixed_doll_rects: Array[Rect2] = []
 var _fixed_icon_rects: Array[Rect2] = []
 var _initial_instruments_runtime: Array[String] = []
+var _entry_sequence_locked: bool = true
+var _entry_sequence_started: bool = false
+var _entry_rotate_layer: Array[int] = []
+var _entry_rotate_target_slots: Dictionary = {}
 
 
 func _ready() -> void:
@@ -151,6 +161,7 @@ func _ready() -> void:
 	_initial_instruments_runtime = INITIAL_INSTRUMENTS.duplicate()
 	_initial_instruments_runtime.shuffle()
 	_setup_piece_groups()
+	_prepare_entry_pose()
 	_setup_stage_runtime_ui()
 	_sync_stage_instruments()
 	_update_match_feedback(false)
@@ -161,6 +172,7 @@ func _ready() -> void:
 	chapter_split.dragged.connect(_on_split_dragged)
 	_on_layout_changed()
 	call_deferred("_sync_stage_instruments")
+	call_deferred("_ensure_entry_sequence_fallback")
 
 
 func _process(delta: float) -> void:
@@ -170,6 +182,8 @@ func _process(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if _entry_sequence_locked:
+		return
 	if _completed_once:
 		return
 	if event is InputEventMouseMotion and _dragging:
@@ -810,12 +824,17 @@ func _free_stage_move_ghost(ghost: TextureRect) -> void:
 
 
 func _begin_drag(screen_pos: Vector2) -> bool:
+	if _entry_sequence_locked:
+		return false
 	if _is_snapping or _is_auditioning or _is_swapping:
 		return false
 	if not left_3d.get_global_rect().has_point(screen_pos):
 		return false
 	_drag_piece = _pick_piece_at_screen_position(screen_pos)
 	if _drag_piece < 0:
+		return false
+	if not _is_piece_front_facing(_drag_piece):
+		_drag_piece = -1
 		return false
 	_dragging = true
 	_drag_start_pos = screen_pos
@@ -1045,6 +1064,8 @@ func _pick_piece_at_screen_position(screen_pos: Vector2) -> int:
 		var node := _pieces[i].get("node") as Node3D
 		if node == null:
 			continue
+		if not _is_piece_front_facing(i):
+			continue
 		var world_pos := _piece_visual_center(i)
 		if camera_3d.is_position_behind(world_pos):
 			continue
@@ -1064,6 +1085,15 @@ func _piece_visual_center(piece_index: int) -> Vector3:
 		return Vector3.ZERO
 	var home_slot := int(_pieces[piece_index].get("home_slot", piece_index))
 	return node.global_transform * _slot_position(home_slot)
+
+
+func _is_piece_front_facing(piece_index: int) -> bool:
+	var world_pos := _piece_visual_center(piece_index)
+	if camera_3d.is_position_behind(world_pos):
+		return false
+	var outward := (world_pos - chunk_root.global_transform.origin).normalized()
+	var to_camera := (camera_3d.global_position - world_pos).normalized()
+	return outward.dot(to_camera) > CLICKABLE_FRONT_FACING_MIN
 
 
 func _set_piece_active(piece_index: int, active: bool) -> void:
@@ -1207,6 +1237,8 @@ func _matched_flash_value() -> float:
 
 
 func _start_audition() -> void:
+	if _entry_sequence_locked:
+		return
 	if _is_snapping or _is_auditioning or _completed_once:
 		return
 	_is_auditioning = true
@@ -1403,7 +1435,7 @@ func _rotate_sign_quarter(sign_vec: Vector3, axis: int, direction: int) -> Vecto
 
 
 func _update_rotation_input(delta: float) -> void:
-	if _is_snapping or _is_auditioning or _completed_once or _dragging:
+	if _entry_sequence_locked or _is_snapping or _is_auditioning or _completed_once or _dragging:
 		return
 	var direction := 0.0
 	if Input.is_key_pressed(KEY_A):
@@ -1413,3 +1445,99 @@ func _update_rotation_input(delta: float) -> void:
 	if direction == 0.0:
 		return
 	chunk_root.rotate_y(deg_to_rad(manual_rotate_speed_deg) * direction * delta)
+
+
+func _start_entry_sequence() -> void:
+	if _entry_sequence_started:
+		return
+	_entry_sequence_started = true
+	_entry_sequence_locked = true
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.set_parallel(true)
+	tween.tween_property(chunk_root, "scale", Vector3.ONE, ENTRY_ANIM_DURATION_SEC)
+	tween.tween_property(chunk_root, "rotation", Vector3.ZERO, ENTRY_ANIM_DURATION_SEC)
+	tween.finished.connect(_on_entry_animation_finished, CONNECT_ONE_SHOT)
+
+
+func _on_entry_animation_finished() -> void:
+	var delay := get_tree().create_timer(ENTRY_RANDOM_ROTATE_DELAY_SEC)
+	delay.timeout.connect(_perform_entry_random_quarter_turn, CONNECT_ONE_SHOT)
+
+
+func _perform_entry_random_quarter_turn() -> void:
+	var axis := _rng.randi_range(0, 2)
+	var side := -1.0 if _rng.randf() < 0.5 else 1.0
+	var direction := -1 if _rng.randf() < 0.5 else 1
+	var layer := _pieces_on_layer(axis, side)
+	if layer.is_empty():
+		_entry_sequence_locked = false
+		return
+
+	_is_snapping = true
+	_entry_rotate_layer = layer.duplicate()
+	_entry_rotate_target_slots.clear()
+	var rotate_basis := Basis(_axis_local_vector(axis), PI * 0.5 * float(direction))
+	_drag_layer = _entry_rotate_layer.duplicate()
+	_drag_start_transforms.clear()
+	_drag_start_slots.clear()
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	for idx in layer:
+		var node := _pieces[idx].get("node") as Node3D
+		if node == null:
+			continue
+		var start_transform := node.transform
+		_drag_start_transforms[idx] = start_transform
+		_drag_start_slots[idx] = int(_pieces[idx].get("slot", 0))
+		var target_transform := Transform3D(rotate_basis * start_transform.basis, Vector3.ZERO)
+		_entry_rotate_target_slots[idx] = _slot_index_from_basis(idx, target_transform.basis)
+		tween.tween_property(node, "transform", target_transform, snap_rotate_sec)
+	_animate_stage_rotation(_build_stage_moves_for_rotation(rotate_basis))
+	tween.finished.connect(_on_entry_random_quarter_turn_finished, CONNECT_ONE_SHOT)
+
+
+func _on_entry_random_quarter_turn_finished() -> void:
+	for idx in _entry_rotate_layer:
+		if _entry_rotate_target_slots.has(idx):
+			_pieces[idx]["slot"] = int(_entry_rotate_target_slots[idx])
+			var node := _pieces[idx].get("node") as Node3D
+			if node != null:
+				node.position = Vector3.ZERO
+	_entry_rotate_layer.clear()
+	_entry_rotate_target_slots.clear()
+	_drag_layer.clear()
+	_drag_start_transforms.clear()
+	_drag_start_slots.clear()
+	_is_snapping = false
+	_sync_stage_instruments()
+	_update_match_feedback(false)
+	_entry_sequence_locked = false
+
+
+func _on_scene_transition_finished() -> void:
+	_start_entry_sequence()
+
+
+func _ensure_entry_sequence_fallback() -> void:
+	# Fallback for editor-run or any missed transition callback path.
+	if _entry_sequence_started:
+		return
+	var timer := get_tree().create_timer(ENTRY_FALLBACK_TRIGGER_SEC)
+	timer.timeout.connect(_on_entry_fallback_timeout, CONNECT_ONE_SHOT)
+
+
+func _on_entry_fallback_timeout() -> void:
+	if _entry_sequence_started:
+		return
+	_start_entry_sequence()
+
+
+func _prepare_entry_pose() -> void:
+	chunk_root.scale = Vector3.ONE * ENTRY_START_SCALE
+	chunk_root.rotation = Vector3(
+		deg_to_rad(ENTRY_START_ROTATION_DEG.x),
+		deg_to_rad(ENTRY_START_ROTATION_DEG.y),
+		deg_to_rad(ENTRY_START_ROTATION_DEG.z)
+	)

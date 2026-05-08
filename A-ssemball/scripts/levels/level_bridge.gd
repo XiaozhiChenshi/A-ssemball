@@ -83,6 +83,13 @@ func _forward_dev_paint_roll_skip() -> void:
 		_source_node.call("_set_dev_paint_roll_skip_enabled", _pending_dev_paint_roll_skip_enabled)
 
 
+func _on_scene_transition_finished() -> void:
+	if _source_node == null or not is_instance_valid(_source_node):
+		return
+	if _source_node.has_method("_on_scene_transition_finished"):
+		_source_node.call("_on_scene_transition_finished")
+
+
 func _emit_completed_once() -> void:
 	if _completed:
 		return

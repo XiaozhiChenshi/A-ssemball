@@ -111,6 +111,7 @@ func _start_sequence(skip_intro_to_post_click_effect: bool, start_chapter_scene_
 	var show_game := create_tween()
 	show_game.tween_property(fade_layer, "color:a", 0.0, reveal_game_sec)
 	await show_game.finished
+	_notify_active_chapter_transition_finished()
 
 
 func _spawn_intro_scene() -> IntroInteractive:
@@ -176,12 +177,14 @@ func _on_chapter_completed(_chapter_index: int = 0) -> void:
 	_chapter_transition_running = true
 	if _should_use_chapter_2_transition(_current_chapter_scene_index, next_index):
 		await _play_chapter_2_transition(next_index)
+		_notify_active_chapter_transition_finished()
 		_chapter_transition_running = false
 		return
 
 	await _fade_to_black()
 	_spawn_next_chapter()
 	await _fade_from_black()
+	_notify_active_chapter_transition_finished()
 	_chapter_transition_running = false
 
 
@@ -318,3 +321,10 @@ func _update_chapter_audio_state(scene_index: int) -> void:
 		return
 	if _chapter_1_noise_player.playing:
 		_chapter_1_noise_player.stop()
+
+
+func _notify_active_chapter_transition_finished() -> void:
+	if _active_chapter_node == null or not is_instance_valid(_active_chapter_node):
+		return
+	if _active_chapter_node.has_method("_on_scene_transition_finished"):
+		_active_chapter_node.call("_on_scene_transition_finished")

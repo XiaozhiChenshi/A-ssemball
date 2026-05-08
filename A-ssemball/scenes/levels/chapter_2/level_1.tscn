@@ -1,8 +1,9 @@
-[gd_scene load_steps=25 format=3 uid="uid://bbd3eorsqavsq"]
+[gd_scene load_steps=26 format=3 uid="uid://bbd3eorsqavsq"]
 
 [ext_resource type="Script" uid="uid://0npy61gsvn5s" path="res://scripts/levels/chapter_2/level_1.gd" id="1_7338h"]
 [ext_resource type="Script" uid="uid://dgpdnfijmh76q" path="res://scripts/line_canvas_2d.gd" id="2_6pf0a"]
 [ext_resource type="Texture2D" uid="uid://tvs563i5gvmd" path="res://assets/materials/2-1m.png" id="3_bypku"]
+[ext_resource type="Texture2D" uid="uid://bfxtjmkrcewxw" path="res://assets/materials/pictureframe.png" id="3_rex5a"]
 [ext_resource type="Texture2D" uid="uid://b4gqogxj0fi4a" path="res://assets/materials/2-3m.png" id="4_rex5a"]
 [ext_resource type="Texture2D" uid="uid://dcm1bgpinxpc" path="res://assets/materials/2-2m.png" id="5_8nuqu"]
 [ext_resource type="Texture2D" uid="uid://cmgmx8w35gqu8" path="res://assets/materials/2-4m.png" id="6_rlbwf"]
@@ -20,7 +21,7 @@ height = 2.0
 radial_segments = 24
 rings = 12
 
-[sub_resource type="Shader" id="Shader_bypku"]
+[sub_resource type="Shader" id="Shader_8nuqu"]
 code = "
 shader_type spatial;
 render_mode depth_draw_opaque, cull_back;
@@ -88,9 +89,9 @@ void fragment() {
 }
 "
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_rex5a"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_rlbwf"]
 render_priority = 0
-shader = SubResource("Shader_bypku")
+shader = SubResource("Shader_8nuqu")
 shader_parameter/base_color = Color(0.46, 0.3, 0.18, 1)
 shader_parameter/roughness = 0.76
 shader_parameter/specular_strength = 0.16
@@ -108,38 +109,6 @@ emission = Color(0.9, 0, 0, 1)
 [sub_resource type="SphereMesh" id="SphereMesh_marker"]
 radius = 0.08
 height = 0.16
-
-[sub_resource type="Shader" id="Shader_8nuqu"]
-code = "
-shader_type canvas_item;
-render_mode unshaded;
-
-uniform float fx_intensity : hint_range(0.0, 1.0) = 0.2;
-uniform float line_mix : hint_range(0.0, 1.0) = 0.22;
-uniform float noise_amount : hint_range(0.0, 1.0) = 0.12;
-uniform float speed : hint_range(0.0, 4.0) = 0.65;
-
-float hash21(vec2 p) {
-	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
-}
-
-void fragment() {
-	vec4 base = texture(TEXTURE, UV);
-	float t = TIME * speed;
-	float scan = sin((UV.y + t * 0.08) * 900.0) * 0.5 + 0.5;
-	float grain = hash21(UV * vec2(1900.0, 1060.0) + t * 31.0) - 0.5;
-	float overlay = scan * line_mix * 0.7 + grain * noise_amount;
-	vec3 out_rgb = base.rgb + vec3(overlay * fx_intensity * 0.25);
-	COLOR = vec4(clamp(out_rgb, 0.0, 1.0), base.a);
-}
-"
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_rlbwf"]
-shader = SubResource("Shader_8nuqu")
-shader_parameter/fx_intensity = 0.16
-shader_parameter/line_mix = 0.22
-shader_parameter/noise_amount = 0.12
-shader_parameter/speed = 0.65
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_qmyxq"]
 bg_color = Color(0, 0, 0, 1)
@@ -249,6 +218,38 @@ shader_parameter/speed = 0.65
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ogoh0"]
 bg_color = Color(0, 0, 0, 1)
 
+[sub_resource type="Shader" id="Shader_85djo"]
+code = "
+shader_type canvas_item;
+render_mode unshaded;
+
+uniform float fx_intensity : hint_range(0.0, 1.0) = 0.2;
+uniform float line_mix : hint_range(0.0, 1.0) = 0.22;
+uniform float noise_amount : hint_range(0.0, 1.0) = 0.12;
+uniform float speed : hint_range(0.0, 4.0) = 0.65;
+
+float hash21(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+void fragment() {
+	vec4 base = texture(TEXTURE, UV);
+	float t = TIME * speed;
+	float scan = sin((UV.y + t * 0.08) * 900.0) * 0.5 + 0.5;
+	float grain = hash21(UV * vec2(1900.0, 1060.0) + t * 31.0) - 0.5;
+	float overlay = scan * line_mix * 0.7 + grain * noise_amount;
+	vec3 out_rgb = base.rgb + vec3(overlay * fx_intensity * 0.25);
+	COLOR = vec4(clamp(out_rgb, 0.0, 1.0), base.a);
+}
+"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_bl7dd"]
+shader = SubResource("Shader_85djo")
+shader_parameter/fx_intensity = 0.16
+shader_parameter/line_mix = 0.22
+shader_parameter/noise_amount = 0.12
+shader_parameter/speed = 0.65
+
 [node name="Chapter1" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -258,9 +259,6 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_7338h")
 camera_focus_region_use_absolute_rect = true
-right_scene_disc_switch_sec = null
-right_scene_disc_fade_sec = null
-right_scene_switch_fade_sec = null
 
 [node name="Chapter1Split" type="HSplitContainer" parent="."]
 layout_mode = 1
@@ -305,7 +303,7 @@ fov = 60.0
 [node name="Sphere" type="MeshInstance3D" parent="Chapter1Split/Left3D/LeftViewport/World3D/ModelRoot"]
 transform = Transform3D(0.62, 0, 0, 0, 0.62, 0, 0, 0, 0.62, 0, 0, 0)
 mesh = SubResource("SphereMesh_c6h16")
-surface_material_override/0 = SubResource("ShaderMaterial_rex5a")
+surface_material_override/0 = SubResource("ShaderMaterial_rlbwf")
 
 [node name="Marker" type="MeshInstance3D" parent="Chapter1Split/Left3D/LeftViewport/World3D/ModelRoot/Sphere"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 0, 0)
@@ -402,18 +400,13 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="RoomImageLayer" type="TextureRect" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard1/CardLayerRoot"]
-material = SubResource("ShaderMaterial_rlbwf")
-layout_mode = 1
-anchors_preset = 15
+[node name="FrameLayer" type="TextureRect" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard1/CardLayerRoot"]
+layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
 mouse_filter = 2
-texture = ExtResource("3_bypku")
+texture = ExtResource("3_rex5a")
 expand_mode = 1
-metadata/_edit_lock_ = true
 
 [node name="CanvasLayer" type="PanelContainer" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard1/CardLayerRoot"]
 custom_minimum_size = Vector2(496, 277)
@@ -433,13 +426,18 @@ text = "钢琴"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="FrameLayer" type="TextureRect" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard1/CardLayerRoot"]
-layout_mode = 0
-offset_left = 202.0
-offset_right = 640.0
-offset_bottom = 1.0
+[node name="RoomImageLayer" type="TextureRect" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard1/CardLayerRoot"]
+material = SubResource("ShaderMaterial_e1p63")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
+texture = ExtResource("3_bypku")
 expand_mode = 1
+metadata/_edit_lock_ = true
 
 [node name="Status" type="Label" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard1"]
 visible = false
@@ -489,16 +487,12 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="RoomImageLayer" type="TextureRect" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard2/CardLayerRoot"]
-material = SubResource("ShaderMaterial_e1p63")
-layout_mode = 1
-anchors_preset = 15
+[node name="FrameLayer" type="TextureRect" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard2/CardLayerRoot"]
+layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
 mouse_filter = 2
-texture = ExtResource("4_rex5a")
+texture = ExtResource("3_rex5a")
 expand_mode = 1
 
 [node name="CanvasLayer" type="PanelContainer" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard2/CardLayerRoot"]
@@ -519,12 +513,16 @@ text = "长笛"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="FrameLayer" type="TextureRect" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard2/CardLayerRoot"]
-layout_mode = 0
-offset_left = 202.0
-offset_right = 640.0
-offset_bottom = 1.0
+[node name="RoomImageLayer" type="TextureRect" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard2/CardLayerRoot"]
+material = SubResource("ShaderMaterial_4f8ra")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
+texture = ExtResource("5_8nuqu")
 expand_mode = 1
 
 [node name="Status" type="Label" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard2"]
@@ -575,16 +573,12 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="RoomImageLayer" type="TextureRect" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard3/CardLayerRoot"]
-material = SubResource("ShaderMaterial_4f8ra")
-layout_mode = 1
-anchors_preset = 15
+[node name="FrameLayer" type="TextureRect" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard3/CardLayerRoot"]
+layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
 mouse_filter = 2
-texture = ExtResource("5_8nuqu")
+texture = ExtResource("3_rex5a")
 expand_mode = 1
 
 [node name="CanvasLayer" type="PanelContainer" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard3/CardLayerRoot"]
@@ -605,12 +599,16 @@ text = "大提琴"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="FrameLayer" type="TextureRect" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard3/CardLayerRoot"]
-layout_mode = 0
-offset_left = 202.0
-offset_right = 640.0
-offset_bottom = 1.0
+[node name="RoomImageLayer" type="TextureRect" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard3/CardLayerRoot"]
+material = SubResource("ShaderMaterial_iam4s")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
+texture = ExtResource("4_rex5a")
 expand_mode = 1
 
 [node name="Status" type="Label" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard3"]
@@ -661,16 +659,12 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="RoomImageLayer" type="TextureRect" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard4/CardLayerRoot"]
-material = SubResource("ShaderMaterial_iam4s")
-layout_mode = 1
-anchors_preset = 15
+[node name="FrameLayer" type="TextureRect" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard4/CardLayerRoot"]
+layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
 mouse_filter = 2
-texture = ExtResource("6_rlbwf")
+texture = ExtResource("3_rex5a")
 expand_mode = 1
 
 [node name="CanvasLayer" type="PanelContainer" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard4/CardLayerRoot"]
@@ -691,12 +685,16 @@ text = "架子鼓"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="FrameLayer" type="TextureRect" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard4/CardLayerRoot"]
-layout_mode = 0
-offset_left = 202.0
-offset_right = 640.0
-offset_bottom = 1.0
+[node name="RoomImageLayer" type="TextureRect" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard4/CardLayerRoot"]
+material = SubResource("ShaderMaterial_bl7dd")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
+texture = ExtResource("6_rlbwf")
 expand_mode = 1
 
 [node name="Status" type="Label" parent="Chapter1Split/RightPanel/RightPlaceholder/SceneStage/SceneCard4"]

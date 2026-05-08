@@ -25,6 +25,7 @@ const ABNORMAL_CONE_MODE := "abnormal_cone"
 const NORMAL_STAGE_MODE := "normal"
 const ABNORMAL_RESOLVE_DURATION_SEC: float = 3.0
 const POST_CLEAR_NORMAL_HOLD_SEC: float = 5.0
+const CLICKABLE_FRONT_FACING_MIN: float = 0.12
 
 @export var chapter_index: int = 1
 
@@ -147,7 +148,7 @@ var _status_label: Label
 var _noise_overlay: ColorRect
 var _noise_material: ShaderMaterial
 var _flash_overlay: ColorRect
-var _sphere_click_audio_player: AudioStreamPlayer
+var _sphere_click_audio_player: AudioStreamPlayer3D
 var _stage_event_audio_player: AudioStreamPlayer
 var _stage_event_audio_player_b: AudioStreamPlayer
 var _clock_loop_audio_player: AudioStreamPlayer
@@ -209,10 +210,12 @@ func _ensure_audio_players() -> void:
 	if _sphere_click_audio_player != null and is_instance_valid(_sphere_click_audio_player):
 		pass
 	else:
-		_sphere_click_audio_player = AudioStreamPlayer.new()
+		_sphere_click_audio_player = AudioStreamPlayer3D.new()
 		_sphere_click_audio_player.name = "SphereClickAudioPlayer"
 		_sphere_click_audio_player.stream = SPHERE_CLICK_AUDIO
-		add_child(_sphere_click_audio_player)
+		_sphere_click_audio_player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_DISABLED
+		_sphere_click_audio_player.unit_size = 1.0
+		sphere.add_child(_sphere_click_audio_player)
 
 	if _stage_event_audio_player != null and is_instance_valid(_stage_event_audio_player):
 		pass
@@ -251,6 +254,7 @@ func _ensure_audio_players() -> void:
 func _play_sphere_click_audio() -> void:
 	if _sphere_click_audio_player == null or not is_instance_valid(_sphere_click_audio_player):
 		return
+	_sphere_click_audio_player.global_position = sphere.global_position
 	_sphere_click_audio_player.stop()
 	_sphere_click_audio_player.play()
 
@@ -1435,7 +1439,7 @@ func _get_front_facing_cell_ids() -> Array[int]:
 	var front_ids: Array[int] = []
 	for key in _current_cells_by_id.keys():
 		var cell_id := int(key)
-		if _get_cell_front_facing_score(cell_id) > 0.12:
+		if _get_cell_front_facing_score(cell_id) > CLICKABLE_FRONT_FACING_MIN:
 			front_ids.append(cell_id)
 	return front_ids
 
@@ -1578,6 +1582,8 @@ func _find_clicked_abnormal_cell(screen_pos: Vector2) -> int:
 	for cell_id in _remaining_abnormal_ids:
 		var cell: Object = _current_cells_by_id.get(cell_id) as Object
 		if cell == null:
+			continue
+		if _get_cell_front_facing_score(cell_id) <= CLICKABLE_FRONT_FACING_MIN:
 			continue
 		var hit_t := _ray_intersects_cell(ray_origin, ray_dir, cell)
 		if hit_t >= 0.0 and hit_t < best_t:

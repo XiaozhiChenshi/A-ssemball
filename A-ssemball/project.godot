@@ -14,6 +14,7 @@ config/name="A-ssemball"
 run/main_scene="res://scenes/main_entry.tscn"
 config/features=PackedStringArray("4.5", "Mobile")
 config/icon="res://icon.svg"
+boot_splash/show_image=false
 
 [display]
 
