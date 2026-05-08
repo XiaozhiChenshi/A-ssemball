@@ -35,6 +35,25 @@ const NOTE_TEXTURES: Array[Texture2D] = [
 const RIGHT_SCENE_FRAME_TEXTURE: Texture2D = preload("res://assets/materials/pictureframe.png")
 const RIGHT_SCENE_DISC_TEXTURE_A: Texture2D = preload("res://assets/materials/disc1.png")
 const RIGHT_SCENE_DISC_TEXTURE_B: Texture2D = preload("res://assets/materials/disc2.png")
+const C2_ERROR_AUDIO: AudioStream = preload("res://assets/audio/第二幕/错误.mp3")
+const C2_MATCH_STAGE_AUDIO: Array[AudioStream] = [
+	preload("res://assets/audio/第二幕/第二幕唱片部分/钢琴.mp3"),
+	preload("res://assets/audio/第二幕/第二幕唱片部分/长笛.mp3"),
+	preload("res://assets/audio/第二幕/第二幕唱片部分/大提琴.mp3"),
+	preload("res://assets/audio/第二幕/第二幕唱片部分/架子鼓.mp3"),
+]
+const C2_MATCH_STAGE_AUDIO_PATHS: Array[String] = [
+	"res://assets/audio/第二幕/第二幕唱片部分/钢琴.mp3",
+	"res://assets/audio/第二幕/第二幕唱片部分/长笛.mp3",
+	"res://assets/audio/第二幕/第二幕唱片部分/大提琴.mp3",
+	"res://assets/audio/第二幕/第二幕唱片部分/架子鼓.mp3",
+]
+const C2_CELLO_CANDIDATE_PATHS: Array[String] = [
+	"res://assets/audio/第二幕/第二幕唱片部分/大提琴.mp3",
+	"res://assets/audio/第二幕/第二幕唱片部分/大提琴.wav",
+	"res://assets/audio/第二幕/第二幕乐器部分/低音号.mp3",
+]
+const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
 
 @export var light_rotation_speed_deg: float = 0.0
 @export var light_energy: float = 0.85
@@ -181,7 +200,12 @@ var _right_scene_flash_overlay: ColorRect
 var _right_scene_dim_overlay: ColorRect
 var _right_scene_filter_hosts: Array[Control] = []
 var _right_scene_disc_layers: Array[TextureRect] = []
+var _right_scene_disc_base_positions: Array[Vector2] = []
+var _right_scene_disc_intro_played: Array[bool] = []
+var _right_scene_disc_intro_running: Array[bool] = []
+var _right_scene_disc_intro_tweens: Array[Tween] = []
 var _right_scene_disc_visible: bool = false
+var _right_scene_disc_last_scene_index: int = -1
 var _right_scene_disc_timer_sec: float = 0.0
 var _right_scene_disc_frame: int = 0
 var _right_scene_disc_fade_tween: Tween
@@ -213,6 +237,9 @@ var _orbit_particles_enabled: bool = true
 var _camera_focus_intensity_baseline: Dictionary = {}
 var _camera_focus_intensity_captured: bool = false
 var _camera_focus_intensity_boost_active: bool = false
+var _c2_sfx_player: AudioStreamPlayer
+var _c2_match_players: Array[AudioStreamPlayer] = []
+var _c2_disc_music_player: AudioStreamPlayer
 
 
 func _ready() -> void:
@@ -233,6 +260,7 @@ func _ready() -> void:
 	_setup_camera_data_fragment_overlay()
 	_setup_right_fragment_region_hint()
 	_setup_final_curtains()
+	_ensure_c2_audio_player()
 	dir_light.light_energy = light_energy
 	right_panel.clip_contents = true
 	resized.connect(_on_layout_changed)
@@ -264,6 +292,7 @@ func _ready_editor_preview() -> void:
 	_setup_camera_data_fragment_overlay()
 	_setup_right_fragment_region_hint()
 	_setup_final_curtains()
+	_ensure_c2_audio_player()
 	dir_light.light_energy = light_energy
 	right_panel.clip_contents = true
 	_on_layout_changed()
@@ -401,11 +430,11 @@ func _input(event: InputEvent) -> void:
 
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.is_action_pressed("rotate_sphere_left"):
-			_try_rotate_sphere_step(-1)
+			_try_rotate_sphere_step(InputMappingStateRef.map_step_direction(-1))
 			get_viewport().set_input_as_handled()
 			return
 		if event.is_action_pressed("rotate_sphere_right"):
-			_try_rotate_sphere_step(1)
+			_try_rotate_sphere_step(InputMappingStateRef.map_step_direction(1))
 			get_viewport().set_input_as_handled()
 			return
 
@@ -424,6 +453,10 @@ uniform float emission_strength : hint_range(0.0, 1.0) = 0.18;
 uniform float emission_pulse : hint_range(0.0, 1.0) = 0.08;
 uniform float surface_density : hint_range(0.5, 10.0) = 2.6;
 uniform float drift_speed : hint_range(0.0, 1.0) = 0.06;
+uniform vec4 stripe_color : source_color = vec4(0.26, 0.15, 0.09, 1.0);
+uniform float stripe_strength : hint_range(0.0, 1.0) = 0.40;
+uniform float stripe_density : hint_range(0.5, 12.0) = 5.4;
+uniform float stripe_roughness_mix : hint_range(0.0, 0.35) = 0.12;
 
 float hash21(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
@@ -465,15 +498,23 @@ void fragment() {
 	vec3 n = normalize(NORMAL);
 	vec2 uv = UV * surface_density + vec2(TIME * drift_speed * 0.7, TIME * drift_speed * 0.23);
 	float shade_noise = fbm(uv * 1.6 + 2.7);
+	float stripe_axis = UV.y * stripe_density + fbm(UV * stripe_density * 0.85 + vec2(3.2, 7.1)) * 1.8;
+	float stripe_wave = sin(stripe_axis * 6.28318);
+	float stripe_mask = smoothstep(0.18, 0.86, stripe_wave * 0.5 + 0.5);
+	float stripe_break = fbm(UV * stripe_density * 2.1 + vec2(9.7, 1.4));
+	stripe_mask *= smoothstep(0.22, 0.92, stripe_break);
 	float lat = n.y * 0.5 + 0.5;
 	// Keep low contrast: subtle brightness modulation only.
 	float tone = 0.96 + (shade_noise - 0.5) * 0.08 + (lat - 0.5) * 0.03;
-	vec3 albedo = base_color.rgb * tone;
+	vec3 base_albedo = base_color.rgb * tone;
+	vec3 albedo = mix(base_albedo, stripe_color.rgb, stripe_mask * stripe_strength);
 	float pulse = sin(TIME * 1.4) * 0.5 + 0.5;
 	float fres = pow(1.0 - clamp(dot(n, normalize(VIEW)), 0.0, 1.0), 2.8);
+	float rough_noise = fbm(UV * surface_density * 3.4 + vec2(5.6, 2.1));
+	float rough_value = clamp(roughness + (rough_noise - 0.5) * stripe_roughness_mix, 0.0, 1.0);
 
 	ALBEDO = albedo;
-	ROUGHNESS = roughness;
+	ROUGHNESS = rough_value;
 	SPECULAR = specular_strength;
 	EMISSION = albedo * (emission_strength * (0.72 + pulse * emission_pulse)) + vec3(fres * emission_strength * 0.24);
 }
@@ -481,6 +522,7 @@ void fragment() {
 	var sphere_material := ShaderMaterial.new()
 	sphere_material.shader = shader
 	sphere_material.set_shader_parameter("base_color", left_sphere_color)
+	sphere_material.set_shader_parameter("stripe_color", left_sphere_color.darkened(0.40))
 	sphere_material.set_shader_parameter("relief_strength", left_sphere_relief_strength)
 	sphere_material.set_shader_parameter("emission_strength", left_sphere_emission_strength)
 	sphere_material.set_shader_parameter("emission_pulse", left_sphere_emission_pulse)
@@ -915,9 +957,10 @@ void fragment() {
 		for ps in particle_exit_variants:
 			_apply_particle_kill_bounds(ps as GPUParticles3D, hard_kill_radius)
 
+		var cube_order_idx := _orbit_cube_entries.size()
 		_orbit_cube_entries.append(
 			{
-				"index": _orbit_cube_entries.size(),
+				"index": cube_order_idx,
 				"pivot": pivot,
 				"cube": cube,
 				"particles": particles,
@@ -936,6 +979,7 @@ void fragment() {
 				"snap_anim_start": Vector3.ZERO,
 				"snap_anim_end": Vector3.ZERO,
 				"pending_match": false,
+				"match_audio_idx": cube_order_idx,
 				"eject_wait": -1.0,
 				"eject_t": 0.0,
 				"eject_dur": 0.0,
@@ -943,6 +987,8 @@ void fragment() {
 				"eject_end": Vector3.ZERO,
 				"match_glow_t": 0.0,
 				"match_glow_dur": 0.38,
+				"match_audio_wait": 0.0,
+				"match_audio_elapsed": 0.0,
 			}
 		)
 
@@ -1024,8 +1070,31 @@ func _update_orbit_cubes(delta: float) -> void:
 				if glow_t >= 1.0:
 					cube.scale = Vector3.ONE
 					_apply_orbit_cube_match_glow(cube, 0.0)
-					entry["state"] = "return_slow"
+					entry["state"] = "matched_audio_hold"
 					entry["match_glow_t"] = 0.0
+					var hold_sec := _play_c2_match_stage_audio_for_entry(entry, int(entry.get("index", i)))
+					entry["match_audio_wait"] = hold_sec
+					entry["match_audio_elapsed"] = 0.0
+			"matched_audio_hold":
+				pivot.global_position = _get_anchor_snap_world_position()
+				var elapsed := float(entry.get("match_audio_elapsed", 0.0)) + delta
+				entry["match_audio_elapsed"] = elapsed
+				var wait_left := float(entry.get("match_audio_wait", 0.0))
+				if wait_left > 0.0:
+					wait_left = maxf(0.0, wait_left - delta)
+					entry["match_audio_wait"] = wait_left
+				var use_playback_guard := wait_left <= 0.0
+				var can_release := false
+				if use_playback_guard:
+					# Fallback for streams that report zero length: wait until playback stops.
+					can_release = not _is_any_c2_match_player_playing()
+					# Safety gate to avoid same-frame release.
+					can_release = can_release and elapsed >= 0.10
+				else:
+					can_release = wait_left <= 0.0
+				if can_release:
+					entry["state"] = "return_slow"
+					_pop_anchor_frame()
 			"snap_anim":
 				var snap_dur := maxf(0.05, float(entry.get("snap_anim_dur", orbit_snap_anim_sec)))
 				var snap_t := minf(1.0, float(entry.get("snap_anim_t", 0.0)) + delta / snap_dur)
@@ -1042,11 +1111,14 @@ func _update_orbit_cubes(delta: float) -> void:
 						entry["state"] = "matched_glow"
 						entry["match_glow_t"] = 0.0
 						entry["eject_wait"] = -1.0
+						entry["match_audio_wait"] = 0.0
+						entry["match_audio_elapsed"] = 0.0
 						_mark_scene_completed(cube_index)
 						_flash_right_scene()
 					else:
 						entry["state"] = "snap_reject_wait"
 						entry["reject_wait"] = maxf(0.0, orbit_reject_wait_sec)
+						_play_c2_error_audio()
 			"eject_anim":
 				var eject_dur := maxf(0.05, float(entry.get("eject_dur", orbit_eject_anim_sec)))
 				var eject_t := minf(1.0, float(entry.get("eject_t", 0.0)) + delta / eject_dur)
@@ -1177,6 +1249,111 @@ func _apply_orbit_cube_match_glow(cube: MeshInstance3D, glow_amount: float) -> v
 			sh.set_shader_parameter("global_pulse_strength", glow_amount)
 
 
+func _ensure_c2_audio_player() -> void:
+	if _c2_sfx_player != null and is_instance_valid(_c2_sfx_player):
+		pass
+	else:
+		_c2_sfx_player = AudioStreamPlayer.new()
+		_c2_sfx_player.name = "C2SfxPlayer"
+		add_child(_c2_sfx_player)
+	if _c2_match_players.size() == C2_MATCH_STAGE_AUDIO.size():
+		var all_valid := true
+		for p in _c2_match_players:
+			if p == null or not is_instance_valid(p):
+				all_valid = false
+				break
+		if all_valid:
+			return
+	_c2_match_players.clear()
+	for i in range(C2_MATCH_STAGE_AUDIO.size()):
+		var p := AudioStreamPlayer.new()
+		p.name = "C2MatchPlayer_%d" % i
+		p.stream = _resolve_c2_match_stage_audio_stream(i)
+		add_child(p)
+		_c2_match_players.append(p)
+	if _c2_disc_music_player == null or not is_instance_valid(_c2_disc_music_player):
+		_c2_disc_music_player = AudioStreamPlayer.new()
+		_c2_disc_music_player.name = "C2DiscMusicPlayer"
+		add_child(_c2_disc_music_player)
+
+
+func _play_c2_error_audio() -> void:
+	if _is_match_audio_hold_active():
+		return
+	_ensure_c2_audio_player()
+	if _c2_sfx_player == null:
+		return
+	_c2_sfx_player.stream = C2_ERROR_AUDIO
+	_c2_sfx_player.pitch_scale = 1.0
+	_c2_sfx_player.stop()
+	_c2_sfx_player.play()
+
+
+func _play_c2_match_stage_audio(stage_index: int) -> float:
+	_ensure_c2_audio_player()
+	if C2_MATCH_STAGE_AUDIO.is_empty():
+		return 0.0
+	var idx := posmod(stage_index, C2_MATCH_STAGE_AUDIO.size())
+	if idx < 0 or idx >= _c2_match_players.size():
+		return 0.0
+	var player := _c2_match_players[idx]
+	if player == null or not is_instance_valid(player):
+		return 0.0
+	# Always resolve on play to avoid stale/null import cache issues.
+	player.stream = _resolve_c2_match_stage_audio_stream(idx)
+	if player.stream == null:
+		return 0.0
+	_stop_all_c2_stage_music_players(player)
+	player.pitch_scale = 1.0
+	player.stop()
+	player.play()
+	var stream := player.stream
+	return maxf(0.0, stream.get_length())
+
+
+func _play_c2_match_stage_audio_for_entry(entry: Dictionary, fallback_index: int) -> float:
+	var entry_idx := int(entry.get("match_audio_idx", -1))
+	if entry_idx >= 0:
+		return _play_c2_match_stage_audio(entry_idx)
+	# Fallback to current scene index when entry metadata is unavailable.
+	if _right_scene_current_index >= 0:
+		return _play_c2_match_stage_audio(_right_scene_current_index)
+	return _play_c2_match_stage_audio(fallback_index)
+
+
+func _resolve_c2_match_stage_audio_stream(stage_index: int) -> AudioStream:
+	if stage_index == 2:
+		for path in C2_CELLO_CANDIDATE_PATHS:
+			if ResourceLoader.exists(path):
+				var cello_stream := load(path) as AudioStream
+				if cello_stream != null:
+					return cello_stream
+	if stage_index >= 0 and stage_index < C2_MATCH_STAGE_AUDIO.size():
+		var preloaded := C2_MATCH_STAGE_AUDIO[stage_index]
+		if preloaded != null:
+			return preloaded
+	if stage_index >= 0 and stage_index < C2_MATCH_STAGE_AUDIO_PATHS.size():
+		return load(C2_MATCH_STAGE_AUDIO_PATHS[stage_index]) as AudioStream
+	return null
+
+
+func _is_any_c2_match_player_playing() -> bool:
+	for p in _c2_match_players:
+		if p != null and is_instance_valid(p) and p.playing:
+			return true
+	return false
+
+
+func _pop_anchor_frame() -> void:
+	if _anchor_frame_root == null or not is_instance_valid(_anchor_frame_root):
+		return
+	_anchor_frame_root.visible = true
+	_anchor_frame_root.scale = Vector3.ONE * 0.85
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(_anchor_frame_root, "scale", Vector3.ONE, 0.20)
+
+
 func _try_begin_orbit_cube_drag(screen_pos: Vector2) -> void:
 	if _final_transition_running:
 		return
@@ -1187,7 +1364,7 @@ func _try_begin_orbit_cube_drag(screen_pos: Vector2) -> void:
 		return
 	var entry := _orbit_cube_entries[cube_index] as Dictionary
 	var state := String(entry.get("state", "orbit"))
-	if state == "snapped" or state == "snap_anim" or state == "snap_reject_wait" or state == "eject_anim" or state == "matched_glow":
+	if state == "snapped" or state == "snap_anim" or state == "snap_reject_wait" or state == "eject_anim" or state == "matched_glow" or state == "matched_audio_hold":
 		return
 	entry["state"] = "drag"
 	entry["reject_wait"] = 0.0
@@ -1236,6 +1413,15 @@ func _end_orbit_cube_drag(screen_pos: Vector2) -> void:
 	var snap_distance := pivot.global_position.distance_to(_get_anchor_snap_world_position())
 	if hit_anchor_on_screen or snap_distance <= maxf(0.02, orbit_snap_radius):
 		var cube_index := int(entry.get("index", _dragging_orbit_cube_index))
+		if _is_anchor_occupied_by_other(cube_index):
+			entry["state"] = "return_fast"
+			entry["reject_wait"] = 0.0
+			entry["pending_match"] = false
+			entry["eject_wait"] = -1.0
+			_play_c2_error_audio()
+			_orbit_cube_entries[_dragging_orbit_cube_index] = entry
+			_dragging_orbit_cube_index = -1
+			return
 		entry["state"] = "snap_anim"
 		entry["snap_anim_t"] = 0.0
 		entry["snap_anim_dur"] = maxf(0.05, orbit_snap_anim_sec)
@@ -1267,7 +1453,7 @@ func _pick_orbit_cube(screen_pos: Vector2) -> int:
 	for i in range(_orbit_cube_entries.size()):
 		var entry := _orbit_cube_entries[i] as Dictionary
 		var state := String(entry.get("state", "orbit"))
-		if state == "snapped" or state == "snap_anim" or state == "snap_reject_wait" or state == "eject_anim" or state == "matched_glow":
+		if state == "snapped" or state == "snap_anim" or state == "snap_reject_wait" or state == "eject_anim" or state == "matched_glow" or state == "matched_audio_hold":
 			continue
 		var pivot := entry.get("pivot") as Node3D
 		if pivot == null:
@@ -1327,10 +1513,29 @@ func _is_point_near_anchor_on_screen(screen_pos: Vector2) -> bool:
 	return anchor_screen.distance_to(screen_pos) <= maxf(8.0, orbit_snap_screen_radius_px)
 
 
+func _is_anchor_occupied_by_other(cube_index: int) -> bool:
+	for entry_variant in _orbit_cube_entries:
+		var entry := entry_variant as Dictionary
+		if int(entry.get("index", -1)) == cube_index:
+			continue
+		var state := String(entry.get("state", ""))
+		if state == "snap_anim" or state == "snapped" or state == "snap_reject_wait" or state == "matched_glow" or state == "matched_audio_hold":
+			return true
+	return false
+
+
+func _is_match_audio_hold_active() -> bool:
+	for entry_variant in _orbit_cube_entries:
+		var entry := entry_variant as Dictionary
+		if String(entry.get("state", "")) == "matched_audio_hold":
+			return true
+	return false
+
+
 func _is_anchor_occupied() -> bool:
 	for entry in _orbit_cube_entries:
 		var state := String((entry as Dictionary).get("state", ""))
-		if state == "snapped" or state == "snap_anim" or state == "snap_reject_wait":
+		if state == "snapped" or state == "snap_anim" or state == "snap_reject_wait" or state == "matched_glow" or state == "matched_audio_hold":
 			return true
 	return false
 
@@ -1338,7 +1543,7 @@ func _is_anchor_occupied() -> bool:
 func _has_any_cube_on_anchor() -> bool:
 	for entry in _orbit_cube_entries:
 		var state := String((entry as Dictionary).get("state", ""))
-		if state == "snap_anim" or state == "snapped" or state == "snap_reject_wait" or state == "matched_glow":
+		if state == "snap_anim" or state == "snapped" or state == "snap_reject_wait" or state == "matched_glow" or state == "matched_audio_hold":
 			return true
 	return false
 
@@ -1346,7 +1551,7 @@ func _has_any_cube_on_anchor() -> bool:
 func _has_locked_match_on_anchor() -> bool:
 	for entry in _orbit_cube_entries:
 		var state := String((entry as Dictionary).get("state", ""))
-		if state == "matched_glow":
+		if state == "matched_glow" or state == "matched_audio_hold":
 			return true
 	return false
 
@@ -1358,9 +1563,12 @@ func _is_current_scene_completed() -> bool:
 
 
 func _set_disc_visible(visible_now: bool, force_refresh: bool = false) -> void:
-	if _right_scene_disc_visible == visible_now and not force_refresh:
+	var current_scene := _right_scene_current_index
+	var scene_changed := current_scene != _right_scene_disc_last_scene_index
+	if _right_scene_disc_visible == visible_now and not force_refresh and not scene_changed:
 		return
 	_right_scene_disc_visible = visible_now
+	_right_scene_disc_last_scene_index = current_scene
 	if is_instance_valid(_right_scene_disc_fade_tween):
 		_right_scene_disc_fade_tween.kill()
 	_right_scene_disc_fade_tween = create_tween()
@@ -1370,9 +1578,24 @@ func _set_disc_visible(visible_now: bool, force_refresh: bool = false) -> void:
 		if disc_layer == null:
 			continue
 		var allow_scene := i < _right_scene_completed.size() and _right_scene_completed[i] and i == _right_scene_current_index
-		var target_alpha := 1.0 if (visible_now and allow_scene) else 0.0
+		var intro_played := i < _right_scene_disc_intro_played.size() and _right_scene_disc_intro_played[i]
+		var intro_running := i < _right_scene_disc_intro_running.size() and _right_scene_disc_intro_running[i]
+		var can_show := visible_now and allow_scene and (intro_played or intro_running)
+		var target_alpha := 1.0 if can_show else 0.0
 		disc_layer.texture = RIGHT_SCENE_DISC_TEXTURE_A if _right_scene_disc_frame == 0 else RIGHT_SCENE_DISC_TEXTURE_B
+		if i < _right_scene_disc_base_positions.size():
+			disc_layer.position = _right_scene_disc_base_positions[i]
 		_right_scene_disc_fade_tween.tween_property(disc_layer, "modulate:a", target_alpha, maxf(0.05, right_scene_disc_fade_sec))
+		if not visible_now or not allow_scene:
+			disc_layer.scale = Vector2.ONE
+			disc_layer.rotation = 0.0
+
+	if visible_now and _right_scene_current_index >= 0 and _right_scene_current_index < _right_scene_disc_layers.size():
+		var scene_idx := _right_scene_current_index
+		var can_intro := scene_idx < _right_scene_disc_intro_played.size() and not _right_scene_disc_intro_played[scene_idx]
+		can_intro = can_intro and scene_idx < _right_scene_disc_intro_running.size() and not _right_scene_disc_intro_running[scene_idx]
+		if can_intro:
+			_play_disc_intro_animation(scene_idx)
 
 
 func _update_right_scene_disc_animation(delta: float) -> void:
@@ -1396,6 +1619,111 @@ func _update_right_scene_disc_animation(delta: float) -> void:
 		for disc_layer in _right_scene_disc_layers:
 			if disc_layer != null:
 				disc_layer.texture = tex
+
+
+func _play_disc_intro_animation(scene_index: int) -> void:
+	if scene_index < 0 or scene_index >= _right_scene_disc_layers.size():
+		return
+	var disc_layer := _right_scene_disc_layers[scene_index]
+	if disc_layer == null or not is_instance_valid(disc_layer):
+		return
+	if scene_index < 0 or scene_index >= _right_scene_disc_base_positions.size():
+		return
+	if scene_index >= _right_scene_disc_intro_running.size():
+		return
+	if scene_index < _right_scene_disc_intro_played.size() and _right_scene_disc_intro_played[scene_index]:
+		return
+
+	var base_pos := _right_scene_disc_base_positions[scene_index]
+	if scene_index < _right_scene_disc_intro_tweens.size():
+		var old_tween := _right_scene_disc_intro_tweens[scene_index]
+		if old_tween != null and is_instance_valid(old_tween):
+			old_tween.kill()
+	_right_scene_disc_intro_running[scene_index] = true
+	disc_layer.modulate.a = 1.0
+	disc_layer.scale = Vector2.ONE
+	disc_layer.rotation = 0.0
+
+	var parent_ctrl := disc_layer.get_parent() as Control
+	var travel := 320.0
+	if parent_ctrl != null:
+		travel = maxf(180.0, parent_ctrl.size.y * 0.62)
+
+	var tween := create_tween()
+	if scene_index < _right_scene_disc_intro_tweens.size():
+		_right_scene_disc_intro_tweens[scene_index] = tween
+	var use_rise := _rng.randf() < 0.70
+	if use_rise:
+		disc_layer.position = base_pos + Vector2(0.0, travel)
+		tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tween.tween_property(disc_layer, "position", base_pos, 0.44)
+	else:
+		var bounce1 := travel / 3.0
+		var bounce2 := travel / 6.0
+		disc_layer.position = base_pos + Vector2(0.0, -travel)
+		tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		tween.tween_property(disc_layer, "position", base_pos, 0.28)
+		tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		tween.tween_property(disc_layer, "position", base_pos + Vector2(0.0, -bounce1), 0.15)
+		tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		tween.tween_property(disc_layer, "position", base_pos, 0.13)
+		tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		tween.tween_property(disc_layer, "position", base_pos + Vector2(0.0, -bounce2), 0.11)
+		tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		tween.tween_property(disc_layer, "position", base_pos, 0.10)
+
+	tween.finished.connect(
+		func() -> void:
+			if scene_index < 0 or scene_index >= _right_scene_disc_layers.size():
+				return
+			var finished_layer := _right_scene_disc_layers[scene_index]
+			if finished_layer != null and is_instance_valid(finished_layer):
+				# Hard snap to slot at the end to avoid residual offset.
+				finished_layer.position = base_pos
+				finished_layer.scale = Vector2.ONE
+				finished_layer.rotation = 0.0
+				finished_layer.modulate.a = 1.0
+			if scene_index < _right_scene_disc_intro_running.size():
+				_right_scene_disc_intro_running[scene_index] = false
+			if scene_index < _right_scene_disc_intro_played.size():
+				_right_scene_disc_intro_played[scene_index] = true
+			if scene_index < _right_scene_disc_intro_tweens.size():
+				_right_scene_disc_intro_tweens[scene_index] = null
+			_set_disc_visible(_right_scene_disc_visible, true)
+			if _right_scene_current_index != scene_index:
+				return
+			if not _right_scene_disc_visible:
+				return
+			_play_disc_music(scene_index),
+		CONNECT_ONE_SHOT
+	)
+
+
+func _play_disc_music(scene_index: int) -> void:
+	_ensure_c2_audio_player()
+	if _c2_disc_music_player == null or not is_instance_valid(_c2_disc_music_player):
+		return
+	var stream := _resolve_c2_match_stage_audio_stream(scene_index)
+	if stream == null:
+		return
+	_stop_all_c2_stage_music_players(_c2_disc_music_player)
+	_c2_disc_music_player.stream = stream
+	_c2_disc_music_player.pitch_scale = 1.0
+	_c2_disc_music_player.stop()
+	_c2_disc_music_player.play()
+
+
+func _stop_all_c2_stage_music_players(except_player: AudioStreamPlayer = null) -> void:
+	for p in _c2_match_players:
+		var player := p as AudioStreamPlayer
+		if player == null or not is_instance_valid(player):
+			continue
+		if except_player != null and player == except_player:
+			continue
+		player.stop()
+	if _c2_disc_music_player != null and is_instance_valid(_c2_disc_music_player):
+		if except_player == null or _c2_disc_music_player != except_player:
+			_c2_disc_music_player.stop()
 
 
 func _setup_final_curtains() -> void:
@@ -1851,6 +2179,10 @@ func _setup_right_placeholder() -> void:
 	_right_scene_completed.clear()
 	_right_scene_filter_hosts.clear()
 	_right_scene_disc_layers.clear()
+	_right_scene_disc_base_positions.clear()
+	_right_scene_disc_intro_played.clear()
+	_right_scene_disc_intro_running.clear()
+	_right_scene_disc_intro_tweens.clear()
 
 	var focus_rect := _compute_right_scene_focus_rect()
 
@@ -2041,6 +2373,7 @@ func _setup_right_placeholder() -> void:
 		disc_layer.modulate = Color(1.0, 1.0, 1.0, 0.0)
 		disc_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_right_scene_disc_layers.append(disc_layer)
+		_right_scene_disc_base_positions.append(disc_layer.position)
 
 		canvas_layer.move_to_front()
 		image.move_to_front()
@@ -2062,6 +2395,9 @@ func _setup_right_placeholder() -> void:
 		_right_scene_cards.append(panel)
 		_right_scene_status_labels.append(status)
 		_right_scene_completed.append(false)
+		_right_scene_disc_intro_played.append(false)
+		_right_scene_disc_intro_running.append(false)
+		_right_scene_disc_intro_tweens.append(null)
 
 	_right_scene_flash_overlay = _right_scene_root.get_node_or_null("SceneFlashOverlay") as ColorRect
 	if _right_scene_flash_overlay == null:
@@ -2586,6 +2922,7 @@ func _mark_scene_completed(scene_index: int) -> void:
 	var idx := posmod(scene_index, _right_scene_status_labels.size())
 	if idx < 0 or idx >= _right_scene_status_labels.size():
 		return
+	var was_completed := bool(_right_scene_completed[idx])
 	_right_scene_completed[idx] = true
 	if idx >= 0 and idx < _right_scene_cards.size():
 		var card := _right_scene_cards[idx]
@@ -2600,6 +2937,12 @@ func _mark_scene_completed(scene_index: int) -> void:
 		status.text = "Completed"
 		status.modulate = Color(1.0, 0.95, 0.68, 1.0)
 	_set_disc_visible(_right_scene_disc_visible, true)
+	if not was_completed and idx >= 0 and idx < _right_scene_disc_intro_played.size():
+		_right_scene_disc_intro_played[idx] = false
+		if idx < _right_scene_disc_intro_running.size():
+			_right_scene_disc_intro_running[idx] = false
+		if _right_scene_disc_visible and idx == _right_scene_current_index:
+			_play_disc_intro_animation(idx)
 	if _are_all_right_scenes_completed():
 		call_deferred("_show_continue_button")
 
@@ -2677,11 +3020,7 @@ func _try_rotate_sphere_step(step_direction: int) -> void:
 
 
 func _update_hold_rotation(delta: float) -> void:
-	var desired_dir := 0
-	if Input.is_action_pressed("rotate_sphere_left"):
-		desired_dir -= 1
-	if Input.is_action_pressed("rotate_sphere_right"):
-		desired_dir += 1
+	var desired_dir := InputMappingStateRef.get_left_right_dir_from_actions("rotate_sphere_left", "rotate_sphere_right")
 
 	if desired_dir == 0:
 		_hold_rotate_dir = 0

@@ -1,5 +1,6 @@
 extends Control
 
+const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
 const INTRO_SCENE: PackedScene = preload("res://scenes/intro_interactive.tscn")
 const CHAPTER_1_LEVEL_1_SCENE: PackedScene = preload("res://scenes/levels/chapter_1/level_1.tscn")
 const CHAPTER_1_LEVEL_2_SCENE: PackedScene = preload("res://scenes/levels/chapter_1/level_2.tscn")
@@ -30,8 +31,10 @@ var _current_chapter_scene_index: int = -1
 var _active_chapter_node: Node = null
 var _chapter_transition_running: bool = false
 var _requested_start_chapter_scene_index: int = 0
+var _chapter_transition_canvas: CanvasLayer
 var _chapter_transition_overlay: TextureRect
 var _chapter_1_noise_player: AudioStreamPlayer
+var _debug_mapping_label: Label
 
 
 func _ready() -> void:
@@ -39,9 +42,17 @@ func _ready() -> void:
 	_chapter_scenes = _resolve_chapter_scenes()
 	_ensure_chapter_transition_overlay()
 	_ensure_audio_players()
+	_ensure_debug_mapping_label()
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_0 or event.keycode == KEY_KP_0:
+			get_viewport().set_input_as_handled()
+			InputMappingStateRef.toggle_reverse_wasd_mapping()
+			_show_mapping_debug_hint()
+			return
+
 	if _is_starting:
 		return
 
@@ -237,6 +248,11 @@ func _fit_full_rect(node: Control) -> void:
 
 
 func _ensure_chapter_transition_overlay() -> void:
+	if _chapter_transition_canvas == null or not is_instance_valid(_chapter_transition_canvas):
+		_chapter_transition_canvas = CanvasLayer.new()
+		_chapter_transition_canvas.name = "ChapterTransitionCanvas"
+		_chapter_transition_canvas.layer = 120
+		add_child(_chapter_transition_canvas)
 	if _chapter_transition_overlay != null and is_instance_valid(_chapter_transition_overlay):
 		return
 
@@ -252,8 +268,7 @@ func _ensure_chapter_transition_overlay() -> void:
 	_chapter_transition_overlay.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	_chapter_transition_overlay.visible = false
 	_chapter_transition_overlay.modulate = Color(1.0, 1.0, 1.0, 0.0)
-	add_child(_chapter_transition_overlay)
-	move_child(_chapter_transition_overlay, get_child_count() - 1)
+	_chapter_transition_canvas.add_child(_chapter_transition_overlay)
 
 
 func _should_use_chapter_2_transition(from_scene_index: int, to_scene_index: int) -> bool:
@@ -283,6 +298,8 @@ func _play_chapter_2_transition(next_index: int) -> void:
 
 
 func _switch_transition_texture(texture: Texture2D) -> void:
+	if _chapter_transition_canvas != null and is_instance_valid(_chapter_transition_canvas):
+		_chapter_transition_canvas.layer = 120
 	_chapter_transition_overlay.texture = texture
 	await get_tree().create_timer(maxf(0.01, chapter_transition_step_sec)).timeout
 
@@ -328,3 +345,26 @@ func _notify_active_chapter_transition_finished() -> void:
 		return
 	if _active_chapter_node.has_method("_on_scene_transition_finished"):
 		_active_chapter_node.call("_on_scene_transition_finished")
+
+
+func _ensure_debug_mapping_label() -> void:
+	if _debug_mapping_label != null and is_instance_valid(_debug_mapping_label):
+		return
+	_debug_mapping_label = Label.new()
+	_debug_mapping_label.name = "DebugMappingHint"
+	_debug_mapping_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_debug_mapping_label.position = Vector2(14.0, 14.0)
+	_debug_mapping_label.modulate = Color(1.0, 1.0, 0.45, 0.0)
+	_debug_mapping_label.z_index = 100
+	add_child(_debug_mapping_label)
+	move_child(_debug_mapping_label, get_child_count() - 1)
+
+
+func _show_mapping_debug_hint() -> void:
+	_ensure_debug_mapping_label()
+	var mode := "反向映射" if InputMappingStateRef.reverse_wasd_mapping else "正向映射"
+	_debug_mapping_label.text = "[debug] 控制映射: " + mode
+	_debug_mapping_label.modulate.a = 1.0
+	var t := create_tween()
+	t.tween_interval(1.1)
+	t.tween_property(_debug_mapping_label, "modulate:a", 0.0, 0.28)

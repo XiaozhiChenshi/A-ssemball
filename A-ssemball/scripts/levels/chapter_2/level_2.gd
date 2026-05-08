@@ -2,6 +2,7 @@ extends Control
 class_name LevelC2L2
 
 signal chapter_completed(chapter_index: int)
+const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
 
 const INSTRUMENT_TEXTURES: Dictionary = {
 	"baton": preload("res://assets/materials/指挥棒.png"),
@@ -89,10 +90,10 @@ const SHARD_GROUP_SEPARATION: float = 0.11
 const SHARD_CUT_DAMAGE: float = 0.018
 const SHARD_OUTLINE_SCALE_MAIN: float = 1.038
 const SHARD_OUTLINE_SCALE_SECONDARY: float = 1.028
-const RANDOM_FLASH_ATTACK_SEC: float = 0.95
-const RANDOM_FLASH_DECAY_SEC: float = 0.55
-const MATCH_FLASH_PERIOD_SEC: float = 1.05
+const MATCH_FLASH_PERIOD_SEC: float = 2.4
 const MATCH_FLASH_ATTACK_RATIO: float = 0.52
+const HOVER_FLASH_PERIOD_SEC: float = 1.6
+const HOVER_FLASH_MIN: float = 0.16
 const CLICKABLE_FRONT_FACING_MIN: float = 0.12
 const ENTRY_ANIM_DURATION_SEC: float = 0.72
 const ENTRY_RANDOM_ROTATE_DELAY_SEC: float = 1.0
@@ -147,8 +148,10 @@ var _stage_flash: ColorRect
 var _progress_label: Label
 var _audition_button: Button
 var _selected_piece: int = -1
+var _hover_piece: int = -1
 var _fixed_doll_rects: Array[Rect2] = []
 var _fixed_icon_rects: Array[Rect2] = []
+var _scene_layer_order: Dictionary = {}
 var _initial_instruments_runtime: Array[String] = []
 var _entry_sequence_locked: bool = true
 var _entry_sequence_started: bool = false
@@ -165,6 +168,7 @@ func _ready() -> void:
 	_setup_stage_runtime_ui()
 	_sync_stage_instruments()
 	_update_match_feedback(false)
+	stage_root.visible = true
 	left_3d.visible = true
 	chunk_root.visible = true
 	resized.connect(_on_layout_changed)
@@ -177,6 +181,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_time_sec += delta
+	_update_hover_piece()
 	_update_rotation_input(delta)
 	_update_piece_groups(delta)
 
@@ -646,6 +651,8 @@ func _layout_stage_runtime_ui() -> void:
 		var doll := stage_root.get_node_or_null(DOLL_NODE_NAMES[i]) as TextureRect
 		if doll != null and i < DOLL_BASE_RECTS.size():
 			doll.visible = true
+			doll.z_as_relative = true
+			doll.z_index = _scene_z_index_for_node(doll.name, i * 3 + 1)
 			if lock_scene_actor_positions and i < _fixed_doll_rects.size():
 				var fixed_doll := _fixed_doll_rects[i]
 				doll.position = fixed_doll.position
@@ -658,6 +665,8 @@ func _layout_stage_runtime_ui() -> void:
 		var instrument_id := _stage_instrument_at_slot(i)
 		var icon := _stage_icons[i]
 		icon.visible = true
+		icon.z_as_relative = true
+		icon.z_index = _scene_z_index_for_node(icon.name, i * 3 + 2)
 		if lock_scene_actor_positions and i < _fixed_icon_rects.size():
 			var fixed_icon := _fixed_icon_rects[i]
 			icon.position = fixed_icon.position
@@ -671,16 +680,15 @@ func _layout_stage_runtime_ui() -> void:
 				icon_pos = Vector2(130.0 + float(i % 4) * 200.0, 140.0 + float(i / 4) * 260.0) * scale
 			icon.position = icon_pos - icon_size * 0.5
 			icon.size = icon_size
-		icon.move_to_front()
-
 		if i < _foot_lights.size():
 			var foot := _foot_lights[i]
+			foot.z_as_relative = true
+			foot.z_index = _scene_z_index_for_node(foot.name, i * 3)
 			var foot_pos := icon.position + Vector2(icon.size.x * 0.5 - 48.0 * scale.x, 126.0 * scale.y)
 			if doll != null:
 				foot_pos = doll.position + Vector2(doll.size.x * 0.5 - 48.0 * scale.x, doll.size.y * 0.92)
 			foot.position = foot_pos
 			foot.size = Vector2(96.0, 8.0) * scale
-			foot.move_to_front()
 
 	for i in range(_top_lights.size()):
 		var top := _top_lights[i]
@@ -705,6 +713,12 @@ func _layout_stage_runtime_ui() -> void:
 func _cache_scene_actor_layout() -> void:
 	_fixed_doll_rects.clear()
 	_fixed_icon_rects.clear()
+	_scene_layer_order.clear()
+	var children := stage_root.get_children()
+	for idx in range(children.size()):
+		var child := children[idx]
+		if child is Control:
+			_scene_layer_order[String((child as Control).name)] = idx
 	for i in range(DOLL_NODE_NAMES.size()):
 		var doll := stage_root.get_node_or_null(DOLL_NODE_NAMES[i]) as TextureRect
 		if doll == null:
@@ -714,6 +728,12 @@ func _cache_scene_actor_layout() -> void:
 	for i in range(_stage_icons.size()):
 		var icon := _stage_icons[i]
 		_fixed_icon_rects.append(Rect2(icon.position, icon.size))
+
+
+func _scene_z_index_for_node(node_name: String, fallback: int) -> int:
+	if _scene_layer_order.has(node_name):
+		return int(_scene_layer_order[node_name])
+	return fallback
 
 
 func _stage_scale() -> Vector2:
@@ -1128,6 +1148,8 @@ func _clear_piece_selection() -> void:
 
 
 func _update_piece_groups(delta: float) -> void:
+	var hover_flash := _hover_flash_value()
+	var match_flash := _matched_flash_value()
 	for i in range(_pieces.size()):
 		var item := _pieces[i]
 		var node := item.get("node") as Node3D
@@ -1137,17 +1159,19 @@ func _update_piece_groups(delta: float) -> void:
 		var selected := lerpf(float(item.get("selected", 0.0)), float(item.get("selected_target", 0.0)), 1.0 - exp(-delta * 5.0))
 		var matched := lerpf(float(item.get("matched", 0.0)), float(item.get("matched_target", 0.0)), 1.0 - exp(-delta * 4.0))
 		var is_correct := float(item.get("matched_target", 0.0)) > 0.5
+		var is_hovered := i == _hover_piece
 		_pieces[i]["active"] = active
 		_pieces[i]["selected"] = selected
 		_pieces[i]["matched"] = matched
-		_update_cells(i, active, selected, matched, is_correct)
+		_update_cells(i, active, selected, matched, is_correct, is_hovered, hover_flash, match_flash)
 
 		if bool(item.get("is_drag_layer", false)) or _completed_once:
 			continue
 		node.position = node.position.lerp(Vector3.ZERO, 1.0 - exp(-delta * 8.0))
+	_update_stage_icon_glow(hover_flash, match_flash)
 
 
-func _update_cells(piece_index: int, active: float, selected: float, matched: float, is_correct: bool) -> void:
+func _update_cells(piece_index: int, active: float, selected: float, matched: float, is_correct: bool, is_hovered: bool, hover_flash: float, match_flash: float) -> void:
 	var shards: Array = _pieces[piece_index].get("shards", [])
 	for shard_variant in shards:
 		var cell := shard_variant as Node3D
@@ -1163,12 +1187,13 @@ func _update_cells(piece_index: int, active: float, selected: float, matched: fl
 		var tremor := sin(_time_sec * (speed * 2.7 + 0.4) + phase)
 		var live_amp := amp * (1.0 + active * 0.3) * (1.0 - matched * 0.45)
 		var swap_offset := _swap_cell_offset(piece_index, cell, radial_dir)
-		var random_flash := _random_flash_value(cell) if not is_correct else 0.0
-		var match_flash := _matched_flash_value() if is_correct else 0.0
-		var flash := maxf(random_flash, match_flash)
-		var selected_offset := radial_dir * selected * (0.045 if bool(cell.get_meta("is_main", false)) else 0.072)
+		var selected_intensity := selected
+		var hover_intensity := hover_flash if is_hovered and selected < 0.5 else 0.0
+		var matched_intensity := match_flash if is_correct and not is_hovered and selected < 0.5 else 0.0
+		var glow_intensity := maxf(maxf(hover_intensity, selected_intensity), matched_intensity)
+		var selected_offset := radial_dir * glow_intensity * (0.045 if bool(cell.get_meta("is_main", false)) else 0.072)
 		cell.position = base_pos + radial_dir * pulse * live_amp + selected_offset + swap_offset
-		cell.rotation = base_rot + Vector3(tremor, pulse, tremor * 0.6) * (0.018 + selected * 0.01)
+		cell.rotation = base_rot + Vector3(tremor, pulse, tremor * 0.6) * (0.018 + glow_intensity * 0.01)
 		for child in cell.get_children():
 			if child is MeshInstance3D:
 				var mesh := child as MeshInstance3D
@@ -1178,18 +1203,22 @@ func _update_cells(piece_index: int, active: float, selected: float, matched: fl
 						var is_main := bool(cell.get_meta("is_main", false))
 						var base_scale := SHARD_OUTLINE_SCALE_MAIN if is_main else SHARD_OUTLINE_SCALE_SECONDARY
 						var base_energy := 0.42 if is_main else 0.34
-						mesh.scale = Vector3.ONE * (base_scale + active * 0.008 + selected * 0.01 + matched * 0.006 + flash * 0.012)
-						var match_boost := match_flash
-						outline_mat.emission_energy_multiplier = base_energy + active * 0.28 + selected * 0.42 + matched * 0.1 + maxf(0.0, pulse) * 0.06 + random_flash * 0.74 + match_boost * 1.18
-						outline_mat.albedo_color = Color(0.94, 0.97, 1.0, 1.0).lerp(Color.WHITE, selected * 0.28 + random_flash * 0.45 + match_boost * 0.72)
-						outline_mat.emission = Color(0.9, 0.96, 1.0, 1.0).lerp(Color.WHITE, selected * 0.32 + random_flash * 0.6 + match_boost * 0.86)
+						mesh.scale = Vector3.ONE * (base_scale + active * 0.006 + glow_intensity * 0.009 + matched * 0.003)
+						outline_mat.emission_energy_multiplier = base_energy + active * 0.08 + selected_intensity * 0.26 + hover_intensity * 0.34 + matched_intensity * 0.22 + maxf(0.0, pulse) * 0.02
+						var outline_base := Color(0.94, 0.97, 1.0, 1.0)
+						var yellow_tint := Color(1.0, 0.97, 0.78, 1.0)
+						outline_mat.albedo_color = outline_base.lerp(yellow_tint, matched_intensity * 0.42).lerp(Color.WHITE, selected_intensity * 0.45 + hover_intensity * 0.52)
+						outline_mat.emission = Color(0.9, 0.96, 1.0, 1.0).lerp(Color(1.0, 0.95, 0.72, 1.0), matched_intensity * 0.46).lerp(Color.WHITE, selected_intensity * 0.48 + hover_intensity * 0.55)
 				else:
 					var mat := mesh.material_override as StandardMaterial3D
 					if mat != null:
-						var body_flash := selected * 0.36 + random_flash * 0.72 + match_flash * 0.92
-						mat.albedo_color = Color(0.075, 0.084, 0.092, 1.0).lerp(Color(0.86, 0.9, 0.94, 1.0), body_flash)
-						mat.emission = Color(0.02, 0.08, 0.095, 1.0).lerp(Color(0.8, 0.9, 1.0, 1.0), body_flash)
-						mat.emission_energy_multiplier = 0.08 + active * 0.12 + selected * 0.26 + matched * 0.06 + maxf(0.0, pulse) * 0.05 + random_flash * 0.55 + match_flash * 0.86
+						var yellow_mix := matched_intensity * 0.5
+						var white_mix := maxf(selected_intensity * 0.48, hover_intensity * 0.6)
+						var body_color := Color(0.075, 0.084, 0.092, 1.0).lerp(Color(1.0, 0.96, 0.76, 1.0), yellow_mix).lerp(Color(0.9, 0.94, 0.98, 1.0), white_mix)
+						var emit_color := Color(0.02, 0.08, 0.095, 1.0).lerp(Color(1.0, 0.94, 0.65, 1.0), yellow_mix).lerp(Color.WHITE, white_mix)
+						mat.albedo_color = body_color
+						mat.emission = emit_color
+						mat.emission_energy_multiplier = 0.03 + active * 0.05 + matched_intensity * 0.22 + selected_intensity * 0.3 + hover_intensity * 0.36 + maxf(0.0, pulse) * 0.02
 
 
 func _swap_cell_offset(piece_index: int, cell: Node3D, radial_dir: Vector3) -> Vector3:
@@ -1208,25 +1237,51 @@ func _swap_cell_offset(piece_index: int, cell: Node3D, radial_dir: Vector3) -> V
 	return radial_dir * arc * 0.34 + tangent * side * arc * (0.18 + weave)
 
 
-func _random_flash_value(cell: Node3D) -> float:
-	var period := float(cell.get_meta("flash_period", 16.0))
-	var offset := float(cell.get_meta("flash_offset", 0.0))
-	var duration := RANDOM_FLASH_ATTACK_SEC + RANDOM_FLASH_DECAY_SEC
-	var t := fmod(_time_sec + offset, period)
-	if t > duration:
-		return 0.0
-	if t <= RANDOM_FLASH_ATTACK_SEC:
-		var k := t / RANDOM_FLASH_ATTACK_SEC
-		return smoothstep(0.0, 1.0, k)
-	var d := (t - RANDOM_FLASH_ATTACK_SEC) / RANDOM_FLASH_DECAY_SEC
-	return 1.0 - smoothstep(0.0, 1.0, d)
-
-
 func _matched_flash_value() -> float:
 	var t := fmod(_time_sec, MATCH_FLASH_PERIOD_SEC) / MATCH_FLASH_PERIOD_SEC
 	if t <= MATCH_FLASH_ATTACK_RATIO:
 		return smoothstep(0.0, 1.0, t / MATCH_FLASH_ATTACK_RATIO)
 	return 1.0 - smoothstep(0.0, 1.0, (t - MATCH_FLASH_ATTACK_RATIO) / (1.0 - MATCH_FLASH_ATTACK_RATIO))
+
+
+func _hover_flash_value() -> float:
+	var t := fmod(_time_sec, HOVER_FLASH_PERIOD_SEC) / HOVER_FLASH_PERIOD_SEC
+	var wave := 0.5 + 0.5 * sin(TAU * t)
+	return lerpf(HOVER_FLASH_MIN, 1.0, wave)
+
+
+func _update_hover_piece() -> void:
+	if _entry_sequence_locked or _completed_once or _dragging:
+		_hover_piece = -1
+		return
+	_hover_piece = _pick_piece_at_screen_position(get_viewport().get_mouse_position())
+
+
+func _update_stage_icon_glow(hover_flash: float, match_flash: float) -> void:
+	var focus_slot := -1
+	var focus_strength := 0.0
+	var focus_color := Color(0.78, 0.86, 1.0, 0.82)
+	if _hover_piece >= 0 and _hover_piece < _pieces.size():
+		focus_slot = int(_pieces[_hover_piece].get("slot", -1))
+		focus_strength = hover_flash
+		focus_color = Color.WHITE
+	elif _selected_piece >= 0 and _selected_piece < _pieces.size():
+		focus_slot = int(_pieces[_selected_piece].get("slot", -1))
+		focus_strength = 1.0
+		focus_color = Color.WHITE
+	else:
+		for i in range(_pieces.size()):
+			if float(_pieces[i].get("matched_target", 0.0)) > 0.5:
+				focus_slot = int(_pieces[i].get("slot", -1))
+				focus_strength = match_flash
+				focus_color = Color(1.0, 0.95, 0.72, 1.0)
+				break
+	for slot in range(_stage_icons.size()):
+		var base_color := Color(1.0, 0.95, 0.72, 1.0) if slot < _matched.size() and _matched[slot] else Color(0.78, 0.86, 1.0, 0.82)
+		if slot == focus_slot and focus_strength > 0.0:
+			_stage_icons[slot].modulate = base_color.lerp(focus_color, clampf(focus_strength, 0.0, 1.0))
+		else:
+			_stage_icons[slot].modulate = base_color
 
 
 func _start_audition() -> void:
@@ -1430,11 +1485,7 @@ func _rotate_sign_quarter(sign_vec: Vector3, axis: int, direction: int) -> Vecto
 func _update_rotation_input(delta: float) -> void:
 	if _entry_sequence_locked or _is_snapping or _is_auditioning or _completed_once or _dragging:
 		return
-	var direction := 0.0
-	if Input.is_key_pressed(KEY_A):
-		direction -= 1.0
-	if Input.is_key_pressed(KEY_D):
-		direction += 1.0
+	var direction := InputMappingStateRef.get_wasd_vector().x
 	if direction == 0.0:
 		return
 	chunk_root.rotate_y(deg_to_rad(manual_rotate_speed_deg) * direction * delta)

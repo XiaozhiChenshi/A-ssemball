@@ -12,6 +12,7 @@ const PAINT_ROLL_COLOR_TEXTURE: Texture2D = preload("res://assets/ui/chapter_3/g
 const PAINT_ROLL_BW_TEXTURE: Texture2D = preload("res://assets/ui/chapter_3/giving/right_4_bw.png")
 const PAINT_ROLL_RIGHT_5_TEXTURE: Texture2D = preload("res://assets/ui/chapter_3/giving/right_5_color.jpg")
 const ColorReticleRef = preload("res://scripts/levels/chapter_3/color_reticle.gd")
+const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
 const MIRROR_LAYER_CONTACT_SEC: float = 8.0
 
 @export var chapter_index: int = 3
@@ -2288,15 +2289,7 @@ func _update_rotation_and_reticle(delta: float) -> void:
 		_update_paint_roll_input(delta)
 		return
 
-	var input_vec := Vector2.ZERO
-	if Input.is_key_pressed(KEY_A):
-		input_vec.x -= 1.0
-	if Input.is_key_pressed(KEY_D):
-		input_vec.x += 1.0
-	if Input.is_key_pressed(KEY_W):
-		input_vec.y -= 1.0
-	if Input.is_key_pressed(KEY_S):
-		input_vec.y += 1.0
+	var input_vec := InputMappingStateRef.get_wasd_vector()
 
 	if input_vec.length_squared() <= 0.0:
 		return
@@ -3347,15 +3340,7 @@ func _fade_and_remove_mesh_instance(node: Node3D, duration: float) -> void:
 func _update_paint_roll_input(delta: float) -> void:
 	if _paint_roll_stage_transitioning:
 		return
-	var input_vec := Vector2.ZERO
-	if Input.is_key_pressed(KEY_A):
-		input_vec.x -= 1.0
-	if Input.is_key_pressed(KEY_D):
-		input_vec.x += 1.0
-	if Input.is_key_pressed(KEY_W):
-		input_vec.y -= 1.0
-	if Input.is_key_pressed(KEY_S):
-		input_vec.y += 1.0
+	var input_vec := InputMappingStateRef.get_wasd_vector()
 
 	if input_vec.length_squared() > 0.0:
 		input_vec = input_vec.normalized()

@@ -6,9 +6,11 @@ signal chapter_completed(chapter_index: int)
 const StructureShapeProviderRef = preload("res://scripts/structure/structure_shape_provider.gd")
 const RouteBurnMaskCanvas2DRef = preload("res://scripts/route_burn_mask_canvas_2d.gd")
 const AshFragmentOverlay2DRef = preload("res://scripts/ash_fragment_overlay_2d.gd")
+const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
 const ASH_DEPOSIT_TEXTURE: Texture2D = preload("res://assets/ui/chapter_1_stage_2/ash_deposit.jpg")
 const HAND_TEXTURE: Texture2D = preload("res://assets/ui/chapter_1_stage_2/Hand04.png")
 const SPHERE_CLICK_AUDIO: AudioStream = preload("res://assets/audio/单击球面音效.mp3")
+const STAGE_TRANSITION_SHAKE_AUDIO: AudioStream = preload("res://assets/audio/1.2屏幕震动.mp3")
 const HAND_POINTER_TEXTURE_PATH := "res://assets/ui/chapter_1_stage_2/Hand06.png"
 const POINTER_HAND_TIP_UV := Vector2(0.3716, 0.1141)
 const POINTER_HAND_WRIST_UV := Vector2(0.5, 0.96)
@@ -48,8 +50,8 @@ const TRANSITION_SETTLE_IN_SEC: float = 3.2
 @export_range(0.0, 1.0, 0.01) var goldberg_scaffold_edge_alpha: float = 0.24
 @export_range(0.0, 1.0, 0.01) var goldberg_scaffold_edge_brightness: float = 0.3
 @export var shape_radius: float = 1.0
-@export_range(0.12, 1.0, 0.01) var cell_hold_sec: float = 0.52
-@export_range(0.0, 0.4, 0.01) var drag_grace_sec: float = 0.18
+@export_range(0.12, 1.0, 0.01) var cell_hold_sec: float = 0.46
+@export_range(0.0, 0.4, 0.01) var drag_grace_sec: float = 0.26
 @export_range(0.2, 2.0, 0.05) var rollback_step_sec: float = 1.0
 @export_range(0.05, 1.0, 0.01) var target_hint_fade_sec: float = 0.38
 @export_range(0.75, 0.98, 0.01) var cell_face_inset: float = 0.9
@@ -179,6 +181,7 @@ var _transition_burn_progress: float = 0.0
 var _transition_burn_route_points: PackedVector2Array = PackedVector2Array()
 var _transition_burn_route_closed: bool = false
 var _sphere_click_audio_player: AudioStreamPlayer
+var _transition_shake_audio_player: AudioStreamPlayer
 var _route_tone_rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 
@@ -2577,12 +2580,16 @@ func _set_status_text(text: String) -> void:
 
 
 func _ensure_audio_players() -> void:
-	if _sphere_click_audio_player != null and is_instance_valid(_sphere_click_audio_player):
-		return
-	_sphere_click_audio_player = AudioStreamPlayer.new()
-	_sphere_click_audio_player.name = "SphereClickAudioPlayer"
-	_sphere_click_audio_player.stream = SPHERE_CLICK_AUDIO
-	add_child(_sphere_click_audio_player)
+	if _sphere_click_audio_player == null or not is_instance_valid(_sphere_click_audio_player):
+		_sphere_click_audio_player = AudioStreamPlayer.new()
+		_sphere_click_audio_player.name = "SphereClickAudioPlayer"
+		_sphere_click_audio_player.stream = SPHERE_CLICK_AUDIO
+		add_child(_sphere_click_audio_player)
+	if _transition_shake_audio_player == null or not is_instance_valid(_transition_shake_audio_player):
+		_transition_shake_audio_player = AudioStreamPlayer.new()
+		_transition_shake_audio_player.name = "StageTransitionShakeAudioPlayer"
+		_transition_shake_audio_player.stream = STAGE_TRANSITION_SHAKE_AUDIO
+		add_child(_transition_shake_audio_player)
 
 
 func _play_sphere_click_audio() -> void:
@@ -2609,6 +2616,14 @@ func _play_route_progress_tone(step_count: int, total_steps: int) -> void:
 	_sphere_click_audio_player.pitch_scale = clampf(pitch, 0.8, 1.6)
 	_sphere_click_audio_player.stop()
 	_sphere_click_audio_player.play()
+
+
+func _play_transition_shake_audio() -> void:
+	if _transition_shake_audio_player == null or not is_instance_valid(_transition_shake_audio_player):
+		return
+	_transition_shake_audio_player.pitch_scale = 1.08
+	_transition_shake_audio_player.stop()
+	_transition_shake_audio_player.play()
 
 
 func _try_begin_drag() -> void:
@@ -2910,6 +2925,7 @@ func _play_texture_reassembly_transition(next_stage_index: int) -> void:
 		_transition_flash_rect.visible = false
 	_prepare_burn_reveal(next_texture)
 	_prepare_route_burn()
+	_play_transition_shake_audio()
 
 	await _run_transition_lift_phase(previous_route, 0.0, TRANSITION_LIFT_RADIUS, TRANSITION_LIFT_OUT_SEC, 0.0, 0.42)
 
@@ -2954,6 +2970,7 @@ func _play_final_texture_transition() -> void:
 		_transition_flash_rect.visible = false
 	_prepare_burn_reveal(null)
 	_prepare_route_burn()
+	_play_transition_shake_audio()
 	await _run_transition_lift_phase(_current_stage_route_ids.duplicate(), 0.0, TRANSITION_LIFT_RADIUS, TRANSITION_LIFT_OUT_SEC, 0.0, 0.62)
 	await _run_transition_color_flash_phase(0.0, 1.0, 0.8)
 	await _run_burn_reveal_phase(0.62, 1.0, TRANSITION_FILM_SWITCH_SEC)
@@ -3732,18 +3749,8 @@ func _hash_cell(cell_id: int) -> float:
 
 
 func _update_rotation_input(delta: float) -> void:
-	var rotate_x := 0.0
-	var rotate_y := 0.0
-	if Input.is_key_pressed(KEY_A):
-		rotate_y -= 1.0
-	if Input.is_key_pressed(KEY_D):
-		rotate_y += 1.0
-	if Input.is_key_pressed(KEY_W):
-		rotate_x -= 1.0
-	if Input.is_key_pressed(KEY_S):
-		rotate_x += 1.0
-
-	var rotate_input := Vector2(rotate_x, rotate_y)
+	var wasd := InputMappingStateRef.get_wasd_vector()
+	var rotate_input := Vector2(wasd.y, wasd.x)
 	if rotate_input.length_squared() <= 0.0:
 		return
 

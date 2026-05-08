@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://b4ej1rb2oq6hj"
+path="res://.godot/imported/初始界面 .mp3-80d71cd24de3dc346857599ccbd554b8.mp3str"
+
+[deps]
+
+source_file="res://assets/audio/初始界面 .mp3"
+dest_files=["res://.godot/imported/初始界面 .mp3-80d71cd24de3dc346857599ccbd554b8.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

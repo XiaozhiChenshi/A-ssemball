@@ -5,6 +5,7 @@ signal act_one_completed
 signal chapter_completed(chapter_index: int)
 
 const StructureShapeProviderRef = preload("res://scripts/structure/structure_shape_provider.gd")
+const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
 const SPHERE_CLICK_AUDIO: AudioStream = preload("res://assets/audio/单击球面音效.mp3")
 const STAGE_STONE_END_AUDIO: AudioStream = preload("res://assets/audio/1.3.2打铁.mp3")
 const STAGE_WHEEL_END_AUDIO: AudioStream = preload("res://assets/audio/1.4.2轮轴转动.mp3")
@@ -43,6 +44,7 @@ const CLICKABLE_FRONT_FACING_MIN: float = 0.12
 @export var idle_jitter_rotation_deg: float = 0.8
 @export var idle_jitter_offset: float = 0.05
 @export var idle_jitter_speed_hz: float = 0.55
+@export_range(0.1, 1.0, 0.01) var left_shake_strength_scale: float = 0.7
 @export var click_shake_rotation_deg: float = 8.0
 @export var click_shake_offset: float = 0.18
 @export var shake_duration_base_sec: float = 0.42
@@ -51,6 +53,8 @@ const CLICKABLE_FRONT_FACING_MIN: float = 0.12
 @export_range(0.1, 2.5, 0.01) var stage_image_crossfade_sec: float = 0.9
 @export_range(0.05, 2.0, 0.01) var right_panel_filter_settle_speed: float = 0.9
 @export_range(0.05, 1.0, 0.01) var right_panel_filter_burst_decay_speed: float = 0.28
+@export_range(0.1, 1.0, 0.01) var right_panel_distortion_scale: float = 0.7
+@export_range(0.0, 1.0, 0.01) var right_panel_wave_distortion_scale: float = 0.25
 @export_range(0.2, 2.0, 0.01) var click_feedback_duration_sec: float = 1.0
 @export_range(0.05, 2.0, 0.01) var click_confirm_shake_duration_sec: float = 0.8
 @export var click_confirm_shake_rotation_deg: float = 5.0
@@ -640,6 +644,8 @@ uniform float burst_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float image_transition_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float image_transition_progress : hint_range(0.0, 1.0) = 1.0;
 uniform float transition_direction : hint_range(-1.0, 1.0) = 1.0;
+uniform float distortion_scale : hint_range(0.0, 1.0) = 1.0;
+uniform float wave_distortion_scale : hint_range(0.0, 1.0) = 1.0;
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
@@ -678,6 +684,8 @@ void fragment() {
 	vec2 uv = UV;
 	vec2 centered = uv * 2.0 - 1.0;
 	float radius2 = dot(centered, centered);
+	float distort = clamp(distortion_scale, 0.0, 1.0);
+	float wave_distort = clamp(wave_distortion_scale, 0.0, 1.0);
 
 	float charge_freq = mix(0.8, 12.0, pow(charge, 1.45));
 	float aftershock_freq = mix(12.0, 1.1, 1.0 - aftershock);
@@ -686,26 +694,26 @@ void fragment() {
 	global_flash = clamp(global_flash, 0.0, 1.0);
 
 	float transition_wave = sin(transition_phase * 3.14159);
-	float barrel = 0.015 + 0.05 * strength + 0.08 * abnormal + 0.05 * click_pulse + 0.06 * charge + 0.05 * aftershock + 0.11 * peak + 0.14 * image_transition;
+	float barrel = (0.015 + 0.05 * strength + 0.08 * abnormal + 0.05 * click_pulse + 0.06 * charge + 0.05 * aftershock + 0.11 * peak + 0.14 * image_transition) * distort;
 	centered *= 1.0 + radius2 * barrel;
 	uv = centered * 0.5 + 0.5;
 
 	float wave = sin((UV.y * 18.0 + t * 3.4) * 1.3) * cos((UV.x * 11.0 - t * 1.7) * 1.1);
-	float drift = 0.004 + 0.012 * strength + 0.024 * abnormal + 0.018 * click_pulse + 0.016 * transition + 0.026 * peak + 0.04 * image_transition;
+	float drift = (0.004 + 0.012 * strength + 0.024 * abnormal + 0.018 * click_pulse + 0.016 * transition + 0.026 * peak + 0.04 * image_transition) * distort * wave_distort;
 	uv.x += wave * drift;
-	uv.y += sin(UV.x * 15.0 + t * 2.6) * (0.001 + 0.005 * strength + 0.016 * abnormal + 0.012 * transition + 0.024 * image_transition);
+	uv.y += sin(UV.x * 15.0 + t * 2.6) * (0.001 + 0.005 * strength + 0.016 * abnormal + 0.012 * transition + 0.024 * image_transition) * wave_distort;
 
 	vec2 smear_axis = normalize(vec2(max(0.0001, abs(transition_direction)) * sign(transition_direction), 0.28 + 0.22 * sin(t * 1.2 + transition_phase * 4.4)));
 	float smear_noise = noise(UV * vec2(36.0, 22.0) + vec2(t * 1.7, -t * 1.1));
 	float smear_gate = smoothstep(0.18, 0.92, transition_wave);
-	uv += smear_axis * (smear_noise - 0.5) * image_transition * smear_gate * (0.12 + 0.08 * transition_wave);
+	uv += smear_axis * (smear_noise - 0.5) * image_transition * smear_gate * (0.12 + 0.08 * transition_wave) * distort;
 
 	float band_noise = noise(vec2(floor(UV.y * 140.0), floor(t * 9.0 + UV.x * 4.0)));
 	float band_gate = smoothstep(0.52, 1.0, band_noise + abnormal * 0.18 + click_pulse * 0.16 + transition * 0.12 + peak * 0.22 + image_transition * 0.24);
-	uv.x += (band_noise - 0.5) * band_gate * (0.018 * strength + 0.055 * abnormal + 0.035 * click_pulse + 0.03 * transition + 0.05 * peak + 0.065 * image_transition);
+	uv.x += (band_noise - 0.5) * band_gate * (0.018 * strength + 0.055 * abnormal + 0.035 * click_pulse + 0.03 * transition + 0.05 * peak + 0.065 * image_transition) * distort;
 
 	vec2 sample_uv = clamp(uv, vec2(0.0), vec2(1.0));
-	vec2 chroma = vec2((0.002 + 0.006 * strength + 0.012 * click_pulse + 0.008 * transition + 0.012 * peak + 0.022 * image_transition) * (1.0 - abs(UV.y - 0.5) * 0.7), 0.0);
+	vec2 chroma = vec2((0.002 + 0.006 * strength + 0.012 * click_pulse + 0.008 * transition + 0.012 * peak + 0.022 * image_transition) * (1.0 - abs(UV.y - 0.5) * 0.7) * distort, 0.0);
 	vec3 color = vec3(
 		texture(TEXTURE, clamp(sample_uv + chroma, vec2(0.0), vec2(1.0))).r,
 		texture(TEXTURE, sample_uv).g,
@@ -957,19 +965,8 @@ func _set_stage_image_transition_progress(progress: float) -> void:
 
 
 func _update_sphere_wasd_rotate(delta: float) -> void:
-	var rotate_x := 0.0
-	var rotate_y := 0.0
-
-	if Input.is_key_pressed(KEY_A):
-		rotate_y -= 1.0
-	if Input.is_key_pressed(KEY_D):
-		rotate_y += 1.0
-	if Input.is_key_pressed(KEY_W):
-		rotate_x -= 1.0
-	if Input.is_key_pressed(KEY_S):
-		rotate_x += 1.0
-
-	var rotate_input := Vector2(rotate_x, rotate_y)
+	var wasd := InputMappingStateRef.get_wasd_vector()
+	var rotate_input := Vector2(wasd.y, wasd.x)
 	if rotate_input.length_squared() <= 0.0:
 		return
 
@@ -1086,8 +1083,8 @@ func _update_model_idle_and_shake(delta: float) -> void:
 		)
 		_sphere_pulse = maxf(_sphere_pulse, (sin(aftershock_phase) * 0.5 + 0.5) * (0.28 + _transition_aftershock_strength * 0.72))
 
-	model_root.position = idle_offset + shake_offset + charge_offset
-	model_root.rotation = idle_rotation + shake_rotation + charge_rotation
+	model_root.position = (idle_offset + shake_offset + charge_offset) * left_shake_strength_scale
+	model_root.rotation = (idle_rotation + shake_rotation + charge_rotation) * left_shake_strength_scale
 	if _sphere_material != null:
 		_sphere_material.set_shader_parameter("pulse_strength", _sphere_pulse)
 	if _cone_edge_material != null:
@@ -1116,6 +1113,8 @@ func _update_right_panel_effect(delta: float) -> void:
 		filter_material.set_shader_parameter("burst_strength", _noise_burst_strength)
 		filter_material.set_shader_parameter("image_transition_strength", _stage_image_transition_strength)
 		filter_material.set_shader_parameter("image_transition_progress", _stage_image_transition_progress)
+		filter_material.set_shader_parameter("distortion_scale", right_panel_distortion_scale)
+		filter_material.set_shader_parameter("wave_distortion_scale", right_panel_wave_distortion_scale)
 	if _noise_material != null:
 		_noise_material.set_shader_parameter("effect_strength", _noise_display_strength)
 		_noise_material.set_shader_parameter("abnormal_strength", abnormal_visual_strength)
@@ -1704,7 +1703,7 @@ func _update_goldberg_wave_shader_state() -> void:
 		ABNORMAL_CONE_MODE:
 			abnormal_mode_value = 2.0
 			abnormal_flash_strength = 1.45
-			abnormal_motion_strength = shape_radius * 0.18
+			abnormal_motion_strength = shape_radius * 0.18 * 0.7
 			abnormal_shake_strength = shape_radius * 0.012
 
 	_sphere_material.set_shader_parameter("wave_enabled", 1.0 if is_goldberg else 0.0)
