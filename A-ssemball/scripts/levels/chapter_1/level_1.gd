@@ -6,6 +6,7 @@ signal chapter_completed(chapter_index: int)
 
 const StructureShapeProviderRef = preload("res://scripts/structure/structure_shape_provider.gd")
 const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
+const InputHintOverlayRef = preload("res://scripts/input_hint_overlay.gd")
 const SPHERE_CLICK_AUDIO: AudioStream = preload("res://assets/audio/单击球面音效.mp3")
 const STAGE_STONE_END_AUDIO: AudioStream = preload("res://assets/audio/1.3.2打铁.mp3")
 const STAGE_WHEEL_END_AUDIO: AudioStream = preload("res://assets/audio/1.4.2轮轴转动.mp3")
@@ -160,6 +161,7 @@ var _electronic_noise_loop_player: AudioStreamPlayer
 var _stage_end_audio_played_for_index: int = -1
 var _stage_end_audio_pending_for_index: int = -1
 var _stage_end_audio_started_for_index: int = -1
+var _input_hint_overlay: Control
 
 
 func _ready() -> void:
@@ -181,8 +183,23 @@ func _ready() -> void:
 
 	resized.connect(_on_layout_changed)
 	chapter_1_split.dragged.connect(_on_chapter_1_split_dragged)
+	_ensure_input_hint_overlay()
 	_on_layout_changed()
 	call_deferred("_prime_structure_cache")
+
+
+func _ensure_input_hint_overlay() -> void:
+	if _input_hint_overlay != null and is_instance_valid(_input_hint_overlay):
+		return
+	_input_hint_overlay = InputHintOverlayRef.new()
+	_input_hint_overlay.name = "InputHintOverlay"
+	_input_hint_overlay.set_mode_wasd()
+	left_3d.add_child(_input_hint_overlay)
+	_input_hint_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_input_hint_overlay.offset_left = 0.0
+	_input_hint_overlay.offset_top = 0.0
+	_input_hint_overlay.offset_right = 0.0
+	_input_hint_overlay.offset_bottom = 0.0
 
 
 func _process(delta: float) -> void:

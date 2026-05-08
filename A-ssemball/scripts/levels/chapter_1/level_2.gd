@@ -7,6 +7,7 @@ const StructureShapeProviderRef = preload("res://scripts/structure/structure_sha
 const RouteBurnMaskCanvas2DRef = preload("res://scripts/route_burn_mask_canvas_2d.gd")
 const AshFragmentOverlay2DRef = preload("res://scripts/ash_fragment_overlay_2d.gd")
 const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
+const InputHintOverlayRef = preload("res://scripts/input_hint_overlay.gd")
 const ASH_DEPOSIT_TEXTURE: Texture2D = preload("res://assets/ui/chapter_1_stage_2/ash_deposit.jpg")
 const HAND_TEXTURE: Texture2D = preload("res://assets/ui/chapter_1_stage_2/Hand04.png")
 const SPHERE_CLICK_AUDIO: AudioStream = preload("res://assets/audio/单击球面音效.mp3")
@@ -183,6 +184,7 @@ var _transition_burn_route_closed: bool = false
 var _sphere_click_audio_player: AudioStreamPlayer
 var _transition_shake_audio_player: AudioStreamPlayer
 var _route_tone_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+var _input_hint_overlay: Control
 
 
 func _ready() -> void:
@@ -209,8 +211,23 @@ func _ready() -> void:
 	resized.connect(_on_layout_changed)
 	left_3d.resized.connect(_on_layout_changed)
 	chapter_1_split.dragged.connect(_on_chapter_1_split_dragged)
+	_ensure_input_hint_overlay()
 	_on_layout_changed()
 	_apply_stage(0, false)
+
+
+func _ensure_input_hint_overlay() -> void:
+	if _input_hint_overlay != null and is_instance_valid(_input_hint_overlay):
+		return
+	_input_hint_overlay = InputHintOverlayRef.new()
+	_input_hint_overlay.name = "InputHintOverlay"
+	_input_hint_overlay.set_mode_wasd()
+	left_3d.add_child(_input_hint_overlay)
+	_input_hint_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_input_hint_overlay.offset_left = 0.0
+	_input_hint_overlay.offset_top = 0.0
+	_input_hint_overlay.offset_right = 0.0
+	_input_hint_overlay.offset_bottom = 0.0
 
 
 func _process(delta: float) -> void:

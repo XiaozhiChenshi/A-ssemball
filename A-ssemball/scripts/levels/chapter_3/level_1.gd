@@ -13,6 +13,7 @@ const PAINT_ROLL_BW_TEXTURE: Texture2D = preload("res://assets/ui/chapter_3/givi
 const PAINT_ROLL_RIGHT_5_TEXTURE: Texture2D = preload("res://assets/ui/chapter_3/giving/right_5_color.jpg")
 const ColorReticleRef = preload("res://scripts/levels/chapter_3/color_reticle.gd")
 const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
+const InputHintOverlayRef = preload("res://scripts/input_hint_overlay.gd")
 const MIRROR_LAYER_CONTACT_SEC: float = 8.0
 
 @export var chapter_index: int = 3
@@ -63,6 +64,11 @@ const MIRROR_LAYER_CONTACT_SEC: float = 8.0
 @export_range(0.90, 0.999, 0.001) var paint_roll_complete_threshold: float = 0.985
 @export_range(2.0, 16.0, 0.1) var paint_roll_mirror_wait_sec: float = 10.0
 @export_range(2.0, 16.0, 0.1) var paint_roll_mirror_collapse_sec: float = 10.0
+@export_range(0.0, 2.5, 0.01) var paint_roll_mirror_slope_force_uv: float = 0.82
+@export_range(0.0, 0.8, 0.01) var paint_roll_mirror_tilt_force_uv: float = 0.18
+@export_range(0.0, 0.8, 0.01) var paint_roll_mirror_surface_force_uv: float = 0.22
+@export_range(0.0, 2.0, 0.01) var paint_roll_mirror_break_kick_uv: float = 1.15
+@export_range(0.0, 0.8, 0.01) var paint_roll_mirror_control_loss: float = 0.16
 @export_range(24, 72, 1) var shell_latitude_segments: int = 56
 @export_range(48, 144, 1) var shell_longitude_segments: int = 112
 @export_range(0.01, 0.16, 0.001) var shell_thickness: float = 0.055
@@ -154,6 +160,7 @@ var _paint_roll_mirror_piece_size: Vector2 = Vector2.ZERO
 var _paint_roll_mirror_piece_layers: Array[Control] = []
 var _paint_roll_mirror_piece_materials: Array[ShaderMaterial] = []
 var _paint_roll_mirror_piece_shards: Array[Array] = []
+var _paint_roll_mirror_piece_uv_texture: ImageTexture
 var _paint_roll_mirror_crack_root: Control
 var _paint_roll_mirror_crack_lines: Array[Dictionary] = []
 var _paint_roll_shard_root: Control
@@ -195,6 +202,8 @@ var _paint_roll_trail_decay_timer: float = 0.0
 var _dev_paint_roll_skip_enabled: bool = false
 var _dev_paint_roll_skip_hold_sec: float = 0.0
 var _dev_paint_roll_skip_triggered: bool = false
+var _left_input_hint_overlay: Control
+var _paint_roll_input_hint_overlay: Control
 
 
 func _ready() -> void:
@@ -204,6 +213,7 @@ func _ready() -> void:
 	_setup_right_panel()
 	_setup_fx_layer()
 	_setup_paint_roll_scene()
+	_ensure_input_hint_overlays()
 	_apply_stage(0, true)
 
 
@@ -219,6 +229,7 @@ func _process(delta: float) -> void:
 	_update_paint_roll_mirror_stage(delta)
 	_update_idle_rotation(delta)
 	_update_rotation_and_reticle(delta)
+	_update_input_hint_visibility()
 	_update_collect_cooldown(delta)
 	_update_reticle_visual()
 	_try_collect_active_spot()
@@ -232,6 +243,39 @@ func _input(event: InputEvent) -> void:
 		if _stage_index >= _stage_data.size() - 1 and _collected_in_stage >= _stage_spots.size():
 			get_viewport().set_input_as_handled()
 			_emit_completed()
+
+
+func _ensure_input_hint_overlays() -> void:
+	if _left_input_hint_overlay == null or not is_instance_valid(_left_input_hint_overlay):
+		_left_input_hint_overlay = InputHintOverlayRef.new()
+		_left_input_hint_overlay.name = "LeftInputHintOverlay"
+		_left_input_hint_overlay.set_mode_wasd()
+		left_3d.add_child(_left_input_hint_overlay)
+		_fit_input_hint_overlay(_left_input_hint_overlay)
+	if _paint_roll_root != null and (_paint_roll_input_hint_overlay == null or not is_instance_valid(_paint_roll_input_hint_overlay)):
+		_paint_roll_input_hint_overlay = InputHintOverlayRef.new()
+		_paint_roll_input_hint_overlay.name = "PaintRollInputHintOverlay"
+		_paint_roll_input_hint_overlay.set_mode_wasd()
+		_paint_roll_input_hint_overlay.z_index = 120
+		_paint_roll_root.add_child(_paint_roll_input_hint_overlay)
+		_fit_input_hint_overlay(_paint_roll_input_hint_overlay)
+	_update_input_hint_visibility()
+
+
+func _fit_input_hint_overlay(overlay: Control) -> void:
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.offset_left = 0.0
+	overlay.offset_top = 0.0
+	overlay.offset_right = 0.0
+	overlay.offset_bottom = 0.0
+
+
+func _update_input_hint_visibility() -> void:
+	var paint_roll_visible := _paint_roll_root != null and is_instance_valid(_paint_roll_root) and _paint_roll_root.visible
+	if _left_input_hint_overlay != null and is_instance_valid(_left_input_hint_overlay):
+		_left_input_hint_overlay.visible = not paint_roll_visible
+	if _paint_roll_input_hint_overlay != null and is_instance_valid(_paint_roll_input_hint_overlay):
+		_paint_roll_input_hint_overlay.visible = paint_roll_visible
 
 
 func _set_dev_paint_roll_skip_enabled(enabled: bool) -> void:
@@ -1016,6 +1060,7 @@ func _setup_fx_layer() -> void:
 
 
 func _setup_paint_roll_scene() -> void:
+	_ensure_paint_roll_mirror_piece_uv_texture()
 	_paint_roll_root = Control.new()
 	_paint_roll_root.name = "PaintRollStage"
 	_paint_roll_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1137,6 +1182,14 @@ func _setup_paint_roll_scene() -> void:
 	_paint_roll_canvas.add_child(_paint_roll_shard_root)
 
 	_apply_paint_roll_stage(0)
+
+
+func _ensure_paint_roll_mirror_piece_uv_texture() -> void:
+	if _paint_roll_mirror_piece_uv_texture != null:
+		return
+	var image := Image.create(1, 1, false, Image.FORMAT_RGBA8)
+	image.set_pixel(0, 0, Color.WHITE)
+	_paint_roll_mirror_piece_uv_texture = ImageTexture.create_from_image(image)
 
 
 func _create_paint_roll_reveal_material() -> ShaderMaterial:
@@ -1575,42 +1628,15 @@ func _set_visible_paint_roll_mirror_layer(layer_index: int) -> void:
 	if _paint_roll_mirror_material != null:
 		_paint_roll_mirror_material.set_shader_parameter("mirror_layer", clamped_layer)
 	if _paint_roll_mirror != null:
-		_paint_roll_mirror.visible = _is_paint_roll_mirror_stage()
+		_paint_roll_mirror.visible = _is_paint_roll_mirror_stage() and _paint_roll_mirror_piece_layers.is_empty()
 	for i in range(_paint_roll_mirror_piece_layers.size()):
 		var layer := _paint_roll_mirror_piece_layers[i]
 		if layer == null or not is_instance_valid(layer):
 			continue
-		layer.visible = false
-		layer.z_index = 30 - i
-
-
-func _create_paint_roll_broken_mirror_piece_material(seed: float) -> ShaderMaterial:
-	var shader := Shader.new()
-	shader.code = """
-shader_type canvas_item;
-render_mode blend_mix;
-
-uniform float seed = 0.0;
-uniform vec4 glass_color : source_color = vec4(0.0, 0.0, 0.0, 0.88);
-
-float hash(vec2 p) {
-	return fract(sin(dot(p, vec2(127.1, 311.7)) + seed * 17.13) * 43758.5453123);
-}
-
-void fragment() {
-	float grain = hash(floor(UV * 52.0));
-	float fine = hash(floor(UV * 170.0 + vec2(seed, seed * 1.7)));
-	float frost = mix(grain, fine, 0.38);
-	vec3 tint = glass_color.rgb + vec3(frost * 0.028);
-	float alpha = clamp(glass_color.a * (0.86 + frost * 0.14), 0.0, 0.96);
-	COLOR = vec4(tint, alpha);
-}
-"""
-	var material := ShaderMaterial.new()
-	material.shader = shader
-	material.set_shader_parameter("seed", seed)
-	material.set_shader_parameter("glass_color", Color(0.0, 0.0, 0.0, 0.88))
-	return material
+		layer.visible = _is_paint_roll_mirror_stage() and i >= clamped_layer
+		layer.z_index = -i
+		if layer.visible:
+			layer.modulate.a = 1.0
 
 
 func _build_paint_roll_resistance_image() -> void:
@@ -1870,7 +1896,7 @@ func _sync_paint_roll_mirror_overlay() -> void:
 		_paint_roll_mirror.size = reflection_size
 		_paint_roll_mirror.pivot_offset = reflection_size * 0.5
 		_paint_roll_mirror.position = plate_size * 0.5 - reflection_size * 0.5
-		_paint_roll_mirror.visible = _is_paint_roll_mirror_stage()
+		_paint_roll_mirror.visible = _is_paint_roll_mirror_stage() and _paint_roll_mirror_piece_layers.is_empty()
 		if _paint_roll_mirror_material != null:
 			_paint_roll_mirror_material.set_shader_parameter("mirror_layer", clampi(_paint_roll_mirror_layer_index, 0, 2))
 	if _paint_roll_mirror_piece_root != null:
@@ -1928,14 +1954,14 @@ func _clear_paint_roll_mirror_layers() -> void:
 func _build_paint_roll_mirror_piece_layer(layer_root: Control, layer_shards: Array, material: ShaderMaterial, layer_index: int, plate_size: Vector2) -> void:
 	var center := plate_size * 0.5
 	var radius := minf(plate_size.x, plate_size.y) * 0.5
-	var segment_count := 28
-	var ring_count := 5
+	var segment_count := 10
+	var ring_count := 3
 	if layer_index == 1:
-		segment_count = 36
-		ring_count = 4
+		segment_count = 12
+		ring_count = 3
 	elif layer_index == 2:
-		segment_count = 42
-		ring_count = 6
+		segment_count = 14
+		ring_count = 4
 	var rings: Array[Array] = []
 	for ring in range(ring_count):
 		var ring_points: Array[Vector2] = []
@@ -2013,7 +2039,7 @@ func _add_paint_roll_mirror_piece(layer_root: Control, layer_shards: Array, mate
 	shard.name = "MirrorPiece_%d_%03d" % [layer_index, piece_index]
 	shard.polygon = polygon
 	shard.uv = uvs
-	shard.texture = left_viewport.get_texture()
+	shard.texture = _paint_roll_mirror_piece_uv_texture
 	shard.position = centroid
 	shard.color = Color.WHITE
 	shard.material = material
@@ -2289,7 +2315,7 @@ func _update_rotation_and_reticle(delta: float) -> void:
 		_update_paint_roll_input(delta)
 		return
 
-	var input_vec := InputMappingStateRef.get_wasd_vector()
+	var input_vec := InputMappingStateRef.get_raw_wasd_vector()
 
 	if input_vec.length_squared() <= 0.0:
 		return
@@ -3340,13 +3366,19 @@ func _fade_and_remove_mesh_instance(node: Node3D, duration: float) -> void:
 func _update_paint_roll_input(delta: float) -> void:
 	if _paint_roll_stage_transitioning:
 		return
-	var input_vec := InputMappingStateRef.get_wasd_vector()
+	var input_vec := InputMappingStateRef.get_raw_wasd_vector()
 
 	if input_vec.length_squared() > 0.0:
 		input_vec = input_vec.normalized()
-		_paint_roll_velocity_uv += input_vec * paint_roll_acceleration_uv * delta
+		var control_scale := 1.0
+		if _is_paint_roll_mirror_stage():
+			control_scale = maxf(0.05, 1.0 - paint_roll_mirror_control_loss)
+		_paint_roll_velocity_uv += input_vec * paint_roll_acceleration_uv * control_scale * delta
 	else:
 		_paint_roll_velocity_uv = _paint_roll_velocity_uv.move_toward(Vector2.ZERO, paint_roll_friction_uv * delta)
+
+	if _is_paint_roll_mirror_stage():
+		_apply_paint_roll_mirror_slope_force(delta)
 
 	if _paint_roll_velocity_uv.length() > paint_roll_max_speed_uv:
 		_paint_roll_velocity_uv = _paint_roll_velocity_uv.normalized() * paint_roll_max_speed_uv
@@ -3371,6 +3403,94 @@ func _update_paint_roll_input(delta: float) -> void:
 		if _paint_roll_completion_timer <= 0.0:
 			_paint_roll_completion_timer = 0.45
 			_check_paint_roll_completion()
+
+
+func _apply_paint_roll_mirror_slope_force(delta: float) -> void:
+	if paint_roll_mirror_slope_force_uv <= 0.0 and paint_roll_mirror_tilt_force_uv <= 0.0 and paint_roll_mirror_surface_force_uv <= 0.0:
+		return
+	var layer_index := clampi(_paint_roll_mirror_layer_index, 0, 2)
+	var uv := _paint_roll_view_uv
+	var p := uv * 2.0 - Vector2.ONE
+	var downhill := _get_paint_roll_mirror_ring_force(p, layer_index) * paint_roll_mirror_slope_force_uv
+	var tilt := _get_paint_roll_mirror_layer_tilt(layer_index) * paint_roll_mirror_tilt_force_uv
+	var surface_force := _get_paint_roll_mirror_layer_surface_force(p, layer_index) * paint_roll_mirror_surface_force_uv
+	var layer_scale := 1.0 + float(layer_index) * 0.24
+	_paint_roll_velocity_uv += (downhill + tilt + surface_force) * layer_scale * delta
+
+
+func _get_paint_roll_mirror_ring_force(p: Vector2, layer_index: int) -> Vector2:
+	var radial := p.normalized() if p.length_squared() > 0.0001 else _get_paint_roll_mirror_layer_tilt(layer_index).normalized()
+	var r := p.length()
+	var center_push := smoothstep(0.02, 0.22, r) * (1.0 - smoothstep(0.24, 0.40, r)) * 0.72
+	var ring_center := 0.54 + float(layer_index) * 0.035
+	var ring_width := 0.19 - float(layer_index) * 0.018
+	var ring_delta := (r - ring_center) / maxf(0.001, ring_width)
+	var ring_push := exp(-ring_delta * ring_delta) * 1.25
+	var edge_flatten := 1.0 - smoothstep(0.74, 0.98, r)
+	return radial * (center_push + ring_push) * edge_flatten
+
+
+func _get_paint_roll_mirror_layer_tilt(layer_index: int) -> Vector2:
+	match layer_index:
+		0:
+			return Vector2(0.34, -0.18)
+		1:
+			return Vector2(-0.25, 0.36)
+		_:
+			return Vector2(0.28, 0.30)
+
+
+func _get_paint_roll_mirror_layer_surface_force(p: Vector2, layer_index: int) -> Vector2:
+	var r := p.length()
+	var radial := p.normalized() if r > 0.0001 else Vector2(0.0, 0.0)
+	var edge_flatten := 1.0 - smoothstep(0.72, 0.98, r)
+	match layer_index:
+		0:
+			var theta := atan2(p.y, p.x)
+			var sector: float = floor((theta + PI) / TAU * 7.0)
+			var sector_angle: float = (sector + 0.5) / 7.0 * TAU - PI
+			var sector_axis := Vector2(cos(sector_angle), sin(sector_angle))
+			return (radial * 0.35 + sector_axis * 0.65).normalized() * (0.20 + r * 0.45) * edge_flatten
+		1:
+			var q := p - Vector2(0.16, -0.08)
+			var lobe_a := (q - Vector2(-0.18, -0.30)).normalized() if (q - Vector2(-0.18, -0.30)).length_squared() > 0.0001 else radial
+			var lobe_b := (q - Vector2(0.22, 0.34)).normalized() if (q - Vector2(0.22, 0.34)).length_squared() > 0.0001 else radial
+			return (radial * 0.38 + lobe_a * 0.31 + lobe_b * 0.31).normalized() * (0.24 + r * 0.52) * edge_flatten
+		_:
+			var tangent := Vector2(-radial.y, radial.x)
+			var spin := sin((r - 0.54) * 8.0 + atan2(p.y, p.x) * 2.0)
+			return (radial * 0.42 + tangent * (0.58 + spin * 0.18)).normalized() * (0.28 + r * 0.58) * edge_flatten
+
+
+func _sample_paint_roll_mirror_height(p: Vector2, layer_index: int) -> float:
+	var r2 := p.length_squared()
+	var r := sqrt(r2)
+	var theta := atan2(p.y, p.x)
+	var edge_falloff := 1.0 - smoothstep(0.72, 1.0, r)
+	if layer_index == 0:
+		var sector: float = floor((theta + PI) / TAU * 7.0)
+		var sector_angle: float = (sector + 0.5) / 7.0 * TAU - PI
+		var sector_axis := Vector2(cos(sector_angle), sin(sector_angle))
+		var seam := absf(sin((theta - sector_angle) * 3.5))
+		var local_push := p.dot(sector_axis)
+		var facet_tilt := local_push * (0.075 + 0.055 * _hash_2d(Vector2(sector, 2.7))) * edge_falloff
+		var facet_bulge := sin(sector * 2.17 + 1.3) * 0.050 * edge_falloff
+		var convex := sqrt(maxf(0.025, 1.0 - r2 * (0.86 + 0.18 * _hash_2d(Vector2(sector, 9.1)))))
+		return convex + facet_tilt + facet_bulge - smoothstep(0.84, 0.98, seam) * 0.018 * edge_falloff
+	if layer_index == 1:
+		var q := p - Vector2(0.16, -0.08)
+		var upper_lobe := exp(-(q - Vector2(-0.18, -0.30)).length_squared() * 3.8)
+		var lower_lobe := exp(-(q - Vector2(0.22, 0.34)).length_squared() * 2.5)
+		var waist := exp(-(q - Vector2(0.02, 0.02)).length_squared() * 8.5)
+		var gourd_metric := q.x * q.x * (1.05 + lower_lobe * 0.95) + q.y * q.y * (0.72 + upper_lobe * 1.25)
+		var convex := sqrt(maxf(0.025, 1.0 - gourd_metric))
+		var bias := (q.x * q.x * q.x * 0.30 - q.x * q.y * q.y * 0.36 + upper_lobe * 0.11 - lower_lobe * 0.09) * edge_falloff
+		return convex + bias - waist * 0.065 * edge_falloff
+	var convex := sqrt(maxf(0.025, 1.0 - r2))
+	var swirl := sin(theta * 3.0 + r * 12.0) * 0.125 * edge_falloff
+	var fold := sin(theta * 5.0 - r * 7.5 + p.x * 2.0) * 0.070 * edge_falloff
+	var spiral_pull := (p.x * sin(r * 5.0) - p.y * cos(r * 4.0)) * 0.055 * edge_falloff
+	return convex + swirl + fold + spiral_pull
 
 
 func _update_core_drag_flow() -> void:
@@ -3655,8 +3775,7 @@ func _is_paint_roll_ball_on_mirror() -> bool:
 	)
 	var mirror_center := _paint_roll_mirror_overlay.position + _paint_roll_mirror.position + _paint_roll_mirror.size * 0.5
 	var mirror_radius := minf(_paint_roll_mirror.size.x, _paint_roll_mirror.size.y) * 0.5
-	var ball_radius := _get_paint_roll_ball_radius_uv() * minf(_paint_roll_canvas_size.x, _paint_roll_canvas_size.y)
-	return ball_px.distance_to(mirror_center) <= maxf(0.0, mirror_radius - ball_radius * 0.82)
+	return ball_px.distance_to(mirror_center) <= mirror_radius
 
 
 func _reset_paint_roll_mirror_layers() -> void:
@@ -3672,7 +3791,7 @@ func _reset_paint_roll_mirror_layers() -> void:
 			continue
 		layer.visible = true
 		layer.modulate.a = 1.0
-		layer.z_index = _paint_roll_mirror_piece_layers.size() - layer_index
+		layer.z_index = -layer_index
 		var layer_shards: Array = _paint_roll_mirror_piece_shards[layer_index]
 		for shard_data in layer_shards:
 			var node := shard_data.get("node", null) as Polygon2D
@@ -3713,7 +3832,6 @@ func _build_paint_roll_mirror_cracks(layer_index: int) -> void:
 		return
 	var center := _paint_roll_mirror_piece_size * 0.5
 	var radius := minf(_paint_roll_mirror_piece_size.x, _paint_roll_mirror_piece_size.y) * 0.5
-	var line_index := 0
 	var impact := center
 	if _paint_roll_mirror_overlay != null and _paint_roll_canvas_size.x > 1.0 and _paint_roll_canvas_size.y > 1.0:
 		var ball_px := Vector2(_paint_roll_view_uv.x * _paint_roll_canvas_size.x, _paint_roll_view_uv.y * _paint_roll_canvas_size.y)
@@ -3721,65 +3839,68 @@ func _build_paint_roll_mirror_cracks(layer_index: int) -> void:
 	var impact_offset := impact - center
 	if impact_offset.length() > radius * 0.52:
 		impact = center + impact_offset.normalized() * radius * 0.52
-	var main_count := 7
-	if layer_index == 1:
-		main_count = 5
-	elif layer_index == 2:
-		main_count = 9
-	var start_angle := _hash_2d(Vector2(float(layer_index) + 2.7, 14.2)) * TAU
-	for i in range(main_count):
-		var seed := Vector2(float(i + 1), float(layer_index + 1) * 23.0)
-		var angle := start_angle + float(i) / float(main_count) * TAU
-		angle += (_hash_2d(seed + Vector2(1.3, 7.1)) - 0.5) * 0.64
-		var length := radius * lerpf(0.42, 0.96, _hash_2d(seed + Vector2(8.0, 3.0)))
-		var segment_count := 4 + int(floor(_hash_2d(seed + Vector2(2.0, 9.0)) * 3.0))
-		var direction := Vector2(cos(angle), sin(angle))
-		var normal := Vector2(-direction.y, direction.x)
-		var crack_points := PackedVector2Array()
-		for segment in range(segment_count + 1):
-			var t := float(segment) / float(segment_count)
-			var taper := 1.0 - t
-			var bend := normal * sin(t * PI) * (_hash_2d(seed + Vector2(float(segment) * 4.7, 5.0)) - 0.5) * radius * 0.075 * taper
-			var point := impact + direction * length * t + bend
-			var from_center := point - center
-			if from_center.length() > radius * 0.965:
-				point = center + from_center.normalized() * radius * 0.965
-			crack_points.append(point)
-		_add_paint_roll_mirror_crack_line(crack_points, line_index, layer_index, clampf(float(i) / float(main_count) * 0.34, 0.0, 1.0))
+	var line_index := 0
+	var base_angle := atan2((impact - center).y, (impact - center).x)
+	if impact.distance_to(center) < radius * 0.08:
+		base_angle = _hash_2d(Vector2(float(layer_index) + 10.0, 2.0)) * TAU
+	var primary_count := 7 + layer_index
+	for i in range(primary_count):
+		var seed := Vector2(float(i + 1), float(layer_index + 1) * 31.0)
+		var angle := base_angle + (float(i) / float(primary_count)) * TAU
+		angle += (_hash_2d(seed + Vector2(1.7, 4.2)) - 0.5) * 0.68
+		var length := radius * lerpf(0.48, 0.98, _hash_2d(seed + Vector2(8.0, 3.0)))
+		var crack_points := _build_jagged_crack_polyline(impact, angle, length, radius, center, seed, 6 + layer_index)
+		_add_paint_roll_mirror_crack_line(crack_points, line_index, layer_index, clampf(float(i) * 0.035, 0.0, 0.38))
 		line_index += 1
-		if i % 2 == layer_index % 2:
-			var branch_t := lerpf(0.34, 0.66, _hash_2d(seed + Vector2(12.0, 6.0)))
-			var branch_origin := crack_points[int(round(branch_t * float(crack_points.size() - 1)))]
-			var branch_angle := angle + lerpf(-1.18, 1.18, _hash_2d(seed + Vector2(13.0, 17.0)))
-			var branch_dir := Vector2(cos(branch_angle), sin(branch_angle))
-			var branch_len := radius * lerpf(0.12, 0.28, _hash_2d(seed + Vector2(16.0, 4.0)))
-			var branch_points := PackedVector2Array()
-			for segment in range(4):
-				var t := float(segment) / 3.0
-				var point := branch_origin + branch_dir * branch_len * t
-				var from_center := point - center
-				if from_center.length() > radius * 0.965:
-					point = center + from_center.normalized() * radius * 0.965
-				branch_points.append(point)
-			_add_paint_roll_mirror_crack_line(branch_points, line_index, layer_index, clampf(0.18 + branch_t * 0.55, 0.0, 1.0))
+		var branch_count := 1 + int(_hash_2d(seed + Vector2(5.0, 13.0)) * 2.0)
+		for branch_index in range(branch_count):
+			var t := lerpf(0.32, 0.74, _hash_2d(seed + Vector2(float(branch_index) + 3.0, 17.0)))
+			var source_index := clampi(int(round(t * float(crack_points.size() - 1))), 1, crack_points.size() - 1)
+			var origin := crack_points[source_index]
+			var side := -1.0 if _hash_2d(seed + Vector2(float(branch_index), 29.0)) < 0.5 else 1.0
+			var branch_angle := angle + side * lerpf(0.56, 1.16, _hash_2d(seed + Vector2(float(branch_index), 41.0)))
+			var branch_length := radius * lerpf(0.12, 0.30, _hash_2d(seed + Vector2(float(branch_index), 53.0)))
+			var branch_points := _build_jagged_crack_polyline(origin, branch_angle, branch_length, radius, center, seed + Vector2(float(branch_index) * 7.0, 19.0), 3)
+			_add_paint_roll_mirror_crack_line(branch_points, line_index, layer_index, clampf(0.30 + t * 0.42 + float(branch_index) * 0.04, 0.0, 0.86))
 			line_index += 1
 	var arc_count := 2 + layer_index
 	for arc_index in range(arc_count):
-		var seed := Vector2(float(arc_index + 31), float(layer_index + 1) * 19.0)
-		var arc_radius := radius * lerpf(0.22, 0.62, _hash_2d(seed))
-		var arc_start := start_angle + lerpf(-1.2, 1.2, _hash_2d(seed + Vector2(1.0, 2.0)))
-		var arc_span := lerpf(0.38, 0.92, _hash_2d(seed + Vector2(3.0, 4.0)))
+		var seed := Vector2(float(arc_index + 101), float(layer_index + 1) * 11.0)
+		var arc_radius := radius * lerpf(0.18, 0.44, _hash_2d(seed))
+		var start_angle := base_angle + lerpf(-1.1, 1.1, _hash_2d(seed + Vector2(2.0, 7.0)))
+		var span := lerpf(0.46, 1.04, _hash_2d(seed + Vector2(3.0, 9.0)))
 		var arc_points := PackedVector2Array()
-		for segment in range(5):
-			var t := float(segment) / 4.0
-			var arc_point_angle := arc_start + arc_span * t
-			var point := impact + Vector2(cos(arc_point_angle), sin(arc_point_angle)) * arc_radius
-			var from_center := point - center
-			if from_center.length() > radius * 0.94:
-				point = center + from_center.normalized() * radius * 0.94
-			arc_points.append(point)
-		_add_paint_roll_mirror_crack_line(arc_points, line_index, layer_index, clampf(0.42 + float(arc_index) * 0.12, 0.0, 1.0))
+		var segment_count := 5
+		for segment in range(segment_count + 1):
+			var t := float(segment) / float(segment_count)
+			var angle := start_angle + span * t
+			var jitter := (_hash_2d(seed + Vector2(float(segment) * 2.0, 5.0)) - 0.5) * radius * 0.025
+			var point := impact + Vector2(cos(angle), sin(angle)) * (arc_radius + jitter)
+			arc_points.append(_clamp_point_to_mirror_disc(point, center, radius * 0.965))
+		_add_paint_roll_mirror_crack_line(arc_points, line_index, layer_index, clampf(0.42 + float(arc_index) * 0.12, 0.0, 0.82))
 		line_index += 1
+
+
+func _build_jagged_crack_polyline(origin: Vector2, angle: float, length: float, radius: float, center: Vector2, seed: Vector2, segment_count: int) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	var direction := Vector2(cos(angle), sin(angle))
+	var normal := Vector2(-direction.y, direction.x)
+	points.append(origin)
+	var bend_accum := 0.0
+	for segment in range(1, segment_count + 1):
+		var t := float(segment) / float(segment_count)
+		bend_accum += (_hash_2d(seed + Vector2(float(segment) * 2.7, 6.0)) - 0.5) * radius * 0.035
+		var taper := 1.0 - t * 0.72
+		var point := origin + direction * length * t + normal * bend_accum * taper
+		points.append(_clamp_point_to_mirror_disc(point, center, radius * 0.965))
+	return points
+
+
+func _clamp_point_to_mirror_disc(point: Vector2, center: Vector2, max_radius: float) -> Vector2:
+	var offset := point - center
+	if offset.length() <= max_radius:
+		return point
+	return center + offset.normalized() * max_radius
 
 
 func _add_paint_roll_mirror_crack_line(points: PackedVector2Array, line_index: int, layer_index: int, distance_ratio: float) -> void:
@@ -3820,6 +3941,11 @@ func _update_paint_roll_mirror_cracks(progress: float) -> void:
 			continue
 		var delay := float(crack_data.get("delay", 0.0))
 		var local := clampf((progress - delay) / maxf(0.001, 1.0 - delay), 0.0, 1.0)
+		var reveal := 0.0
+		if local < 0.32:
+			reveal = lerpf(0.0, 0.78, smoothstep(0.0, 0.32, local))
+		else:
+			reveal = lerpf(0.78, 1.0, smoothstep(0.32, 1.0, local))
 		dark_line.visible = local > 0.0
 		light_line.visible = local > 0.0
 		var alpha := smoothstep(0.0, 0.42, local)
@@ -3829,7 +3955,7 @@ func _update_paint_roll_mirror_cracks(progress: float) -> void:
 		if source_points.size() < 2:
 			continue
 		var drawn := PackedVector2Array()
-		var scaled_count: float = local * float(source_points.size() - 1)
+		var scaled_count: float = reveal * float(source_points.size() - 1)
 		var full_segments := int(floor(scaled_count))
 		var remainder := scaled_count - float(full_segments)
 		for i in range(full_segments + 1):
@@ -3846,6 +3972,7 @@ func _start_paint_roll_mirror_piece_break(layer_index: int) -> void:
 	_paint_roll_mirror_breaking = true
 	_paint_roll_mirror_contact_timer = 0.0
 	_clear_paint_roll_mirror_cracks()
+	_kick_paint_roll_ball_off_mirror(layer_index)
 	var next_layer_index := layer_index + 1
 	if next_layer_index < _paint_roll_mirror_piece_layers.size():
 		_set_visible_paint_roll_mirror_layer(next_layer_index)
@@ -3856,7 +3983,7 @@ func _start_paint_roll_mirror_piece_break(layer_index: int) -> void:
 		if active_layer != null and is_instance_valid(active_layer):
 			active_layer.visible = true
 			active_layer.modulate.a = 1.0
-			active_layer.z_index = 60
+			active_layer.z_index = 8
 	var layer_shards: Array = _paint_roll_mirror_piece_shards[layer_index]
 	var duration := 2.35
 	var tween := create_tween()
@@ -3872,12 +3999,7 @@ func _start_paint_roll_mirror_piece_break(layer_index: int) -> void:
 		var drop := float(shard_data.get("drop", 0.0))
 		var delay := float(shard_data.get("delay", 0.0)) * 0.18
 		var spin := float(shard_data.get("spin", 0.0))
-		var outward := (origin - _paint_roll_mirror_piece_size * 0.5)
-		if outward.length_squared() <= 0.001:
-			outward = Vector2(cos(float(shard_index) * 2.399963), sin(float(shard_index) * 2.399963))
-		outward = outward.normalized()
-		var initial_gap := lerpf(5.0, 18.0, _hash_2d(Vector2(float(shard_index), float(layer_index) + 41.0)))
-		node.position = origin + outward * initial_gap
+		node.position = origin
 		node.scale = Vector2(0.985, 0.985)
 		var target := origin + drift + Vector2(0.0, drop)
 		tween.tween_property(node, "position", target, duration).set_delay(delay).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
@@ -3898,10 +4020,18 @@ func _start_paint_roll_mirror_piece_break(layer_index: int) -> void:
 		_set_visible_paint_roll_mirror_layer(_paint_roll_mirror_layer_index)
 
 
-func _prepare_visible_paint_roll_mirror_piece(node: Polygon2D, layer_index: int, shard_index: int) -> void:
+func _kick_paint_roll_ball_off_mirror(layer_index: int) -> void:
+	var p := _paint_roll_view_uv * 2.0 - Vector2.ONE
+	var dir := p.normalized() if p.length_squared() > 0.0001 else _get_paint_roll_mirror_layer_tilt(layer_index).normalized()
+	var tangent := Vector2(-dir.y, dir.x)
+	var side := -1.0 if _hash_2d(Vector2(float(layer_index) + 17.0, _color_flow_time + 3.0)) < 0.5 else 1.0
+	var kick_dir := (dir * 0.88 + tangent * side * 0.30).normalized()
+	_paint_roll_velocity_uv = kick_dir * paint_roll_mirror_break_kick_uv
+
+
+func _prepare_visible_paint_roll_mirror_piece(node: Polygon2D, _layer_index: int, _shard_index: int) -> void:
 	node.visible = true
-	node.material = _create_paint_roll_broken_mirror_piece_material(float(layer_index * 1000 + shard_index))
-	node.z_index = 30
+	node.z_index = 0
 	node.modulate = Color.WHITE
 	node.color = Color.WHITE
 	var old_edge := node.get_node_or_null("ShardEdge") as Line2D
@@ -3959,26 +4089,38 @@ func _build_paint_roll_large_shards() -> void:
 	_paint_roll_shard_root.visible = true
 	_paint_roll_shard_root.position = Vector2.ZERO
 	_paint_roll_shard_root.size = _paint_roll_canvas_size
-	var boundary := _build_irregular_canvas_boundary(_paint_roll_canvas_size)
-	var center := _paint_roll_canvas_size * Vector2(0.48, 0.43)
-	for i in range(boundary.size()):
-		var next_i := (i + 1) % boundary.size()
-		var points := PackedVector2Array([center, boundary[i], boundary[next_i]])
+	var shard_texture: Texture2D = null
+	if not _paint_roll_stage_data.is_empty():
+		var stage := _paint_roll_stage_data[clampi(_paint_roll_stage_index, 0, _paint_roll_stage_data.size() - 1)]
+		var texture_variant: Variant = stage.get("color_texture", null)
+		if texture_variant is Texture2D:
+			shard_texture = texture_variant as Texture2D
+	var cell_points := _build_final_canvas_fracture_cells(_paint_roll_canvas_size)
+	for i in range(cell_points.size()):
+		var points := cell_points[i]
 		var shard_center := Vector2.ZERO
 		for point in points:
 			shard_center += point
 		shard_center /= float(points.size())
 		var local_points := PackedVector2Array()
+		var uvs := PackedVector2Array()
 		for point in points:
 			local_points.append(point - shard_center)
+			uvs.append(Vector2(
+				point.x / maxf(1.0, _paint_roll_canvas_size.x),
+				point.y / maxf(1.0, _paint_roll_canvas_size.y)
+			))
 		var shard := Polygon2D.new()
 		shard.name = "PaintRollShard%03d" % i
 		shard.polygon = local_points
+		shard.uv = uvs
+		shard.texture = shard_texture
 		shard.position = shard_center
-		shard.color = _sample_right6_shard_color(Vector2(
+		var shard_uv := Vector2(
 			shard_center.x / maxf(1.0, _paint_roll_canvas_size.x),
 			shard_center.y / maxf(1.0, _paint_roll_canvas_size.y)
-		))
+		)
+		shard.color = Color.WHITE if shard_texture != null else _sample_right6_shard_color(shard_uv)
 		shard.visible = false
 		_paint_roll_shard_root.add_child(shard)
 		var outward := (shard_center - _paint_roll_canvas_size * 0.5).normalized()
@@ -3990,6 +4132,48 @@ func _build_paint_roll_large_shards() -> void:
 			"drop": lerpf(0.95, 1.55, _hash_2d(Vector2(float(i), 11.0))) * _paint_roll_canvas_size.y,
 			"spin": lerpf(-0.62, 0.62, _hash_2d(Vector2(float(i), 12.0))) * TAU,
 		})
+
+
+func _build_final_canvas_fracture_cells(canvas_size: Vector2) -> Array[PackedVector2Array]:
+	var cols := 4
+	var rows := 3
+	var points: Array[Array] = []
+	for y in range(rows + 1):
+		var row: Array[Vector2] = []
+		for x in range(cols + 1):
+			var base := Vector2(
+				canvas_size.x * float(x) / float(cols),
+				canvas_size.y * float(y) / float(rows)
+			)
+			var can_jitter_x := x > 0 and x < cols
+			var can_jitter_y := y > 0 and y < rows
+			var jitter := Vector2.ZERO
+			if can_jitter_x:
+				jitter.x = (_hash_2d(Vector2(float(x * 19 + y * 7), 3.1)) - 0.5) * canvas_size.x * 0.13
+			if can_jitter_y:
+				jitter.y = (_hash_2d(Vector2(float(x * 11 + y * 23), 8.4)) - 0.5) * canvas_size.y * 0.16
+			row.append(base + jitter)
+		points.append(row)
+	var cells: Array[PackedVector2Array] = []
+	for y in range(rows):
+		for x in range(cols):
+			var a: Vector2 = points[y][x]
+			var b: Vector2 = points[y][x + 1]
+			var c: Vector2 = points[y + 1][x + 1]
+			var d: Vector2 = points[y + 1][x]
+			var mid := (a + b + c + d) * 0.25
+			var split_seed := _hash_2d(Vector2(float(x * 41 + y * 17), 12.9))
+			if split_seed < 0.22 and cells.size() < 14:
+				var center_jitter := Vector2(
+					(_hash_2d(Vector2(float(x), float(y) + 31.0)) - 0.5) * canvas_size.x * 0.035,
+					(_hash_2d(Vector2(float(x) + 12.0, float(y))) - 0.5) * canvas_size.y * 0.035
+				)
+				var local_mid := mid + center_jitter
+				cells.append(PackedVector2Array([a, b, local_mid, d]))
+				cells.append(PackedVector2Array([b, c, local_mid]))
+			else:
+				cells.append(PackedVector2Array([a, b, c, d]))
+	return cells
 
 
 func _build_irregular_canvas_boundary(canvas_size: Vector2) -> Array[Vector2]:

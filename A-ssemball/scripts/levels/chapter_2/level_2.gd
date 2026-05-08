@@ -3,6 +3,7 @@ class_name LevelC2L2
 
 signal chapter_completed(chapter_index: int)
 const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
+const InputHintOverlayRef = preload("res://scripts/input_hint_overlay.gd")
 
 const INSTRUMENT_TEXTURES: Dictionary = {
 	"baton": preload("res://assets/materials/指挥棒.png"),
@@ -157,6 +158,7 @@ var _entry_sequence_locked: bool = true
 var _entry_sequence_started: bool = false
 var _entry_rotate_layer: Array[int] = []
 var _entry_rotate_target_slots: Dictionary = {}
+var _input_hint_overlay: Control
 
 
 func _ready() -> void:
@@ -174,9 +176,24 @@ func _ready() -> void:
 	resized.connect(_on_layout_changed)
 	left_3d.resized.connect(_on_layout_changed)
 	chapter_split.dragged.connect(_on_split_dragged)
+	_ensure_input_hint_overlay()
 	_on_layout_changed()
 	call_deferred("_sync_stage_instruments")
 	call_deferred("_ensure_entry_sequence_fallback")
+
+
+func _ensure_input_hint_overlay() -> void:
+	if _input_hint_overlay != null and is_instance_valid(_input_hint_overlay):
+		return
+	_input_hint_overlay = InputHintOverlayRef.new()
+	_input_hint_overlay.name = "InputHintOverlay"
+	_input_hint_overlay.set_mode_wasd()
+	left_3d.add_child(_input_hint_overlay)
+	_input_hint_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_input_hint_overlay.offset_left = 0.0
+	_input_hint_overlay.offset_top = 0.0
+	_input_hint_overlay.offset_right = 0.0
+	_input_hint_overlay.offset_bottom = 0.0
 
 
 func _process(delta: float) -> void:

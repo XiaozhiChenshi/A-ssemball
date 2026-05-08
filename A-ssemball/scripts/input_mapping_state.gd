@@ -10,6 +10,13 @@ static func toggle_reverse_wasd_mapping() -> bool:
 
 
 static func get_wasd_vector() -> Vector2:
+	var raw := get_raw_wasd_vector()
+	if reverse_wasd_mapping:
+		return -raw
+	return raw
+
+
+static func get_raw_wasd_vector() -> Vector2:
 	var x := 0.0
 	var y := 0.0
 	if Input.is_key_pressed(KEY_A):
@@ -20,8 +27,6 @@ static func get_wasd_vector() -> Vector2:
 		y -= 1.0
 	if Input.is_key_pressed(KEY_S):
 		y += 1.0
-	if reverse_wasd_mapping:
-		return Vector2(-x, -y)
 	return Vector2(x, y)
 
 

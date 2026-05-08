@@ -2,6 +2,7 @@ extends Control
 
 const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
 const INTRO_SCENE: PackedScene = preload("res://scenes/intro_interactive.tscn")
+const FONT_PREVIEW_SCENE: PackedScene = preload("res://scenes/font_preview.tscn")
 const CHAPTER_1_LEVEL_1_SCENE: PackedScene = preload("res://scenes/levels/chapter_1/level_1.tscn")
 const CHAPTER_1_LEVEL_2_SCENE: PackedScene = preload("res://scenes/levels/chapter_1/level_2.tscn")
 const CHAPTER_2_LEVEL_1_SCENE: PackedScene = preload("res://scenes/levels/chapter_2/level_1.tscn")
@@ -20,6 +21,7 @@ const CHAPTER_2_LEVEL_2_SCENE_INDEX: int = 3
 @export var reveal_game_sec: float = 0.45
 @export var chapter_scene_overrides: Array[PackedScene] = []
 @export_range(0.01, 1.5, 0.01) var chapter_transition_step_sec: float = 0.65
+@export_range(0.2, 6.0, 0.1) var font_preview_hold_sec: float = 3.0
 
 @onready var game_root: Control = $GameRoot
 @onready var menu_layer: Control = $MenuLayer
@@ -35,6 +37,13 @@ var _chapter_transition_canvas: CanvasLayer
 var _chapter_transition_overlay: TextureRect
 var _chapter_1_noise_player: AudioStreamPlayer
 var _debug_mapping_label: Label
+var _font_preview_hold_time: float = 0.0
+var _font_preview_active: bool = false
+var _font_preview_node: Control
+
+
+func _process(delta: float) -> void:
+	_update_font_preview_hold(delta)
 
 
 func _ready() -> void:
@@ -46,6 +55,9 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _font_preview_active:
+		return
+
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_0 or event.keycode == KEY_KP_0:
 			get_viewport().set_input_as_handled()
@@ -92,6 +104,41 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			_start_sequence(true, 5)
 			return
+
+
+func _update_font_preview_hold(delta: float) -> void:
+	if _is_starting or _font_preview_active or not menu_layer.visible:
+		_font_preview_hold_time = 0.0
+		return
+	if Input.is_physical_key_pressed(KEY_P):
+		_font_preview_hold_time += delta
+		if _font_preview_hold_time >= font_preview_hold_sec:
+			_font_preview_hold_time = 0.0
+			_open_font_preview()
+		return
+	_font_preview_hold_time = 0.0
+
+
+func _open_font_preview() -> void:
+	if _font_preview_active:
+		return
+	_font_preview_active = true
+	menu_layer.visible = false
+	_clear_game_root()
+	_font_preview_node = FONT_PREVIEW_SCENE.instantiate() as Control
+	game_root.add_child(_font_preview_node)
+	_fit_full_rect(_font_preview_node)
+	if _font_preview_node.has_signal("preview_closed"):
+		_font_preview_node.connect("preview_closed", Callable(self, "_close_font_preview"), CONNECT_ONE_SHOT)
+
+
+func _close_font_preview() -> void:
+	if _font_preview_node != null and is_instance_valid(_font_preview_node):
+		_font_preview_node.queue_free()
+	_font_preview_node = null
+	_clear_game_root()
+	menu_layer.visible = true
+	_font_preview_active = false
 
 
 func _start_sequence(skip_intro_to_post_click_effect: bool, start_chapter_scene_index: int = 0) -> void:

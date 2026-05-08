@@ -54,6 +54,7 @@ const C2_CELLO_CANDIDATE_PATHS: Array[String] = [
 	"res://assets/audio/第二幕/第二幕乐器部分/低音号.mp3",
 ]
 const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
+const InputHintOverlayRef = preload("res://scripts/input_hint_overlay.gd")
 
 @export var light_rotation_speed_deg: float = 0.0
 @export var light_energy: float = 0.85
@@ -237,6 +238,7 @@ var _orbit_particles_enabled: bool = true
 var _camera_focus_intensity_baseline: Dictionary = {}
 var _camera_focus_intensity_captured: bool = false
 var _camera_focus_intensity_boost_active: bool = false
+var _input_hint_overlay: Control
 var _c2_sfx_player: AudioStreamPlayer
 var _c2_match_players: Array[AudioStreamPlayer] = []
 var _c2_disc_music_player: AudioStreamPlayer
@@ -266,6 +268,7 @@ func _ready() -> void:
 	resized.connect(_on_layout_changed)
 	left_3d.resized.connect(_on_layout_changed)
 	chapter_1_split.dragged.connect(_on_chapter_1_split_dragged)
+	_ensure_input_hint_overlay()
 	_on_layout_changed()
 	_ensure_chapter_hint_label()
 	_setup_intro_overlay()
@@ -275,6 +278,20 @@ func _ready() -> void:
 		_apply_intro_hidden_state()
 		call_deferred("_play_intro_sequence")
 	call_deferred("_sync_right_scene_with_rotation")
+
+
+func _ensure_input_hint_overlay() -> void:
+	if _input_hint_overlay != null and is_instance_valid(_input_hint_overlay):
+		return
+	_input_hint_overlay = InputHintOverlayRef.new()
+	_input_hint_overlay.name = "InputHintOverlay"
+	_input_hint_overlay.set_mode_ad()
+	left_3d.add_child(_input_hint_overlay)
+	_input_hint_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_input_hint_overlay.offset_left = 0.0
+	_input_hint_overlay.offset_top = 0.0
+	_input_hint_overlay.offset_right = 0.0
+	_input_hint_overlay.offset_bottom = 0.0
 
 
 func _ready_editor_preview() -> void:
