@@ -61,7 +61,7 @@ const MIRROR_LAYER_CONTACT_SEC: float = 8.0
 @export_range(0.05, 4.0, 0.01) var paint_roll_friction_uv: float = 0.52
 @export_range(0.1, 0.9, 0.01) var paint_roll_bounce: float = 0.42
 @export_range(0.8, 1.8, 0.01) var paint_roll_canvas_zoom: float = 1.22
-@export_range(0.90, 0.999, 0.001) var paint_roll_complete_threshold: float = 0.985
+@export_range(0.5, 0.999, 0.001) var paint_roll_complete_threshold: float = 0.90
 @export_range(2.0, 16.0, 0.1) var paint_roll_mirror_wait_sec: float = 10.0
 @export_range(2.0, 16.0, 0.1) var paint_roll_mirror_collapse_sec: float = 10.0
 @export_range(0.0, 2.5, 0.01) var paint_roll_mirror_slope_force_uv: float = 0.82
@@ -3215,7 +3215,12 @@ func _run_paint_roll_stage_entry(from_stage_switch: bool) -> void:
 	var viewport_size := _paint_roll_root.size
 	var start_scale := 0.52 if from_stage_switch else 0.58
 	var start_offset := Vector2(viewport_size.x * 0.86, 0.0)
-	_set_paint_roll_picture_transform(_paint_roll_view_uv, 1.0, painting_tilt_degrees, Vector2.ZERO)
+	var target_scale := 1.0
+	var target_rotation := painting_tilt_degrees
+	if from_stage_switch:
+		target_scale = _get_paint_roll_overview_scale()
+		target_rotation = 0.0
+	_set_paint_roll_picture_transform(_paint_roll_view_uv, target_scale, target_rotation, Vector2.ZERO)
 	var target_canvas_position := _paint_roll_canvas.position
 	var target_frame_position := _paint_roll_frame.position
 	var target_canvas_scale := _paint_roll_canvas.scale
@@ -3232,6 +3237,21 @@ func _run_paint_roll_stage_entry(from_stage_switch: bool) -> void:
 	tween.tween_property(_paint_roll_canvas, "rotation_degrees", target_canvas_rotation, 1.05).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tween.tween_property(_paint_roll_frame, "rotation_degrees", target_frame_rotation, 1.05).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	await tween.finished
+	if from_stage_switch:
+		var zoom_tween := create_tween()
+		zoom_tween.tween_method(
+			func(value: float) -> void:
+				_set_paint_roll_picture_transform(
+					_paint_roll_view_uv,
+					lerpf(target_scale, 1.0, value),
+					lerpf(target_rotation, painting_tilt_degrees, value),
+					Vector2.ZERO
+				),
+			0.0,
+			1.0,
+			stage_entry_zoom_sec
+		).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		await zoom_tween.finished
 	_set_paint_roll_picture_transform(_paint_roll_view_uv, 1.0, painting_tilt_degrees, Vector2.ZERO)
 	_paint_roll_stage_transitioning = false
 
@@ -4015,7 +4035,7 @@ func _start_paint_roll_mirror_piece_break(layer_index: int) -> void:
 	_paint_roll_mirror_breaking = false
 	_clear_paint_roll_mirror_cracks()
 	if _paint_roll_mirror_layer_index >= _paint_roll_mirror_piece_layers.size():
-		_run_final_paint_roll_canvas_break()
+		await _run_final_paint_roll_canvas_break()
 	else:
 		_set_visible_paint_roll_mirror_layer(_paint_roll_mirror_layer_index)
 
@@ -4060,10 +4080,39 @@ func _prepare_visible_paint_roll_mirror_piece(node: Polygon2D, _layer_index: int
 func _run_final_paint_roll_canvas_break() -> void:
 	if _paint_roll_mirror_collapsing:
 		return
+	_paint_roll_stage_transitioning = true
+	_paint_roll_running = false
+	_paint_roll_velocity_uv = Vector2.ZERO
+	await _run_paint_roll_pre_final_break_scale()
 	_start_paint_roll_mirror_collapse()
 	var tween := create_tween()
 	tween.tween_method(Callable(self, "_paint_roll_apply_collapse_progress"), 0.0, 1.0, 1.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	tween.finished.connect(Callable(self, "_finish_paint_roll_mirror_stage"), CONNECT_ONE_SHOT)
+	await tween.finished
+	await _finish_paint_roll_mirror_stage()
+
+
+func _run_paint_roll_pre_final_break_scale() -> void:
+	if _paint_roll_canvas == null or _paint_roll_frame == null or _paint_roll_root == null:
+		return
+	var start_view_uv := _paint_roll_view_uv
+	var target_view_uv := Vector2(0.5, 0.5)
+	var start_scale := _paint_roll_canvas.scale.x
+	var target_scale := _get_paint_roll_overview_scale()
+	var start_rotation := _paint_roll_canvas.rotation_degrees
+	var tween := create_tween()
+	tween.tween_method(
+		func(value: float) -> void:
+			_set_paint_roll_picture_transform(
+				start_view_uv.lerp(target_view_uv, value),
+				lerpf(start_scale, target_scale, value),
+				lerpf(start_rotation, 0.0, value),
+				Vector2.ZERO
+			),
+		0.0,
+		1.0,
+		0.62
+	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	await tween.finished
 
 
 func _paint_roll_apply_collapse_progress(progress: float) -> void:
@@ -4231,15 +4280,50 @@ func _finish_paint_roll_mirror_stage() -> void:
 	_paint_roll_mirror_done = true
 	_paint_roll_running = false
 	_paint_roll_stage_transitioning = true
-	_paint_roll_apply_collapse_progress(1.0)
-	var tween := create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(_paint_roll_canvas, "modulate:a", 0.0, 0.75).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	tween.tween_property(_paint_roll_frame, "modulate:a", 0.0, 0.75).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	if _paint_roll_mirror_overlay != null:
-		tween.tween_property(_paint_roll_mirror_overlay, "modulate:a", 0.0, 0.75).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	await tween.finished
+	_transition_running = true
+	_paint_roll_stage_transitioning = false
 	_emit_completed()
+
+
+func _run_paint_roll_overview_transition(center_to_middle: bool) -> void:
+	if _paint_roll_root == null or _paint_roll_canvas == null or _paint_roll_frame == null:
+		return
+	_paint_roll_finish_start_uv = _paint_roll_view_uv
+	_paint_roll_finish_overview_scale = _get_paint_roll_overview_scale()
+	var start_view_uv := _paint_roll_view_uv
+	var target_view_uv := Vector2(0.5, 0.5) if center_to_middle else start_view_uv
+	var start_scale := _paint_roll_canvas.scale.x
+	var start_rotation := _paint_roll_canvas.rotation_degrees
+	var target_scale := _paint_roll_finish_overview_scale
+	var tween := create_tween()
+	tween.tween_method(
+		func(value: float) -> void:
+			var current_view_uv := start_view_uv.lerp(target_view_uv, value)
+			_set_paint_roll_picture_transform(
+				current_view_uv,
+				lerpf(start_scale, target_scale, value),
+				lerpf(start_rotation, 0.0, value),
+				Vector2.ZERO
+			),
+		0.0,
+		1.0,
+		1.05
+	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	await tween.finished
+
+
+func _run_paint_roll_stage_exit_transition() -> void:
+	if _paint_roll_root == null or _paint_roll_canvas == null or _paint_roll_frame == null:
+		return
+	var exit := create_tween()
+	exit.set_parallel(true)
+	exit.tween_property(_paint_roll_canvas, "position", _paint_roll_canvas.position - Vector2(_paint_roll_root.size.x * 0.24, 0.0), 0.82).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	exit.tween_property(_paint_roll_frame, "position", _paint_roll_frame.position - Vector2(_paint_roll_root.size.x * 0.24, 0.0), 0.82).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	exit.tween_property(_paint_roll_canvas, "modulate:a", 0.0, 0.72).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	exit.tween_property(_paint_roll_frame, "modulate:a", 0.0, 0.72).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	if _paint_roll_mirror_overlay != null:
+		exit.tween_property(_paint_roll_mirror_overlay, "modulate:a", 0.0, 0.72).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	await exit.finished
 
 
 func _get_paint_roll_resistance(x: int, y: int) -> float:
@@ -4288,7 +4372,7 @@ func _check_paint_roll_completion() -> void:
 					apple_restored += 1
 	var coverage: float = float(restored) / float(maxi(1, total))
 	var apple_coverage: float = 1.0 if apple_total <= 0 else float(apple_restored) / float(apple_total)
-	if coverage >= paint_roll_complete_threshold and apple_coverage >= 0.98:
+	if coverage >= paint_roll_complete_threshold and apple_coverage >= paint_roll_complete_threshold:
 		_finish_paint_roll_stage()
 
 
@@ -4299,34 +4383,12 @@ func _finish_paint_roll_stage() -> void:
 	_paint_roll_running = false
 	_paint_roll_stage_transitioning = true
 	_paint_roll_velocity_uv = Vector2.ZERO
-	_paint_roll_finish_start_uv = _paint_roll_view_uv
-	_paint_roll_finish_overview_scale = _get_paint_roll_overview_scale()
-	var settle := create_tween()
-	settle.set_parallel(true)
-	settle.tween_method(
-		Callable(self, "_set_paint_roll_final_fill_for_tween"),
-		0.0,
-		1.0,
-		0.75
-	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	settle.tween_method(
-		Callable(self, "_set_paint_roll_finish_overview_for_tween"),
-		0.0,
-		1.0,
-		1.05
-	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-	await settle.finished
-
-	var viewport_size := _paint_roll_root.size
-	var exit_offset := Vector2(-viewport_size.x * 1.18, 0.0)
-	var exit := create_tween()
-	exit.set_parallel(true)
-	exit.tween_property(_paint_roll_canvas, "position", _paint_roll_canvas.position + exit_offset, 0.82).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	exit.tween_property(_paint_roll_frame, "position", _paint_roll_frame.position + exit_offset, 0.82).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	await exit.finished
+	await _run_paint_roll_overview_transition(true)
+	await _run_paint_roll_auto_fill_transition()
 
 	var next_stage_index := _paint_roll_stage_index + 1
 	if next_stage_index < _paint_roll_stage_data.size():
+		await _run_paint_roll_stage_exit_transition()
 		_apply_paint_roll_stage(next_stage_index)
 		await _run_paint_roll_stage_entry(true)
 		_paint_roll_running = true
@@ -4336,6 +4398,46 @@ func _finish_paint_roll_stage() -> void:
 	else:
 		_paint_roll_stage_transitioning = false
 		_emit_completed()
+
+
+func _run_paint_roll_auto_fill_transition() -> void:
+	if _paint_roll_material == null or _paint_roll_mask_image == null or _paint_roll_mask_texture == null:
+		return
+	_paint_roll_material.set_shader_parameter("final_fill", 0.0)
+	var spread_steps: int = 20
+	var source: Image = _paint_roll_mask_image.duplicate()
+	var target: Image = _paint_roll_mask_image.duplicate()
+	for step in range(spread_steps):
+		for y in range(_paint_roll_mask_size.y):
+			for x in range(_paint_roll_mask_size.x):
+				var base_alpha: float = source.get_pixel(x, y).a
+				var max_neighbor: float = base_alpha
+				for oy in range(-1, 2):
+					var ny: int = clampi(y + oy, 0, _paint_roll_mask_size.y - 1)
+					for ox in range(-1, 2):
+						var nx: int = clampi(x + ox, 0, _paint_roll_mask_size.x - 1)
+						max_neighbor = maxf(max_neighbor, source.get_pixel(nx, ny).a)
+				var grown: float = lerpf(base_alpha, max_neighbor, 0.86)
+				var min_step: float = 0.012 + 0.015 * (float(step) / float(spread_steps - 1))
+				var next_alpha: float = maxf(base_alpha, minf(1.0, grown + min_step))
+				target.set_pixel(x, y, Color(1.0, 1.0, 1.0, next_alpha))
+		var swap: Image = source
+		source = target
+		target = swap
+		_paint_roll_mask_image.copy_from(source)
+		_paint_roll_mask_texture.update(_paint_roll_mask_image)
+		await get_tree().process_frame
+	for y in range(_paint_roll_mask_size.y):
+		for x in range(_paint_roll_mask_size.x):
+			_paint_roll_mask_image.set_pixel(x, y, Color(1.0, 1.0, 1.0, 1.0))
+	_paint_roll_mask_texture.update(_paint_roll_mask_image)
+
+
+func _dev_jump_to_paint_roll_stage() -> void:
+	if _paint_roll_transitioning or _paint_roll_running:
+		return
+	_transition_running = true
+	_start_paint_roll_transition()
 
 
 func _set_paint_roll_final_fill_for_tween(value: float) -> void:

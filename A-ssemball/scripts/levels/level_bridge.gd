@@ -19,6 +19,7 @@ var _completed: bool = false
 var _has_forwarded_source_signal: bool = false
 var _source_node: Node
 var _pending_dev_paint_roll_skip_enabled: bool = false
+var _pending_dev_jump_to_paint_roll_enabled: bool = false
 
 
 func _ready() -> void:
@@ -55,6 +56,7 @@ func _load_source_scene() -> void:
 		_has_forwarded_source_signal = true
 		node.connect("chapter_completed", Callable(self, "_on_source_completed"), CONNECT_ONE_SHOT)
 	_forward_dev_paint_roll_skip()
+	_forward_dev_jump_to_paint_roll()
 
 
 func _setup_placeholder_ui() -> void:
@@ -76,11 +78,25 @@ func _set_dev_paint_roll_skip_enabled(enabled: bool) -> void:
 	_forward_dev_paint_roll_skip()
 
 
+func _set_dev_jump_to_paint_roll_enabled(enabled: bool) -> void:
+	_pending_dev_jump_to_paint_roll_enabled = enabled
+	_forward_dev_jump_to_paint_roll()
+
+
 func _forward_dev_paint_roll_skip() -> void:
 	if _source_node == null or not is_instance_valid(_source_node):
 		return
 	if _source_node.has_method("_set_dev_paint_roll_skip_enabled"):
 		_source_node.call("_set_dev_paint_roll_skip_enabled", _pending_dev_paint_roll_skip_enabled)
+
+
+func _forward_dev_jump_to_paint_roll() -> void:
+	if not _pending_dev_jump_to_paint_roll_enabled:
+		return
+	if _source_node == null or not is_instance_valid(_source_node):
+		return
+	if _source_node.has_method("_dev_jump_to_paint_roll_stage"):
+		_source_node.call("_dev_jump_to_paint_roll_stage")
 
 
 func _on_scene_transition_finished() -> void:

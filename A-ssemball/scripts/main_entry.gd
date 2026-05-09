@@ -42,6 +42,7 @@ var _font_preview_hold_time: float = 0.0
 var _font_preview_active: bool = false
 var _font_preview_node: Control
 var _use_intro_v2_next: bool = false
+var _start_ch3_paint_roll_direct: bool = false
 
 
 func _process(delta: float) -> void:
@@ -105,7 +106,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.keycode == KEY_6 or event.keycode == KEY_KP_6:
 			_is_starting = true
 			get_viewport().set_input_as_handled()
-			_start_sequence(true, 5)
+			_start_ch3_paint_roll_direct = true
+			_start_sequence(true, 4)
 			return
 
 
@@ -145,6 +147,8 @@ func _close_font_preview() -> void:
 
 
 func _start_sequence(skip_intro_to_post_click_effect: bool, start_chapter_scene_index: int = 0) -> void:
+	if start_chapter_scene_index != 4:
+		_start_ch3_paint_roll_direct = false
 	_requested_start_chapter_scene_index = clampi(
 		start_chapter_scene_index,
 		0,
@@ -223,6 +227,9 @@ func _spawn_next_chapter() -> void:
 	if _current_chapter_scene_index == 4 and _requested_start_chapter_scene_index == 4:
 		if chapter.has_method("_set_dev_paint_roll_skip_enabled"):
 			chapter.call("_set_dev_paint_roll_skip_enabled", true)
+		if _start_ch3_paint_roll_direct and chapter.has_method("_set_dev_jump_to_paint_roll_enabled"):
+			chapter.call("_set_dev_jump_to_paint_roll_enabled", true)
+			_start_ch3_paint_roll_direct = false
 	_update_chapter_audio_state(_current_chapter_scene_index)
 
 	if chapter.has_signal("chapter_completed"):
