@@ -49,9 +49,16 @@ const C2_MATCH_STAGE_AUDIO_PATHS: Array[String] = [
 	"res://assets/audio/第二幕/第二幕唱片部分/架子鼓.mp3",
 ]
 const C2_CELLO_CANDIDATE_PATHS: Array[String] = [
+	"res://assets/audio/第二幕/第二幕唱片部分/大提琴唱片音效.mp3",
 	"res://assets/audio/第二幕/第二幕唱片部分/大提琴.mp3",
 	"res://assets/audio/第二幕/第二幕唱片部分/大提琴.wav",
 	"res://assets/audio/第二幕/第二幕乐器部分/低音号.mp3",
+]
+const C2_BLOCK_PREVIEW_AUDIO_PATHS: Array[String] = [
+	"res://assets/audio/第二幕/方块提示音/钢琴方块音效.mp3",
+	"res://assets/audio/第二幕/方块提示音/长笛方块音效.mp3",
+	"res://assets/audio/第二幕/方块提示音/大提琴方块音效.mp3",
+	"res://assets/audio/第二幕/方块提示音/架子鼓方块音效.mp3",
 ]
 const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
 const InputHintOverlayRef = preload("res://scripts/input_hint_overlay.gd")
@@ -203,6 +210,9 @@ var _right_scene_dim_overlay: ColorRect
 var _right_scene_filter_hosts: Array[Control] = []
 var _right_scene_disc_layers: Array[TextureRect] = []
 var _right_scene_disc_base_positions: Array[Vector2] = []
+var _right_room_focus_glows: Array[ColorRect] = []
+var _right_room_response_overlays: Array[ColorRect] = []
+var _right_room_response_tweens: Array[Tween] = []
 var _right_scene_disc_intro_played: Array[bool] = []
 var _right_scene_disc_intro_running: Array[bool] = []
 var _right_scene_disc_intro_tweens: Array[Tween] = []
@@ -219,6 +229,9 @@ var _orbit_time_sec: float = 0.0
 var _anchor_frame_root: Node3D
 var _dragging_orbit_cube_index: int = -1
 var _drag_cube_depth: float = 0.0
+var _orbit_cube_press_index: int = -1
+var _orbit_cube_press_position: Vector2 = Vector2.ZERO
+var _orbit_cube_press_active: bool = false
 var _final_transition_running: bool = false
 var _final_curtain_layer: Control
 var _final_curtain_left: ColorRect
@@ -453,13 +466,19 @@ func _input(event: InputEvent) -> void:
 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
-			_try_begin_orbit_cube_drag(event.position)
+			_begin_orbit_cube_press(event.position)
 		else:
-			_end_orbit_cube_drag(event.position)
+			if _dragging_orbit_cube_index >= 0:
+				_end_orbit_cube_drag(event.position)
+			else:
+				_release_orbit_cube_press(event.position)
 		return
 
-	if event is InputEventMouseMotion and _dragging_orbit_cube_index >= 0:
-		_update_orbit_cube_drag(event.position)
+	if event is InputEventMouseMotion:
+		if _dragging_orbit_cube_index >= 0:
+			_update_orbit_cube_drag(event.position)
+		elif _orbit_cube_press_active:
+			_try_start_orbit_cube_drag_from_press(event.position)
 		return
 
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -1062,6 +1081,16 @@ func _update_orbit_cubes(delta: float) -> void:
 		match state:
 			"orbit":
 				pivot.position = home_position
+			"click_glow":
+				pivot.position = home_position
+				var click_glow_dur := maxf(0.08, float(entry.get("click_glow_dur", 0.28)))
+				var click_glow_t := minf(1.0, float(entry.get("click_glow_t", 0.0)) + delta / click_glow_dur)
+				entry["click_glow_t"] = click_glow_t
+				_apply_orbit_cube_match_glow(cube, sin(click_glow_t * PI))
+				if click_glow_t >= 1.0:
+					_apply_orbit_cube_match_glow(cube, 0.0)
+					entry["click_glow_t"] = 0.0
+					entry["state"] = "orbit"
 			"return_fast":
 				pivot.position = pivot.position.move_toward(home_position, maxf(0.01, orbit_return_fast_speed) * delta)
 				if pivot.position.distance_to(home_position) < 0.02:
@@ -1323,6 +1352,48 @@ func _play_c2_error_audio() -> void:
 	_c2_sfx_player.play()
 
 
+func _play_orbit_cube_click_preview(cube_index: int) -> void:
+	if cube_index < 0 or cube_index >= _orbit_cube_entries.size():
+		return
+	var entry := _orbit_cube_entries[cube_index] as Dictionary
+	var state := String(entry.get("state", "orbit"))
+	if state == "snapped" or state == "snap_anim" or state == "snap_reject_wait" or state == "eject_anim" or state == "matched_glow" or state == "matched_audio_hold":
+		return
+	_play_c2_block_preview_audio(cube_index)
+	entry["state"] = "click_glow"
+	entry["click_glow_t"] = 0.0
+	entry["click_glow_dur"] = 0.28
+	_orbit_cube_entries[cube_index] = entry
+
+
+func _play_c2_block_preview_audio(cube_index: int) -> void:
+	_ensure_c2_audio_player()
+	if _c2_sfx_player == null:
+		return
+	var stream := _resolve_c2_block_preview_stream(cube_index)
+	if stream == null:
+		return
+	_c2_sfx_player.stream = stream
+	_c2_sfx_player.pitch_scale = 1.0
+	_c2_sfx_player.stop()
+	_c2_sfx_player.play()
+
+
+func _stop_c2_block_preview_audio() -> void:
+	if _c2_sfx_player != null and is_instance_valid(_c2_sfx_player) and _c2_sfx_player.playing:
+		_c2_sfx_player.stop()
+
+
+func _resolve_c2_block_preview_stream(cube_index: int) -> AudioStream:
+	if cube_index >= 0 and cube_index < C2_BLOCK_PREVIEW_AUDIO_PATHS.size():
+		var path := C2_BLOCK_PREVIEW_AUDIO_PATHS[cube_index]
+		if ResourceLoader.exists(path):
+			return load(path) as AudioStream
+	if cube_index >= 0 and cube_index < C2_MATCH_STAGE_AUDIO.size():
+		return _resolve_c2_match_stage_audio_stream(cube_index)
+	return null
+
+
 func _play_c2_match_stage_audio(stage_index: int) -> float:
 	_ensure_c2_audio_player()
 	if C2_MATCH_STAGE_AUDIO.is_empty():
@@ -1337,6 +1408,7 @@ func _play_c2_match_stage_audio(stage_index: int) -> float:
 	player.stream = _resolve_c2_match_stage_audio_stream(idx)
 	if player.stream == null:
 		return 0.0
+	_stop_c2_block_preview_audio()
 	_stop_all_c2_stage_music_players(player)
 	player.pitch_scale = 1.0
 	player.stop()
@@ -1388,10 +1460,8 @@ func _pop_anchor_frame() -> void:
 	tween.tween_property(_anchor_frame_root, "scale", Vector3.ONE, 0.20)
 
 
-func _try_begin_orbit_cube_drag(screen_pos: Vector2) -> void:
-	if _final_transition_running:
-		return
-	if _dragging_orbit_cube_index >= 0:
+func _begin_orbit_cube_press(screen_pos: Vector2) -> void:
+	if _final_transition_running or _dragging_orbit_cube_index >= 0:
 		return
 	var cube_index := _pick_orbit_cube(screen_pos)
 	if cube_index < 0:
@@ -1400,6 +1470,56 @@ func _try_begin_orbit_cube_drag(screen_pos: Vector2) -> void:
 	var state := String(entry.get("state", "orbit"))
 	if state == "snapped" or state == "snap_anim" or state == "snap_reject_wait" or state == "eject_anim" or state == "matched_glow" or state == "matched_audio_hold":
 		return
+	_orbit_cube_press_index = cube_index
+	_orbit_cube_press_position = screen_pos
+	_orbit_cube_press_active = true
+	get_viewport().set_input_as_handled()
+
+
+func _try_start_orbit_cube_drag_from_press(screen_pos: Vector2) -> void:
+	if not _orbit_cube_press_active:
+		return
+	if _orbit_cube_press_position.distance_to(screen_pos) < maxf(6.0, drag_step_threshold_px):
+		return
+	var cube_index := _orbit_cube_press_index
+	_clear_orbit_cube_press()
+	_begin_orbit_cube_drag(cube_index, screen_pos)
+
+
+func _release_orbit_cube_press(_screen_pos: Vector2) -> void:
+	if not _orbit_cube_press_active:
+		return
+	var cube_index := _orbit_cube_press_index
+	_clear_orbit_cube_press()
+	_play_orbit_cube_click_preview(cube_index)
+	get_viewport().set_input_as_handled()
+
+
+func _clear_orbit_cube_press() -> void:
+	_orbit_cube_press_index = -1
+	_orbit_cube_press_position = Vector2.ZERO
+	_orbit_cube_press_active = false
+
+
+func _try_begin_orbit_cube_drag(screen_pos: Vector2) -> void:
+	if _final_transition_running:
+		return
+	if _dragging_orbit_cube_index >= 0:
+		return
+	var cube_index := _pick_orbit_cube(screen_pos)
+	if cube_index < 0:
+		return
+	_begin_orbit_cube_drag(cube_index, screen_pos)
+
+
+func _begin_orbit_cube_drag(cube_index: int, _screen_pos: Vector2) -> void:
+	if cube_index < 0 or cube_index >= _orbit_cube_entries.size():
+		return
+	var entry := _orbit_cube_entries[cube_index] as Dictionary
+	var state := String(entry.get("state", "orbit"))
+	if state == "snapped" or state == "snap_anim" or state == "snap_reject_wait" or state == "eject_anim" or state == "matched_glow" or state == "matched_audio_hold":
+		return
+	_stop_c2_block_preview_audio()
 	entry["state"] = "drag"
 	entry["reject_wait"] = 0.0
 	_orbit_cube_entries[cube_index] = entry
@@ -2159,7 +2279,6 @@ func _setup_anchor_frame_cube() -> void:
 		rod.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_anchor_frame_root.add_child(rod)
 
-
 func _update_anchor_frame_cube(delta: float) -> void:
 	if _anchor_frame_root == null:
 		return
@@ -2218,6 +2337,9 @@ func _setup_right_placeholder() -> void:
 	_right_scene_filter_hosts.clear()
 	_right_scene_disc_layers.clear()
 	_right_scene_disc_base_positions.clear()
+	_right_room_focus_glows.clear()
+	_right_room_response_overlays.clear()
+	_right_room_response_tweens.clear()
 	_right_scene_disc_intro_played.clear()
 	_right_scene_disc_intro_running.clear()
 	_right_scene_disc_intro_tweens.clear()
@@ -2395,6 +2517,49 @@ func _setup_right_placeholder() -> void:
 		image.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		image.material = _create_right_scene_scanline_shader_material(0.16)
 
+		var room_depth := layer_root.get_node_or_null("RoomDepthOverlay") as ColorRect
+		if room_depth == null:
+			room_depth = ColorRect.new()
+			room_depth.name = "RoomDepthOverlay"
+			layer_root.add_child(room_depth)
+		room_depth.set_anchors_preset(Control.PRESET_FULL_RECT)
+		room_depth.offset_left = 0.0
+		room_depth.offset_top = 0.0
+		room_depth.offset_right = 0.0
+		room_depth.offset_bottom = 0.0
+		room_depth.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		room_depth.color = Color(1.0, 1.0, 1.0, 1.0)
+		room_depth.material = _create_room_depth_material()
+
+		var focus_glow := layer_root.get_node_or_null("RoomFocusGlow") as ColorRect
+		if focus_glow == null:
+			focus_glow = ColorRect.new()
+			focus_glow.name = "RoomFocusGlow"
+			layer_root.add_child(focus_glow)
+		focus_glow.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		focus_glow.position = focus_rect.position
+		focus_glow.size = focus_rect.size
+		focus_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		focus_glow.color = Color(1.0, 1.0, 1.0, 1.0)
+		focus_glow.material = _create_room_focus_glow_material(_get_room_response_color(i))
+		focus_glow.modulate = Color(1.0, 1.0, 1.0, 0.0)
+		_right_room_focus_glows.append(focus_glow)
+
+		var response_overlay := layer_root.get_node_or_null("RoomResponseOverlay") as ColorRect
+		if response_overlay == null:
+			response_overlay = ColorRect.new()
+			response_overlay.name = "RoomResponseOverlay"
+			layer_root.add_child(response_overlay)
+		response_overlay.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		response_overlay.position = focus_rect.position
+		response_overlay.size = focus_rect.size
+		response_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		response_overlay.color = Color(1.0, 1.0, 1.0, 1.0)
+		response_overlay.material = _create_room_response_material(i, _get_room_response_color(i))
+		response_overlay.modulate = Color(1.0, 1.0, 1.0, 0.0)
+		_right_room_response_overlays.append(response_overlay)
+		_right_room_response_tweens.append(null)
+
 		var disc_layer := layer_root.get_node_or_null("DiscLayer") as TextureRect
 		if disc_layer == null:
 			disc_layer = TextureRect.new()
@@ -2415,6 +2580,9 @@ func _setup_right_placeholder() -> void:
 
 		canvas_layer.move_to_front()
 		image.move_to_front()
+		room_depth.move_to_front()
+		focus_glow.move_to_front()
+		response_overlay.move_to_front()
 		disc_layer.move_to_front()
 
 		var status := panel.get_node_or_null("Status") as Label
@@ -2769,6 +2937,110 @@ void fragment() {
 	return mat
 
 
+func _get_room_response_color(scene_index: int) -> Color:
+	match posmod(scene_index, 4):
+		0:
+			return Color(1.0, 0.78, 0.36, 1.0)
+		1:
+			return Color(0.50, 0.86, 1.0, 1.0)
+		2:
+			return Color(0.95, 0.54, 0.28, 1.0)
+		_:
+			return Color(0.92, 0.58, 1.0, 1.0)
+
+
+func _create_room_depth_material() -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+render_mode unshaded, blend_mix;
+
+void fragment() {
+	vec2 uv = UV;
+	float d = distance(uv, vec2(0.5, 0.52));
+	float vignette = smoothstep(0.38, 0.82, d);
+	float upper_shadow = smoothstep(0.0, 0.32, uv.y) * 0.08;
+	float lower_weight = smoothstep(0.55, 1.0, uv.y) * 0.10;
+	float edge = max(vignette * 0.24, upper_shadow + lower_weight);
+	COLOR = vec4(0.0, 0.0, 0.0, clamp(edge, 0.0, 0.34));
+}
+"""
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	return mat
+
+
+func _create_room_focus_glow_material(color: Color) -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+render_mode unshaded, blend_add;
+
+uniform vec4 glow_color : source_color = vec4(1.0, 0.8, 0.4, 1.0);
+
+void fragment() {
+	vec2 uv = UV;
+	vec2 p = uv - vec2(0.5, 0.52);
+	float r = length(p);
+	float core = 1.0 - smoothstep(0.0, 0.48, r);
+	float ring = smoothstep(0.34, 0.42, r) * (1.0 - smoothstep(0.42, 0.58, r));
+	float pulse = 0.72 + sin(TIME * 1.7) * 0.28;
+	float a = (core * 0.16 + ring * 0.14) * pulse;
+	COLOR = vec4(glow_color.rgb, a);
+}
+"""
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	mat.set_shader_parameter("glow_color", color)
+	return mat
+
+
+func _create_room_response_material(scene_index: int, color: Color) -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+render_mode unshaded, blend_add;
+
+uniform int voice_mode = 0;
+uniform vec4 accent_color : source_color = vec4(1.0, 0.8, 0.4, 1.0);
+
+float band(float x, float center, float width) {
+	return 1.0 - smoothstep(width, width * 1.9, abs(x - center));
+}
+
+void fragment() {
+	vec2 uv = UV;
+	float t = fract(TIME * 0.72);
+	float a = 0.0;
+	if (voice_mode == 0) {
+		float keys = step(0.5, fract(uv.y * 13.0));
+		float sweep = band(uv.x, t, 0.10);
+		a = sweep * keys * 0.42;
+	} else if (voice_mode == 1) {
+		float wave = sin((uv.x * 7.0 + uv.y * 2.0 - TIME * 2.2) * 6.28318) * 0.5 + 0.5;
+		float lane = band(uv.y, 0.45 + sin(TIME * 1.1) * 0.09, 0.18);
+		a = wave * lane * 0.34;
+	} else if (voice_mode == 2) {
+		float r = distance(uv, vec2(0.50, 0.64));
+		float ring = band(r, t * 0.72, 0.045);
+		float low = smoothstep(0.45, 1.0, uv.y);
+		a = ring * low * 0.50;
+	} else {
+		float r = distance(uv, vec2(0.50, 0.50));
+		float ring = band(r, t * 0.92, 0.035);
+		float spokes = step(0.64, sin(atan(uv.y - 0.5, uv.x - 0.5) * 10.0 + TIME * 7.0) * 0.5 + 0.5);
+		a = max(ring * 0.62, ring * spokes * 0.85);
+	}
+	COLOR = vec4(accent_color.rgb, clamp(a, 0.0, 0.78));
+}
+"""
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	mat.set_shader_parameter("voice_mode", posmod(scene_index, 4))
+	mat.set_shader_parameter("accent_color", color)
+	return mat
+
+
 func _draw_default_line_art() -> void:
 	_switch_right_scene(0, true)
 
@@ -2799,6 +3071,23 @@ func _refresh_right_scene_layer_layout() -> void:
 			var canvas_size := Vector2(maxf(1.0, right_scene_canvas_width_px), maxf(1.0, right_scene_canvas_height_px))
 			canvas_layer.position = Vector2(right_scene_canvas_x_px, right_scene_canvas_y_px)
 			canvas_layer.size = canvas_size
+		var room_depth := layer_root.get_node_or_null("RoomDepthOverlay") as ColorRect
+		if room_depth != null:
+			room_depth.set_anchors_preset(Control.PRESET_FULL_RECT)
+			room_depth.offset_left = 0.0
+			room_depth.offset_top = 0.0
+			room_depth.offset_right = 0.0
+			room_depth.offset_bottom = 0.0
+		var focus_glow := layer_root.get_node_or_null("RoomFocusGlow") as ColorRect
+		if focus_glow != null:
+			focus_glow.set_anchors_preset(Control.PRESET_TOP_LEFT)
+			focus_glow.position = focus_rect.position
+			focus_glow.size = focus_rect.size
+		var response_overlay := layer_root.get_node_or_null("RoomResponseOverlay") as ColorRect
+		if response_overlay != null:
+			response_overlay.set_anchors_preset(Control.PRESET_TOP_LEFT)
+			response_overlay.position = focus_rect.position
+			response_overlay.size = focus_rect.size
 		var disc_layer := layer_root.get_node_or_null("DiscLayer") as TextureRect
 		if disc_layer != null:
 			disc_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -2811,6 +3100,12 @@ func _refresh_right_scene_layer_layout() -> void:
 		var room_image := layer_root.get_node_or_null("RoomImageLayer") as TextureRect
 		if room_image != null:
 			room_image.move_to_front()
+		if room_depth != null:
+			room_depth.move_to_front()
+		if focus_glow != null:
+			focus_glow.move_to_front()
+		if response_overlay != null:
+			response_overlay.move_to_front()
 		if disc_layer != null:
 			disc_layer.move_to_front()
 		var filter_host := layer_root.get_node_or_null("FocusContentClip/FocusFilterHost") as Control
@@ -2889,6 +3184,7 @@ func _switch_right_scene(scene_index: int, immediate: bool = false) -> void:
 			card.visible = active
 			card.modulate.a = 1.0 if active else 0.0
 		_right_scene_current_index = target
+		_update_room_focus_glows()
 		_update_camera_data_overlay_region()
 		_set_disc_visible(_right_scene_disc_visible, true)
 		return
@@ -2913,6 +3209,7 @@ func _switch_right_scene(scene_index: int, immediate: bool = false) -> void:
 	old_card.modulate.a = 1.0
 
 	_right_scene_current_index = target
+	_update_room_focus_glows()
 	_update_camera_data_overlay_region()
 	_set_disc_visible(_right_scene_disc_visible, true)
 	_right_scene_transition_tween = create_tween()
@@ -2940,6 +3237,7 @@ func _on_right_scene_transition_finished(transition_id: int) -> void:
 		card.visible = active
 		card.modulate.a = 1.0 if active else 0.0
 	_right_scene_transition_tween = null
+	_update_room_focus_glows()
 
 
 func _normalize_right_scene_card(card: Control) -> void:
@@ -2953,6 +3251,62 @@ func _normalize_right_scene_card(card: Control) -> void:
 	card.position = Vector2.ZERO
 	card.scale = Vector2.ONE
 	card.rotation = 0.0
+
+
+func _update_room_focus_glows() -> void:
+	for i in range(_right_room_focus_glows.size()):
+		var glow := _right_room_focus_glows[i]
+		if glow == null:
+			continue
+		var active := i == _right_scene_current_index
+		var completed := i < _right_scene_completed.size() and bool(_right_scene_completed[i])
+		var alpha := 0.0
+		if active:
+			alpha = 0.38 if not completed else 0.18
+		glow.modulate = Color(1.0, 1.0, 1.0, alpha)
+
+
+func _play_room_response(scene_index: int) -> void:
+	if _right_room_response_overlays.is_empty():
+		return
+	var idx := posmod(scene_index, _right_room_response_overlays.size())
+	if idx < 0 or idx >= _right_room_response_overlays.size():
+		return
+	var overlay := _right_room_response_overlays[idx]
+	if overlay == null:
+		return
+	if idx < _right_room_response_tweens.size() and is_instance_valid(_right_room_response_tweens[idx]):
+		_right_room_response_tweens[idx].kill()
+	overlay.visible = true
+	overlay.modulate = Color(1.0, 1.0, 1.0, 0.0)
+	var card: Control = null
+	if idx < _right_scene_cards.size():
+		card = _right_scene_cards[idx]
+	if card != null:
+		_normalize_right_scene_card(card)
+	var t := create_tween()
+	_right_room_response_tweens[idx] = t
+	t.set_parallel(true)
+	t.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	t.tween_property(overlay, "modulate:a", 0.82, 0.42)
+	t.tween_property(overlay, "modulate:a", 0.58, 1.55).set_delay(0.42)
+	t.tween_property(overlay, "modulate:a", 0.0, 0.95).set_delay(1.97)
+	if card != null:
+		t.tween_property(card, "scale", Vector2(1.014, 1.014), 0.48)
+		t.tween_property(card, "scale", Vector2(1.008, 1.008), 1.50).set_delay(0.48)
+		t.tween_property(card, "scale", Vector2.ONE, 0.85).set_delay(1.98)
+		if posmod(scene_index, 4) == 3:
+			t.tween_property(card, "position", Vector2(3.0, 0.0), 0.10).set_delay(0.30)
+			t.tween_property(card, "position", Vector2(-2.0, 0.0), 0.12).set_delay(0.40)
+			t.tween_property(card, "position", Vector2(1.2, 0.0), 0.16).set_delay(0.52)
+			t.tween_property(card, "position", Vector2.ZERO, 0.34).set_delay(0.68)
+	t.finished.connect(func() -> void:
+		if overlay != null and is_instance_valid(overlay):
+			overlay.visible = false
+		if card != null and is_instance_valid(card):
+			card.scale = Vector2.ONE
+			card.position = Vector2.ZERO
+	)
 
 
 func _mark_scene_completed(scene_index: int) -> void:
@@ -2973,10 +3327,18 @@ func _mark_scene_completed(scene_index: int) -> void:
 				var fx_mat := canvas_fx.material as ShaderMaterial
 				var curr := float(fx_mat.get_shader_parameter("fx_intensity"))
 				fx_mat.set_shader_parameter("fx_intensity", clampf(curr * 0.2, 0.0, 1.0))
+			var image := card.get_node_or_null("CardLayerRoot/RoomImageLayer") as TextureRect
+			if image != null and image.material is ShaderMaterial:
+				var image_mat := image.material as ShaderMaterial
+				var image_curr := float(image_mat.get_shader_parameter("fx_intensity"))
+				image_mat.set_shader_parameter("fx_intensity", clampf(image_curr * 0.45, 0.0, 1.0))
 	var status := _right_scene_status_labels[idx]
 	if status != null:
 		status.text = "Completed"
 		status.modulate = Color(1.0, 0.95, 0.68, 1.0)
+	if not was_completed:
+		_play_room_response(idx)
+	_update_room_focus_glows()
 	_set_disc_visible(_right_scene_disc_visible, true)
 	if not was_completed and idx >= 0 and idx < _right_scene_disc_intro_played.size():
 		_right_scene_disc_intro_played[idx] = false

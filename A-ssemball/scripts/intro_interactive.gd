@@ -625,17 +625,13 @@ func _update_opening_audio_state(delta: float, is_moving: bool) -> void:
 			_opening_audio_player.stop()
 		_opening_audio_stop_delay_left = -1.0
 		return
-	if is_moving:
-		_opening_audio_stop_delay_left = opening_audio_stop_delay_sec
-		if not _opening_audio_player.playing:
-			_opening_audio_player.play()
+	if _completed:
+		if _opening_audio_player.playing:
+			_opening_audio_player.stop()
+		_opening_audio_stop_delay_left = -1.0
 		return
-	if _opening_audio_stop_delay_left < 0.0:
-		_opening_audio_stop_delay_left = opening_audio_stop_delay_sec
-		return
-	_opening_audio_stop_delay_left -= delta
-	if _opening_audio_stop_delay_left <= 0.0 and _opening_audio_player.playing:
-		_opening_audio_player.stop()
+	if not _opening_audio_player.playing:
+		_opening_audio_player.play()
 
 
 func _play_screen_shake_audio_once() -> void:

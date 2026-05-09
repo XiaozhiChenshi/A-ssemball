@@ -15,7 +15,11 @@ const ColorReticleRef = preload("res://scripts/levels/chapter_3/color_reticle.gd
 const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
 const InputHintOverlayRef = preload("res://scripts/input_hint_overlay.gd")
 const LeftHelpPromptOverlayRef = preload("res://scripts/levels/left_help_prompt_overlay.gd")
+const C3_ROLLING_AUDIO_PATH: String = "res://assets/audio/第三幕/球滚动.mp3"
+const C3_COLOR_PICKUP_AUDIO_PATH: String = "res://assets/audio/第三幕/收集色彩提示音.mp3"
+const C3_MIRROR_BREAK_AUDIO_PATH: String = "res://assets/audio/第三幕/镜子碎裂.mp3"
 const MIRROR_LAYER_CONTACT_SEC: float = 8.0
+const C3_COLOR_PICKUP_COMBO_WINDOW_SEC: float = 0.72
 
 @export var chapter_index: int = 3
 @export_range(0.1, 2.0, 0.01) var left_sphere_radius: float = 0.92
@@ -206,6 +210,11 @@ var _dev_paint_roll_skip_triggered: bool = false
 var _left_input_hint_overlay: Control
 var _paint_roll_input_hint_overlay: Control
 var _left_help_prompt_overlay: LeftHelpPromptOverlay
+var _rolling_audio_player: AudioStreamPlayer
+var _color_pickup_audio_player: AudioStreamPlayer
+var _mirror_break_audio_player: AudioStreamPlayer
+var _color_pickup_combo_count: int = 0
+var _color_pickup_combo_timer: float = 0.0
 
 
 func _ready() -> void:
@@ -215,6 +224,7 @@ func _ready() -> void:
 	_setup_right_panel()
 	_setup_fx_layer()
 	_setup_paint_roll_scene()
+	_setup_stage_audio_players()
 	_ensure_input_hint_overlays()
 	_ensure_left_help_prompt_overlay()
 	_apply_stage(0, true)
@@ -230,6 +240,7 @@ func _process(delta: float) -> void:
 	_update_paint_roll_diffusion(delta)
 	_update_paint_roll_trail_decay(delta)
 	_update_paint_roll_mirror_stage(delta)
+	_update_stage_audio_state(delta)
 	_update_idle_rotation(delta)
 	_update_rotation_and_reticle(delta)
 	_update_input_hint_visibility()
@@ -246,6 +257,91 @@ func _input(event: InputEvent) -> void:
 		if _stage_index >= _stage_data.size() - 1 and _collected_in_stage >= _stage_spots.size():
 			get_viewport().set_input_as_handled()
 			_emit_completed()
+
+
+func _setup_stage_audio_players() -> void:
+	if _rolling_audio_player == null or not is_instance_valid(_rolling_audio_player):
+		_rolling_audio_player = AudioStreamPlayer.new()
+		_rolling_audio_player.name = "C3RollingAudioPlayer"
+		_rolling_audio_player.volume_db = -0.5
+		add_child(_rolling_audio_player)
+	if _color_pickup_audio_player == null or not is_instance_valid(_color_pickup_audio_player):
+		_color_pickup_audio_player = AudioStreamPlayer.new()
+		_color_pickup_audio_player.name = "C3ColorPickupAudioPlayer"
+		add_child(_color_pickup_audio_player)
+	if _mirror_break_audio_player == null or not is_instance_valid(_mirror_break_audio_player):
+		_mirror_break_audio_player = AudioStreamPlayer.new()
+		_mirror_break_audio_player.name = "C3MirrorBreakAudioPlayer"
+		add_child(_mirror_break_audio_player)
+
+
+func _load_audio_if_exists(path: String) -> AudioStream:
+	if not ResourceLoader.exists(path):
+		return null
+	return load(path) as AudioStream
+
+
+func _update_stage_audio_state(delta: float) -> void:
+	if _color_pickup_combo_timer > 0.0:
+		_color_pickup_combo_timer = maxf(0.0, _color_pickup_combo_timer - delta)
+		if _color_pickup_combo_timer <= 0.0:
+			_color_pickup_combo_count = 0
+	_update_paint_roll_rolling_audio()
+
+
+func _update_paint_roll_rolling_audio() -> void:
+	if _rolling_audio_player == null or not is_instance_valid(_rolling_audio_player):
+		return
+	var should_play := _paint_roll_running and not _paint_roll_stage_transitioning and not _paint_roll_transitioning and not _paint_roll_finished and _paint_roll_velocity_uv.length() > 0.018
+	if not should_play:
+		if _rolling_audio_player.playing:
+			_rolling_audio_player.stop()
+		return
+	if _rolling_audio_player.stream == null:
+		var stream := _load_audio_if_exists(C3_ROLLING_AUDIO_PATH)
+		if stream == null:
+			return
+		if stream is AudioStreamMP3:
+			stream = stream.duplicate() as AudioStream
+			(stream as AudioStreamMP3).loop = true
+		_rolling_audio_player.stream = stream
+		_rolling_audio_player.volume_db = -0.5
+	if not _rolling_audio_player.playing:
+		_rolling_audio_player.play()
+
+
+func _reset_color_pickup_combo() -> void:
+	_color_pickup_combo_count = 0
+	_color_pickup_combo_timer = 0.0
+
+
+func _play_color_pickup_audio() -> void:
+	if _color_pickup_audio_player == null or not is_instance_valid(_color_pickup_audio_player):
+		return
+	var stream := _load_audio_if_exists(C3_COLOR_PICKUP_AUDIO_PATH)
+	if stream == null:
+		return
+	if _color_pickup_combo_timer <= 0.0:
+		_color_pickup_combo_count = 0
+	_color_pickup_combo_count += 1
+	_color_pickup_combo_timer = C3_COLOR_PICKUP_COMBO_WINDOW_SEC
+	_color_pickup_audio_player.stream = stream
+	_color_pickup_audio_player.pitch_scale = minf(1.24, 1.0 + float(_color_pickup_combo_count - 1) * 0.055)
+	_color_pickup_audio_player.stop()
+	_color_pickup_audio_player.play()
+
+
+func _play_mirror_break_audio(layer_index: int) -> void:
+	if _mirror_break_audio_player == null or not is_instance_valid(_mirror_break_audio_player):
+		return
+	var stream := _load_audio_if_exists(C3_MIRROR_BREAK_AUDIO_PATH)
+	if stream == null:
+		return
+	var pitches := [1.0, 1.14, 0.82]
+	_mirror_break_audio_player.stream = stream
+	_mirror_break_audio_player.pitch_scale = pitches[clampi(layer_index, 0, pitches.size() - 1)]
+	_mirror_break_audio_player.stop()
+	_mirror_break_audio_player.play()
 
 
 func _ensure_input_hint_overlays() -> void:
@@ -2131,6 +2227,9 @@ func _get_core_flow_palette_for_shader() -> Array[Color]:
 func _apply_paint_roll_stage(stage_index: int) -> void:
 	if _paint_roll_stage_data.is_empty():
 		return
+	_reset_color_pickup_combo()
+	if _rolling_audio_player != null and is_instance_valid(_rolling_audio_player):
+		_rolling_audio_player.stop()
 	_paint_roll_stage_index = clampi(stage_index, 0, _paint_roll_stage_data.size() - 1)
 	var stage := _paint_roll_stage_data[_paint_roll_stage_index]
 	var color_texture: Texture2D = stage["color_texture"]
@@ -2214,6 +2313,7 @@ func _apply_stage(next_stage_index: int, animate_entry: bool) -> void:
 	if _left_help_prompt_overlay != null:
 		_left_help_prompt_overlay.set_hint_enabled(true)
 		_left_help_prompt_overlay.reset_inactivity_tracking()
+	_reset_color_pickup_combo()
 	_stage_index = clampi(next_stage_index, 0, _stage_data.size() - 1)
 	_stage_spots.clear()
 	_collected_in_stage = 0
@@ -2417,6 +2517,7 @@ func _collect_spot(spot_index: int) -> void:
 		_left_help_prompt_overlay.notify_valid_action()
 
 	var color := spot["color"] as Color
+	_play_color_pickup_audio()
 	_play_dot_absorb(spot["dot"] as Control)
 	_play_reveal(spot["reveal"] as TextureRect)
 	_play_color_transfer(color)
@@ -4015,6 +4116,7 @@ func _start_paint_roll_mirror_piece_break(layer_index: int) -> void:
 		return
 	_paint_roll_mirror_breaking = true
 	_paint_roll_mirror_contact_timer = 0.0
+	_play_mirror_break_audio(layer_index)
 	_clear_paint_roll_mirror_cracks()
 	_kick_paint_roll_ball_off_mirror(layer_index)
 	var next_layer_index := layer_index + 1
@@ -4104,6 +4206,8 @@ func _prepare_visible_paint_roll_mirror_piece(node: Polygon2D, _layer_index: int
 func _run_final_paint_roll_canvas_break() -> void:
 	if _paint_roll_mirror_collapsing:
 		return
+	if _rolling_audio_player != null and is_instance_valid(_rolling_audio_player):
+		_rolling_audio_player.stop()
 	_paint_roll_stage_transitioning = true
 	_paint_roll_running = false
 	_paint_roll_velocity_uv = Vector2.ZERO
@@ -4301,6 +4405,8 @@ func _hash_2d(p: Vector2) -> float:
 func _finish_paint_roll_mirror_stage() -> void:
 	if _paint_roll_mirror_done:
 		return
+	if _rolling_audio_player != null and is_instance_valid(_rolling_audio_player):
+		_rolling_audio_player.stop()
 	_paint_roll_mirror_done = true
 	_paint_roll_running = false
 	_paint_roll_stage_transitioning = true
@@ -4562,6 +4668,9 @@ func _update_layout_if_needed() -> void:
 
 func _emit_completed() -> void:
 	_transition_running = true
+	if _rolling_audio_player != null and is_instance_valid(_rolling_audio_player):
+		_rolling_audio_player.stop()
+	_reset_color_pickup_combo()
 	chapter_completed.emit(chapter_index)
 
 

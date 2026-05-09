@@ -1,1 +1,7 @@
-res://scenes/intro_interactive.tscn
+res://scripts/intro_corridor_v2.gd
+res://scenes/levels/chapter_2/source_level_2.tscn
+res://scripts/intro_interactive.gd
+res://scripts/levels/chapter_2/level_1.gd
+res://scripts/levels/chapter_2/level_2.gd
+res://scripts/levels/chapter_3/level_1.gd
+res://scripts/levels/left_help_prompt_overlay.gd

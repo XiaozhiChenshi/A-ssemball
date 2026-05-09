@@ -241,13 +241,11 @@ func _ensure_left_help_prompt_overlay() -> void:
 	_left_help_prompt_overlay.name = "LeftHelpPromptOverlay"
 	add_child(_left_help_prompt_overlay)
 	_left_help_prompt_overlay.setup(left_3d, camera_3d, chunk_root, 1.0)
-	_left_help_prompt_overlay.inactivity_delay_sec = 10.0
-	_left_help_prompt_overlay.hint_fade_in_sec = 5.0
+	_left_help_prompt_overlay.inactivity_delay_sec = 15.0
+	_left_help_prompt_overlay.hint_fade_in_sec = 0.001
 	_left_help_prompt_overlay.set_popup_size(Vector2(480.0, 252.0))
 	_left_help_prompt_overlay.set_hint_text_style(24, Color(0.97, 0.97, 0.97, 1.0))
-	_left_help_prompt_overlay.set_hint_text("在你玩卡手的魔方到气恼时\n有没有试过直接把块掰正\n或者交换两个块的位置？")
-	if _matched.has(true):
-		_left_help_prompt_overlay.notify_valid_action()
+	_left_help_prompt_overlay.set_hint_text("在你玩卡手的魔方到气恼时\n有没有试过直接把块掰正\n或者交换两个块的位置？\n\n拖动正面的块可以转动一层\n单击两个块可以交换位置\n右侧舞台能试听现在的排列")
 
 
 func _setup_audio_players() -> void:
@@ -754,6 +752,8 @@ func _setup_stage_runtime_ui() -> void:
 		_audition_button = right_panel.get_node_or_null("AuditionButton") as Button
 		if _audition_button != null and not _audition_button.pressed.is_connected(_start_audition):
 			_audition_button.pressed.connect(_start_audition)
+		if _audition_button != null:
+			_audition_button.visible = false
 		_cache_scene_actor_layout()
 		return
 
@@ -794,6 +794,7 @@ func _setup_stage_runtime_ui() -> void:
 	_audition_button.text = "试听"
 	_audition_button.focus_mode = Control.FOCUS_NONE
 	_audition_button.custom_minimum_size = Vector2(96.0, 42.0)
+	_audition_button.visible = false
 	_audition_button.pressed.connect(_start_audition)
 	right_panel.add_child(_audition_button)
 	_cache_scene_actor_layout()
@@ -879,6 +880,7 @@ func _layout_stage_runtime_ui() -> void:
 		_audition_button.offset_top = 18.0
 		_audition_button.offset_right = -20.0
 		_audition_button.offset_bottom = 60.0
+		_audition_button.visible = false
 	if _closing_overlay != null and _closing_overlay.visible:
 		_closing_overlay.move_to_front()
 
@@ -1558,8 +1560,6 @@ func _update_match_feedback(_from_audition: bool) -> int:
 			new_match_audio_ids.append(TARGET_INSTRUMENTS[slot])
 	if new_match_audio_ids.size() > 1:
 		new_match_audio_ids.shuffle()
-	if matched_count > 0 and _left_help_prompt_overlay != null:
-		_left_help_prompt_overlay.notify_valid_action()
 	for instrument_id in new_match_audio_ids:
 		_play_instrument_match_audio(instrument_id)
 
@@ -1799,10 +1799,7 @@ func _perform_entry_random_quarter_turn() -> void:
 	if layer.is_empty():
 		_entry_sequence_locked = false
 		if _left_help_prompt_overlay != null:
-			if _matched.has(true):
-				_left_help_prompt_overlay.notify_valid_action()
-			else:
-				_left_help_prompt_overlay.reset_inactivity_tracking()
+			_left_help_prompt_overlay.reset_inactivity_tracking()
 		return
 
 	_is_snapping = true
@@ -1846,10 +1843,7 @@ func _on_entry_random_quarter_turn_finished() -> void:
 	_update_match_feedback(false)
 	_entry_sequence_locked = false
 	if _left_help_prompt_overlay != null:
-		if _matched.has(true):
-			_left_help_prompt_overlay.notify_valid_action()
-		else:
-			_left_help_prompt_overlay.reset_inactivity_tracking()
+		_left_help_prompt_overlay.reset_inactivity_tracking()
 
 
 func _on_scene_transition_finished() -> void:
