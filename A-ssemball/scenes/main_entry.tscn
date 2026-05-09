@@ -71,7 +71,7 @@ offset_bottom = 52.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_font_sizes/font_size = 24
-text = "Space Start   1-6 Jump Chapters   Hold P 3s Font Preview"
+text = "Space Start   0 Intro V2   1-6 Jump Chapters   Hold P 3s Font Preview"
 horizontal_alignment = 1
 
 [node name="FadeLayer" type="ColorRect" parent="."]

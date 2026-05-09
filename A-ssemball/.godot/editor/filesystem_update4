@@ -1,7 +1,5 @@
-res://scripts/input_mapping_state.gd
-res://scripts/levels/chapter_3/level_1.gd
-res://scripts/levels/chapter_1/level_1.gd
-res://scripts/levels/chapter_1/level_2.gd
-res://scripts/levels/chapter_2/level_1.gd
-res://scripts/levels/chapter_2/level_2.gd
+res://scripts/font_preview.gd
 res://scripts/input_hint_overlay.gd
+res://shaders/input_hint_glitch.gdshader
+res://scripts/main_entry.gd
+res://scripts/intro_corridor_v2.gd

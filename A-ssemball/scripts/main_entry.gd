@@ -2,6 +2,7 @@ extends Control
 
 const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
 const INTRO_SCENE: PackedScene = preload("res://scenes/intro_interactive.tscn")
+const INTRO_V2_SCENE: PackedScene = preload("res://scenes/intro_corridor_v2.tscn")
 const FONT_PREVIEW_SCENE: PackedScene = preload("res://scenes/font_preview.tscn")
 const CHAPTER_1_LEVEL_1_SCENE: PackedScene = preload("res://scenes/levels/chapter_1/level_1.tscn")
 const CHAPTER_1_LEVEL_2_SCENE: PackedScene = preload("res://scenes/levels/chapter_1/level_2.tscn")
@@ -40,6 +41,7 @@ var _debug_mapping_label: Label
 var _font_preview_hold_time: float = 0.0
 var _font_preview_active: bool = false
 var _font_preview_node: Control
+var _use_intro_v2_next: bool = false
 
 
 func _process(delta: float) -> void:
@@ -60,9 +62,10 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_0 or event.keycode == KEY_KP_0:
+			_is_starting = true
 			get_viewport().set_input_as_handled()
-			InputMappingStateRef.toggle_reverse_wasd_mapping()
-			_show_mapping_debug_hint()
+			_use_intro_v2_next = true
+			_start_sequence(false, 0)
 			return
 
 	if _is_starting:
@@ -172,14 +175,16 @@ func _start_sequence(skip_intro_to_post_click_effect: bool, start_chapter_scene_
 	_notify_active_chapter_transition_finished()
 
 
-func _spawn_intro_scene() -> IntroInteractive:
+func _spawn_intro_scene() -> Node:
 	_clear_game_root()
 
-	var intro := INTRO_SCENE.instantiate()
+	var scene := INTRO_V2_SCENE if _use_intro_v2_next else INTRO_SCENE
+	_use_intro_v2_next = false
+	var intro := scene.instantiate()
 	game_root.add_child(intro)
 	if intro is Control:
 		_fit_full_rect(intro as Control)
-	return intro as IntroInteractive
+	return intro
 
 
 func _start_chapter_flow() -> void:
