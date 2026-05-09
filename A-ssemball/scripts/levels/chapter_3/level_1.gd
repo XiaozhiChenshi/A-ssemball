@@ -14,6 +14,7 @@ const PAINT_ROLL_RIGHT_5_TEXTURE: Texture2D = preload("res://assets/ui/chapter_3
 const ColorReticleRef = preload("res://scripts/levels/chapter_3/color_reticle.gd")
 const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
 const InputHintOverlayRef = preload("res://scripts/input_hint_overlay.gd")
+const LeftHelpPromptOverlayRef = preload("res://scripts/levels/left_help_prompt_overlay.gd")
 const MIRROR_LAYER_CONTACT_SEC: float = 8.0
 
 @export var chapter_index: int = 3
@@ -204,6 +205,7 @@ var _dev_paint_roll_skip_hold_sec: float = 0.0
 var _dev_paint_roll_skip_triggered: bool = false
 var _left_input_hint_overlay: Control
 var _paint_roll_input_hint_overlay: Control
+var _left_help_prompt_overlay: LeftHelpPromptOverlay
 
 
 func _ready() -> void:
@@ -214,6 +216,7 @@ func _ready() -> void:
 	_setup_fx_layer()
 	_setup_paint_roll_scene()
 	_ensure_input_hint_overlays()
+	_ensure_left_help_prompt_overlay()
 	_apply_stage(0, true)
 
 
@@ -260,6 +263,20 @@ func _ensure_input_hint_overlays() -> void:
 		_paint_roll_root.add_child(_paint_roll_input_hint_overlay)
 		_fit_input_hint_overlay(_paint_roll_input_hint_overlay)
 	_update_input_hint_visibility()
+
+
+func _ensure_left_help_prompt_overlay() -> void:
+	if _left_help_prompt_overlay != null and is_instance_valid(_left_help_prompt_overlay):
+		return
+	_left_help_prompt_overlay = LeftHelpPromptOverlayRef.new()
+	_left_help_prompt_overlay.name = "LeftHelpPromptOverlay"
+	add_child(_left_help_prompt_overlay)
+	_left_help_prompt_overlay.setup(left_3d, left_camera, model_root, left_sphere_radius)
+	_left_help_prompt_overlay.inactivity_delay_sec = 10.0
+	_left_help_prompt_overlay.hint_fade_in_sec = 5.0
+	_left_help_prompt_overlay.set_popup_size(Vector2(460.0, 262.0))
+	_left_help_prompt_overlay.set_hint_text_style(24, Color(0.97, 0.97, 0.97, 1.0))
+	_left_help_prompt_overlay.set_hint_text("收集散落的染料\n之后涂满房间的经历\n可以尝试一下")
 
 
 func _fit_input_hint_overlay(overlay: Control) -> void:
@@ -2194,6 +2211,9 @@ func _compute_paint_roll_ball_diameter(viewport_size: Vector2) -> float:
 
 
 func _apply_stage(next_stage_index: int, animate_entry: bool) -> void:
+	if _left_help_prompt_overlay != null:
+		_left_help_prompt_overlay.set_hint_enabled(true)
+		_left_help_prompt_overlay.reset_inactivity_tracking()
 	_stage_index = clampi(next_stage_index, 0, _stage_data.size() - 1)
 	_stage_spots.clear()
 	_collected_in_stage = 0
@@ -2393,6 +2413,8 @@ func _collect_spot(spot_index: int) -> void:
 	_stage_spots[spot_index] = spot
 	_collected_in_stage += 1
 	_collect_cooldown = collect_cooldown_sec
+	if _left_help_prompt_overlay != null:
+		_left_help_prompt_overlay.notify_valid_action()
 
 	var color := spot["color"] as Color
 	_play_dot_absorb(spot["dot"] as Control)
@@ -3159,6 +3181,8 @@ func _shell_chunk_center_dir(chunk_index: int) -> Vector3:
 func _start_paint_roll_transition() -> void:
 	if _paint_roll_running or _paint_roll_finished:
 		return
+	if _left_help_prompt_overlay != null:
+		_left_help_prompt_overlay.set_hint_enabled(false)
 	_transition_running = true
 	_paint_roll_transitioning = true
 	_prepare_ball_for_paint_roll()

@@ -8,6 +8,7 @@ const RouteBurnMaskCanvas2DRef = preload("res://scripts/route_burn_mask_canvas_2
 const AshFragmentOverlay2DRef = preload("res://scripts/ash_fragment_overlay_2d.gd")
 const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
 const InputHintOverlayRef = preload("res://scripts/input_hint_overlay.gd")
+const LeftHelpPromptOverlayRef = preload("res://scripts/levels/left_help_prompt_overlay.gd")
 const ASH_DEPOSIT_TEXTURE: Texture2D = preload("res://assets/ui/chapter_1_stage_2/ash_deposit.jpg")
 const HAND_TEXTURE: Texture2D = preload("res://assets/ui/chapter_1_stage_2/Hand04.png")
 const SPHERE_CLICK_AUDIO: AudioStream = preload("res://assets/audio/单击球面音效.mp3")
@@ -185,6 +186,7 @@ var _sphere_click_audio_player: AudioStreamPlayer
 var _transition_shake_audio_player: AudioStreamPlayer
 var _route_tone_rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _input_hint_overlay: Control
+var _left_help_prompt_overlay: LeftHelpPromptOverlay
 
 
 func _ready() -> void:
@@ -205,6 +207,7 @@ func _ready() -> void:
 	_stage_data = _build_stage_data()
 	_ensure_cell_root()
 	_ensure_audio_players()
+	_ensure_left_help_prompt_overlay()
 	_route_tone_rng.randomize()
 	sphere.rotation = Vector3.ZERO
 
@@ -212,6 +215,7 @@ func _ready() -> void:
 	left_3d.resized.connect(_on_layout_changed)
 	chapter_1_split.dragged.connect(_on_chapter_1_split_dragged)
 	_ensure_input_hint_overlay()
+	_ensure_left_help_prompt_overlay()
 	_on_layout_changed()
 	_apply_stage(0, false)
 
@@ -228,6 +232,29 @@ func _ensure_input_hint_overlay() -> void:
 	_input_hint_overlay.offset_top = 0.0
 	_input_hint_overlay.offset_right = 0.0
 	_input_hint_overlay.offset_bottom = 0.0
+
+
+func _ensure_left_help_prompt_overlay() -> void:
+	if _left_help_prompt_overlay != null and is_instance_valid(_left_help_prompt_overlay):
+		return
+	_left_help_prompt_overlay = LeftHelpPromptOverlayRef.new()
+	_left_help_prompt_overlay.name = "LeftHelpPromptOverlay"
+	add_child(_left_help_prompt_overlay)
+	_left_help_prompt_overlay.setup(left_3d, camera_3d, model_root, shape_radius)
+	_left_help_prompt_overlay.inactivity_delay_sec = 20.0
+	_left_help_prompt_overlay.hint_fade_in_sec = 5.0
+	_left_help_prompt_overlay.set_popup_size(Vector2(460.0, 242.0))
+	_left_help_prompt_overlay.set_hint_text_style(24, Color(0.97, 0.97, 0.97, 1.0))
+	_left_help_prompt_overlay.set_hint_text("你有用鼠标画画的经历吗？\n\n按住之后往你想要的地方划\n线条就会出现")
+
+
+func _refresh_left_help_prompt_rule() -> void:
+	if _left_help_prompt_overlay == null:
+		return
+	var enabled := _current_stage_index == 0
+	_left_help_prompt_overlay.set_hint_enabled(enabled)
+	if enabled:
+		_left_help_prompt_overlay.reset_inactivity_tracking()
 
 
 func _process(delta: float) -> void:
@@ -1646,6 +1673,7 @@ func _refresh_scaffold_shell_style() -> void:
 
 func _apply_stage(stage_index: int, animate_focus: bool, preserve_transition_lift: bool = false, show_pointer: bool = true) -> void:
 	_current_stage_index = clampi(stage_index, 0, _stage_data.size() - 1)
+	_refresh_left_help_prompt_rule()
 	_stage_elapsed = 0.0
 	_selected_route_ids.clear()
 	_drag_active = false
@@ -2661,6 +2689,8 @@ func _try_begin_drag() -> void:
 		return
 
 	_drag_active = true
+	if _left_help_prompt_overlay != null:
+		_left_help_prompt_overlay.notify_valid_action()
 	_drag_anchor_cell_id = picked_id
 	_hover_cell_id = picked_id
 	_hover_hold_elapsed = 0.0

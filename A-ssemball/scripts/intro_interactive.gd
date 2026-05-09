@@ -6,6 +6,7 @@ signal goal_clicked
 
 @export var hold_key: Key = KEY_W
 @export var move_speed: float = 12
+@export var opening_audio_stop_delay_sec: float = 1.0
 @export var move_speed_randomness: float = 0.06
 @export var move_speed_randomize_hz: float = 1.2
 @export var use_explicit_end_position: bool = false
@@ -81,6 +82,8 @@ const FOV_BREATH_CONTRACT_CURVE: float = 0.72
 const VIGNETTE_RADIUS_SMOOTH: float = 4.0
 const SCREEN_SHAKE_AUDIO: AudioStream = preload("res://assets/audio/1.2屏幕震动.mp3")
 
+const OPENING_AUDIO: AudioStream = preload("res://assets/audio/初始界面 .mp3")
+
 @onready var sub_viewport: SubViewport = $ViewportContainer/SubViewport
 @onready var viewport_container: SubViewportContainer = $ViewportContainer
 @onready var camera_3d: Camera3D = $ViewportContainer/SubViewport/WorldRoot/Camera3D
@@ -135,7 +138,9 @@ var _board_1_target_y: float = 0.0
 var _board_2_target_y: float = 0.0
 var _board_1_triggered: bool = false
 var _board_2_triggered: bool = false
+var _opening_audio_player: AudioStreamPlayer
 var _screen_shake_audio_player: AudioStreamPlayer
+var _opening_audio_stop_delay_left: float = -1.0
 
 
 func _ready() -> void:
@@ -164,6 +169,7 @@ func _process(delta: float) -> void:
 	var is_moving := false
 	if not _completed:
 		is_moving = Input.is_physical_key_pressed(hold_key)
+		_update_opening_audio_state(delta, is_moving)
 		if is_moving:
 			_update_move_speed_factor(delta, true)
 			var current_pos: Vector3 = _camera_progress_position
@@ -185,6 +191,7 @@ func _process(delta: float) -> void:
 			_update_camera_motion(delta, false)
 			_apply_camera_position()
 	else:
+		_update_opening_audio_state(delta, false)
 		_update_move_speed_factor(delta, false)
 		_update_camera_motion(delta, false)
 		_apply_camera_position()
@@ -594,12 +601,41 @@ func _run_goal_transition_sequence() -> void:
 
 
 func _ensure_audio_players() -> void:
-	if _screen_shake_audio_player != null and is_instance_valid(_screen_shake_audio_player):
+	if _opening_audio_player == null or not is_instance_valid(_opening_audio_player):
+		_opening_audio_player = AudioStreamPlayer.new()
+		_opening_audio_player.name = "OpeningAudioPlayer"
+		_opening_audio_player.stream = OPENING_AUDIO
+		if _opening_audio_player.stream is AudioStreamMP3:
+			(_opening_audio_player.stream as AudioStreamMP3).loop = true
+		add_child(_opening_audio_player)
+	if _screen_shake_audio_player == null or not is_instance_valid(_screen_shake_audio_player):
+		_screen_shake_audio_player = AudioStreamPlayer.new()
+		_screen_shake_audio_player.name = "ScreenShakeAudioPlayer"
+		_screen_shake_audio_player.stream = SCREEN_SHAKE_AUDIO
+		add_child(_screen_shake_audio_player)
+	if not _opening_audio_player.playing:
+		_opening_audio_player.play()
+
+
+func _update_opening_audio_state(delta: float, is_moving: bool) -> void:
+	if _opening_audio_player == null or not is_instance_valid(_opening_audio_player):
 		return
-	_screen_shake_audio_player = AudioStreamPlayer.new()
-	_screen_shake_audio_player.name = "ScreenShakeAudioPlayer"
-	_screen_shake_audio_player.stream = SCREEN_SHAKE_AUDIO
-	add_child(_screen_shake_audio_player)
+	if _transition_started:
+		if _opening_audio_player.playing:
+			_opening_audio_player.stop()
+		_opening_audio_stop_delay_left = -1.0
+		return
+	if is_moving:
+		_opening_audio_stop_delay_left = opening_audio_stop_delay_sec
+		if not _opening_audio_player.playing:
+			_opening_audio_player.play()
+		return
+	if _opening_audio_stop_delay_left < 0.0:
+		_opening_audio_stop_delay_left = opening_audio_stop_delay_sec
+		return
+	_opening_audio_stop_delay_left -= delta
+	if _opening_audio_stop_delay_left <= 0.0 and _opening_audio_player.playing:
+		_opening_audio_player.stop()
 
 
 func _play_screen_shake_audio_once() -> void:

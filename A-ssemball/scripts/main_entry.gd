@@ -11,6 +11,7 @@ const CHAPTER_2_LEVEL_2_SCENE: PackedScene = preload("res://scenes/levels/chapte
 const CHAPTER_3_LEVEL_1_SCENE: PackedScene = preload("res://scenes/levels/chapter_3/level_1.tscn")
 const CHAPTER_3_LEVEL_2_SCENE: PackedScene = preload("res://scenes/levels/chapter_3/level_2.tscn")
 const CHAPTER_1_NOISE_LOOP_AUDIO: AudioStream = preload("res://assets/audio/底噪.mp3")
+const MENU_OPENING_AUDIO: AudioStream = preload("res://assets/audio/初始界面 .mp3")
 const TRAN_1_TEX: Texture2D = preload("res://assets/materials/tran1.png")
 const TRAN_2_TEX: Texture2D = preload("res://assets/materials/tran2.png")
 const TRAN_3_TEX: Texture2D = preload("res://assets/materials/tran3.png")
@@ -37,6 +38,7 @@ var _requested_start_chapter_scene_index: int = 0
 var _chapter_transition_canvas: CanvasLayer
 var _chapter_transition_overlay: TextureRect
 var _chapter_1_noise_player: AudioStreamPlayer
+var _menu_opening_player: AudioStreamPlayer
 var _debug_mapping_label: Label
 var _font_preview_hold_time: float = 0.0
 var _font_preview_active: bool = false

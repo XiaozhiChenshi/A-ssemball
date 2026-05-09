@@ -7,6 +7,7 @@ signal chapter_completed(chapter_index: int)
 const StructureShapeProviderRef = preload("res://scripts/structure/structure_shape_provider.gd")
 const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
 const InputHintOverlayRef = preload("res://scripts/input_hint_overlay.gd")
+const LeftHelpPromptOverlayRef = preload("res://scripts/levels/left_help_prompt_overlay.gd")
 const SPHERE_CLICK_AUDIO: AudioStream = preload("res://assets/audio/单击球面音效.mp3")
 const STAGE_STONE_END_AUDIO: AudioStream = preload("res://assets/audio/1.3.2打铁.mp3")
 const STAGE_WHEEL_END_AUDIO: AudioStream = preload("res://assets/audio/1.4.2轮轴转动.mp3")
@@ -162,6 +163,7 @@ var _stage_end_audio_played_for_index: int = -1
 var _stage_end_audio_pending_for_index: int = -1
 var _stage_end_audio_started_for_index: int = -1
 var _input_hint_overlay: Control
+var _left_help_prompt_overlay: LeftHelpPromptOverlay
 
 
 func _ready() -> void:
@@ -177,6 +179,7 @@ func _ready() -> void:
 	_setup_right_panel_ui()
 	_ensure_flash_overlay()
 	_ensure_audio_players()
+	_ensure_left_help_prompt_overlay()
 
 	_apply_stage(_current_stage_index)
 	_update_hint_and_progress_text()
@@ -200,6 +203,19 @@ func _ensure_input_hint_overlay() -> void:
 	_input_hint_overlay.offset_top = 0.0
 	_input_hint_overlay.offset_right = 0.0
 	_input_hint_overlay.offset_bottom = 0.0
+
+
+func _ensure_left_help_prompt_overlay() -> void:
+	if _left_help_prompt_overlay != null and is_instance_valid(_left_help_prompt_overlay):
+		return
+	_left_help_prompt_overlay = LeftHelpPromptOverlayRef.new()
+	_left_help_prompt_overlay.name = "LeftHelpPromptOverlay"
+	add_child(_left_help_prompt_overlay)
+	_left_help_prompt_overlay.setup(left_3d, camera_3d, model_root, 1.0)
+	_left_help_prompt_overlay.set_popup_size(Vector2(560.0, 352.0))
+	_left_help_prompt_overlay.set_hint_text_style(22, Color(0.97, 0.97, 0.97, 1.0))
+	_left_help_prompt_overlay.set_hint_text("这是一个提示！\n\n以下是一些基础教学\nw a s d 控制左侧球体转动\n鼠标点击/划动/拖拽 你在意的地方\n\n如果之后还有问题的话\n我也会在这里出现噢")
+	_left_help_prompt_overlay.set_always_visible_hint(true)
 
 
 func _process(delta: float) -> void:

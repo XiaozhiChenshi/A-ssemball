@@ -55,6 +55,7 @@ const C2_CELLO_CANDIDATE_PATHS: Array[String] = [
 ]
 const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
 const InputHintOverlayRef = preload("res://scripts/input_hint_overlay.gd")
+const LeftHelpPromptOverlayRef = preload("res://scripts/levels/left_help_prompt_overlay.gd")
 
 @export var light_rotation_speed_deg: float = 0.0
 @export var light_energy: float = 0.85
@@ -239,6 +240,7 @@ var _camera_focus_intensity_baseline: Dictionary = {}
 var _camera_focus_intensity_captured: bool = false
 var _camera_focus_intensity_boost_active: bool = false
 var _input_hint_overlay: Control
+var _left_help_prompt_overlay: LeftHelpPromptOverlay
 var _c2_sfx_player: AudioStreamPlayer
 var _c2_match_players: Array[AudioStreamPlayer] = []
 var _c2_disc_music_player: AudioStreamPlayer
@@ -269,6 +271,7 @@ func _ready() -> void:
 	left_3d.resized.connect(_on_layout_changed)
 	chapter_1_split.dragged.connect(_on_chapter_1_split_dragged)
 	_ensure_input_hint_overlay()
+	_ensure_left_help_prompt_overlay()
 	_on_layout_changed()
 	_ensure_chapter_hint_label()
 	_setup_intro_overlay()
@@ -292,6 +295,20 @@ func _ensure_input_hint_overlay() -> void:
 	_input_hint_overlay.offset_top = 0.0
 	_input_hint_overlay.offset_right = 0.0
 	_input_hint_overlay.offset_bottom = 0.0
+
+
+func _ensure_left_help_prompt_overlay() -> void:
+	if _left_help_prompt_overlay != null and is_instance_valid(_left_help_prompt_overlay):
+		return
+	_left_help_prompt_overlay = LeftHelpPromptOverlayRef.new()
+	_left_help_prompt_overlay.name = "LeftHelpPromptOverlay"
+	add_child(_left_help_prompt_overlay)
+	_left_help_prompt_overlay.setup(left_3d, camera_3d, sphere, 1.0)
+	_left_help_prompt_overlay.inactivity_delay_sec = 20.0
+	_left_help_prompt_overlay.hint_fade_in_sec = 5.0
+	_left_help_prompt_overlay.set_popup_size(Vector2(470.0, 282.0))
+	_left_help_prompt_overlay.set_hint_text_style(24, Color(0.97, 0.97, 0.97, 1.0))
+	_left_help_prompt_overlay.set_hint_text("球体下面的黑色方框\n是不是少做了一个喇叭？\n\n把小方块放进去\n说不定就会有什么出现")
 
 
 func _ready_editor_preview() -> void:
@@ -1911,6 +1928,8 @@ func _apply_intro_hidden_state() -> void:
 
 func _apply_post_intro_state() -> void:
 	_intro_sequence_running = false
+	if _left_help_prompt_overlay != null:
+		_left_help_prompt_overlay.reset_inactivity_tracking()
 	_split_programmatic_motion = false
 	_orbit_particles_enabled = true
 	chapter_1_split.split_offset = _get_locked_split_offset()
@@ -2066,6 +2085,8 @@ func _play_intro_sequence() -> void:
 	await hide_frame_tween.finished
 	_intro_overlay.visible = false
 	_intro_sequence_running = false
+	if _left_help_prompt_overlay != null:
+		_left_help_prompt_overlay.reset_inactivity_tracking()
 	_capture_camera_focus_intensity_baseline()
 	_apply_camera_focus_intensity_boost()
 
@@ -2936,6 +2957,9 @@ func _normalize_right_scene_card(card: Control) -> void:
 
 func _mark_scene_completed(scene_index: int) -> void:
 	_restore_camera_focus_intensity()
+	if _left_help_prompt_overlay != null:
+		_left_help_prompt_overlay.notify_valid_action()
+		_left_help_prompt_overlay.reset_inactivity_tracking()
 	var idx := posmod(scene_index, _right_scene_status_labels.size())
 	if idx < 0 or idx >= _right_scene_status_labels.size():
 		return

@@ -5,6 +5,7 @@ signal chapter_completed(chapter_index: int)
 signal match_audio_queue_drained
 const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
 const InputHintOverlayRef = preload("res://scripts/input_hint_overlay.gd")
+const LeftHelpPromptOverlayRef = preload("res://scripts/levels/left_help_prompt_overlay.gd")
 
 const INSTRUMENT_TEXTURES: Dictionary = {
 	"baton": preload("res://assets/materials/指挥棒.png"),
@@ -183,6 +184,7 @@ var _entry_sequence_started: bool = false
 var _entry_rotate_layer: Array[int] = []
 var _entry_rotate_target_slots: Dictionary = {}
 var _input_hint_overlay: Control
+var _left_help_prompt_overlay: LeftHelpPromptOverlay
 var _feedback_player: AudioStreamPlayer
 var _instrument_player: AudioStreamPlayer
 var _entry_player: AudioStreamPlayer
@@ -212,6 +214,7 @@ func _ready() -> void:
 	left_3d.resized.connect(_on_layout_changed)
 	chapter_split.dragged.connect(_on_split_dragged)
 	_ensure_input_hint_overlay()
+	_ensure_left_help_prompt_overlay()
 	_on_layout_changed()
 	call_deferred("_sync_stage_instruments")
 	call_deferred("_ensure_entry_sequence_fallback")
@@ -229,6 +232,22 @@ func _ensure_input_hint_overlay() -> void:
 	_input_hint_overlay.offset_top = 0.0
 	_input_hint_overlay.offset_right = 0.0
 	_input_hint_overlay.offset_bottom = 0.0
+
+
+func _ensure_left_help_prompt_overlay() -> void:
+	if _left_help_prompt_overlay != null and is_instance_valid(_left_help_prompt_overlay):
+		return
+	_left_help_prompt_overlay = LeftHelpPromptOverlayRef.new()
+	_left_help_prompt_overlay.name = "LeftHelpPromptOverlay"
+	add_child(_left_help_prompt_overlay)
+	_left_help_prompt_overlay.setup(left_3d, camera_3d, chunk_root, 1.0)
+	_left_help_prompt_overlay.inactivity_delay_sec = 10.0
+	_left_help_prompt_overlay.hint_fade_in_sec = 5.0
+	_left_help_prompt_overlay.set_popup_size(Vector2(480.0, 252.0))
+	_left_help_prompt_overlay.set_hint_text_style(24, Color(0.97, 0.97, 0.97, 1.0))
+	_left_help_prompt_overlay.set_hint_text("在你玩卡手的魔方到气恼时\n有没有试过直接把块掰正\n或者交换两个块的位置？")
+	if _matched.has(true):
+		_left_help_prompt_overlay.notify_valid_action()
 
 
 func _setup_audio_players() -> void:
@@ -258,7 +277,7 @@ func _setup_closing_overlay() -> void:
 		_closing_overlay.visible = false
 		stage_root.add_child(_closing_overlay)
 	elif _closing_overlay.get_parent() != stage_root:
-		var old_parent := _closing_overlay.get_parent()
+		var old_parent: Node = _closing_overlay.get_parent()
 		if old_parent != null:
 			old_parent.remove_child(_closing_overlay)
 		stage_root.add_child(_closing_overlay)
@@ -287,7 +306,7 @@ func _play_feedback_audio(stream: AudioStream) -> void:
 
 
 func _play_instrument_match_audio(instrument_id: String) -> void:
-	var stream := INSTRUMENT_MATCH_AUDIO.get(instrument_id) as AudioStream
+	var stream: AudioStream = INSTRUMENT_MATCH_AUDIO.get(instrument_id) as AudioStream
 	if stream == null:
 		return
 	_pending_match_audio_queue.append(stream)
@@ -300,7 +319,7 @@ func _process_match_audio_queue() -> void:
 		return
 	_instrument_audio_processing = true
 	while not _pending_match_audio_queue.is_empty():
-		var stream := _pending_match_audio_queue.pop_front()
+		var stream: AudioStream = _pending_match_audio_queue.pop_front() as AudioStream
 		if stream == null:
 			continue
 		_instrument_player.stream = stream
@@ -1504,7 +1523,7 @@ func _play_audition_motion() -> void:
 
 func _update_match_feedback(_from_audition: bool) -> int:
 	var matched_count := 0
-	var previous_matched := _matched.duplicate()
+	var previous_matched: Array[bool] = _matched.duplicate()
 	var slot_correct: Array[bool] = []
 	for slot in range(TARGET_INSTRUMENTS.size()):
 		slot_correct.append(false)
@@ -1539,6 +1558,8 @@ func _update_match_feedback(_from_audition: bool) -> int:
 			new_match_audio_ids.append(TARGET_INSTRUMENTS[slot])
 	if new_match_audio_ids.size() > 1:
 		new_match_audio_ids.shuffle()
+	if matched_count > 0 and _left_help_prompt_overlay != null:
+		_left_help_prompt_overlay.notify_valid_action()
 	for instrument_id in new_match_audio_ids:
 		_play_instrument_match_audio(instrument_id)
 
@@ -1777,6 +1798,11 @@ func _perform_entry_random_quarter_turn() -> void:
 	var layer := _pieces_on_layer(axis, side)
 	if layer.is_empty():
 		_entry_sequence_locked = false
+		if _left_help_prompt_overlay != null:
+			if _matched.has(true):
+				_left_help_prompt_overlay.notify_valid_action()
+			else:
+				_left_help_prompt_overlay.reset_inactivity_tracking()
 		return
 
 	_is_snapping = true
@@ -1819,6 +1845,11 @@ func _on_entry_random_quarter_turn_finished() -> void:
 	_sync_stage_instruments()
 	_update_match_feedback(false)
 	_entry_sequence_locked = false
+	if _left_help_prompt_overlay != null:
+		if _matched.has(true):
+			_left_help_prompt_overlay.notify_valid_action()
+		else:
+			_left_help_prompt_overlay.reset_inactivity_tracking()
 
 
 func _on_scene_transition_finished() -> void:
