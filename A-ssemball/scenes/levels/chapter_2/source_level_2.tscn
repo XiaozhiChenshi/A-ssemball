@@ -58,6 +58,18 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_level_2")
+chapter_index = null
+slot_radius = null
+manual_rotate_speed_deg = null
+left_panel_width_ratio = null
+click_pick_radius_px = null
+drag_rotate_threshold_px = null
+snap_rotate_sec = null
+return_rotate_sec = null
+audition_sec = null
+group_idle_motion = null
+swap_sec = null
+lock_scene_actor_positions = null
 
 [node name="ChapterSplit" type="HSplitContainer" parent="."]
 layout_mode = 1

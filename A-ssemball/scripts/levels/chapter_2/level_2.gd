@@ -2,6 +2,7 @@ extends Control
 class_name LevelC2L2
 
 signal chapter_completed(chapter_index: int)
+signal match_audio_queue_drained
 const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
 const InputHintOverlayRef = preload("res://scripts/input_hint_overlay.gd")
 
@@ -15,6 +16,28 @@ const INSTRUMENT_TEXTURES: Dictionary = {
 	"flute": preload("res://assets/materials/长笛.png"),
 	"tuba": preload("res://assets/materials/低音号.png"),
 }
+const INSTRUMENT_MATCH_AUDIO: Dictionary = {
+	"baton": preload("res://assets/audio/第二幕/第二幕乐器部分/指挥.mp3"),
+	"violin": preload("res://assets/audio/第二幕/第二幕乐器部分/小提琴.mp3"),
+	"piano": preload("res://assets/audio/第二幕/第二幕乐器部分/钢琴.mp3"),
+	"snare": preload("res://assets/audio/第二幕/第二幕乐器部分/小军鼓.mp3"),
+	"harp": preload("res://assets/audio/第二幕/第二幕乐器部分/竖琴.mp3"),
+	"triangle": preload("res://assets/audio/第二幕/第二幕乐器部分/三角铁.mp3"),
+	"flute": preload("res://assets/audio/第二幕/第二幕乐器部分/长笛.mp3"),
+	"tuba": preload("res://assets/audio/第二幕/第二幕乐器部分/低音号.mp3"),
+}
+const AUDITION_ERROR_AUDIO: AudioStream = preload("res://assets/audio/第二幕/错误.mp3")
+const AUDITION_COMPLETE_AUDIO: AudioStream = preload("res://assets/audio/第二幕/结束bgm.mp3")
+const STAGE_BACKGROUND_C3_L1: Texture2D = preload("res://assets/materials/3-1画廊.png")
+const TRANSITION_TEX_1: Texture2D = preload("res://assets/materials/tran1.png")
+const TRANSITION_TEX_2: Texture2D = preload("res://assets/materials/tran2.png")
+const TRANSITION_TEX_3: Texture2D = preload("res://assets/materials/tran3.png")
+const TRANSITION_TEX_4: Texture2D = preload("res://assets/materials/tran4.png")
+const CLOSING_TRIGGER_REMAINING_SEC: float = 3.0
+const CLOSING_STEP_SEC: float = 0.75
+const CLOSING_REVEAL_WAIT_SEC: float = 0.3
+const CLOSING_REVERSE_STEP_SEC: float = 0.18
+const CLOSING_POST_HOLD_SEC: float = 2.0
 const HOLD_ICON_ANCHORS: Array[Vector2] = [
 	Vector2(0.50, 0.4583),
 	Vector2(0.46, 0.42),
@@ -120,6 +143,7 @@ const ENTRY_START_ROTATION_DEG: Vector3 = Vector3(-12.0, -22.0, 0.0)
 @onready var left_viewport: SubViewport = $ChapterSplit/Left3D/LeftViewport
 @onready var chunk_root: Node3D = $ChapterSplit/Left3D/LeftViewport/World3D/ChunkRoot
 @onready var right_panel: Control = $ChapterSplit/RightPanel
+@onready var plat_background: TextureRect = $ChapterSplit/RightPanel/PlatBackground
 @onready var stage_root: Control = $ChapterSplit/RightPanel/InteractiveFragments
 @onready var camera_3d: Camera3D = $ChapterSplit/Left3D/LeftViewport/World3D/Camera3D
 
@@ -159,6 +183,14 @@ var _entry_sequence_started: bool = false
 var _entry_rotate_layer: Array[int] = []
 var _entry_rotate_target_slots: Dictionary = {}
 var _input_hint_overlay: Control
+var _feedback_player: AudioStreamPlayer
+var _instrument_player: AudioStreamPlayer
+var _entry_player: AudioStreamPlayer
+var _matched_once_played: Array[bool] = []
+var _completion_sequence_started: bool = false
+var _closing_overlay: TextureRect
+var _pending_match_audio_queue: Array[AudioStream] = []
+var _instrument_audio_processing: bool = false
 
 
 func _ready() -> void:
@@ -168,8 +200,11 @@ func _ready() -> void:
 	_setup_piece_groups()
 	_prepare_entry_pose()
 	_setup_stage_runtime_ui()
+	_setup_audio_players()
+	_setup_closing_overlay()
 	_sync_stage_instruments()
 	_update_match_feedback(false)
+	_sync_match_audio_state()
 	stage_root.visible = true
 	left_3d.visible = true
 	chunk_root.visible = true
@@ -194,6 +229,98 @@ func _ensure_input_hint_overlay() -> void:
 	_input_hint_overlay.offset_top = 0.0
 	_input_hint_overlay.offset_right = 0.0
 	_input_hint_overlay.offset_bottom = 0.0
+
+
+func _setup_audio_players() -> void:
+	if _feedback_player == null:
+		_feedback_player = AudioStreamPlayer.new()
+		_feedback_player.name = "FeedbackPlayer"
+		add_child(_feedback_player)
+	if _instrument_player == null:
+		_instrument_player = AudioStreamPlayer.new()
+		_instrument_player.name = "InstrumentPlayer"
+		add_child(_instrument_player)
+	if _entry_player == null:
+		_entry_player = AudioStreamPlayer.new()
+		_entry_player.name = "EntryPlayer"
+		add_child(_entry_player)
+
+
+func _setup_closing_overlay() -> void:
+	if stage_root == null or not is_instance_valid(stage_root):
+		return
+	if _closing_overlay == null:
+		_closing_overlay = TextureRect.new()
+		_closing_overlay.name = "ClosingOverlay"
+		_closing_overlay.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_closing_overlay.stretch_mode = TextureRect.STRETCH_SCALE
+		_closing_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_closing_overlay.visible = false
+		stage_root.add_child(_closing_overlay)
+	elif _closing_overlay.get_parent() != stage_root:
+		var old_parent := _closing_overlay.get_parent()
+		if old_parent != null:
+			old_parent.remove_child(_closing_overlay)
+		stage_root.add_child(_closing_overlay)
+	_closing_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_closing_overlay.offset_left = 0.0
+	_closing_overlay.offset_top = 0.0
+	_closing_overlay.offset_right = 0.0
+	_closing_overlay.offset_bottom = 0.0
+	_closing_overlay.z_as_relative = true
+	_closing_overlay.z_index = 999
+	_closing_overlay.move_to_front()
+
+
+func _sync_match_audio_state() -> void:
+	_matched_once_played.resize(TARGET_INSTRUMENTS.size())
+	for i in range(TARGET_INSTRUMENTS.size()):
+		_matched_once_played[i] = i < _matched.size() and bool(_matched[i])
+
+
+func _play_feedback_audio(stream: AudioStream) -> void:
+	if stream == null or _feedback_player == null:
+		return
+	_feedback_player.stop()
+	_feedback_player.stream = stream
+	_feedback_player.play()
+
+
+func _play_instrument_match_audio(instrument_id: String) -> void:
+	var stream := INSTRUMENT_MATCH_AUDIO.get(instrument_id) as AudioStream
+	if stream == null:
+		return
+	_pending_match_audio_queue.append(stream)
+	if not _instrument_audio_processing:
+		_process_match_audio_queue()
+
+
+func _process_match_audio_queue() -> void:
+	if _instrument_audio_processing or _instrument_player == null:
+		return
+	_instrument_audio_processing = true
+	while not _pending_match_audio_queue.is_empty():
+		var stream := _pending_match_audio_queue.pop_front()
+		if stream == null:
+			continue
+		_instrument_player.stream = stream
+		_instrument_player.play()
+		await _instrument_player.finished
+	_instrument_audio_processing = false
+	match_audio_queue_drained.emit()
+
+
+func _wait_for_match_audio_queue() -> void:
+	if _instrument_audio_processing or not _pending_match_audio_queue.is_empty():
+		await match_audio_queue_drained
+
+
+func _play_entry_audio() -> void:
+	if _entry_player == null:
+		return
+	_entry_player.stop()
+	_entry_player.stream = AUDITION_COMPLETE_AUDIO
+	_entry_player.play()
 
 
 func _process(delta: float) -> void:
@@ -656,6 +783,14 @@ func _setup_stage_runtime_ui() -> void:
 func _layout_stage_runtime_ui() -> void:
 	if stage_root == null or not is_instance_valid(stage_root):
 		return
+	if _closing_overlay != null:
+		_closing_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_closing_overlay.offset_left = 0.0
+		_closing_overlay.offset_top = 0.0
+		_closing_overlay.offset_right = 0.0
+		_closing_overlay.offset_bottom = 0.0
+		_closing_overlay.z_as_relative = true
+		_closing_overlay.z_index = 999
 	var scale := _stage_scale()
 	_stage_flash.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_stage_flash.offset_left = 0.0
@@ -725,6 +860,8 @@ func _layout_stage_runtime_ui() -> void:
 		_audition_button.offset_top = 18.0
 		_audition_button.offset_right = -20.0
 		_audition_button.offset_bottom = 60.0
+	if _closing_overlay != null and _closing_overlay.visible:
+		_closing_overlay.move_to_front()
 
 
 func _cache_scene_actor_layout() -> void:
@@ -835,6 +972,34 @@ func _animate_stage_rotation(moves: Array[Dictionary]) -> void:
 		tween.tween_property(ghost, "size", target_size, snap_rotate_sec)
 		tween.tween_property(ghost, "modulate:a", 0.0, snap_rotate_sec).set_delay(snap_rotate_sec * 0.72)
 		tween.tween_callback(_free_stage_move_ghost.bind(ghost)).set_delay(snap_rotate_sec)
+
+
+func _animate_stage_icon_swap(first_slot: int, second_slot: int, first_instrument_id: String, second_instrument_id: String) -> void:
+	if first_slot < 0 or second_slot < 0 or first_slot >= _stage_icons.size() or second_slot >= _stage_icons.size():
+		return
+	var first_icon := _stage_icons[first_slot]
+	var second_icon := _stage_icons[second_slot]
+	if first_icon == null or second_icon == null:
+		return
+	var scale := _stage_scale()
+	var first_target_pos := _stage_icon_position_for_slot(second_slot, first_instrument_id, scale)
+	var second_target_pos := _stage_icon_position_for_slot(first_slot, second_instrument_id, scale)
+	var first_target_size: Vector2 = HOLD_ICON_SIZES.get(first_instrument_id, Vector2(100.0, 86.0)) * scale
+	var second_target_size: Vector2 = HOLD_ICON_SIZES.get(second_instrument_id, Vector2(100.0, 86.0)) * scale
+	if lock_scene_actor_positions:
+		if second_slot >= 0 and second_slot < _fixed_icon_rects.size():
+			first_target_size = _fixed_icon_rects[second_slot].size
+		if first_slot >= 0 and first_slot < _fixed_icon_rects.size():
+			second_target_size = _fixed_icon_rects[first_slot].size
+	first_icon.move_to_front()
+	second_icon.move_to_front()
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(first_icon, "position", first_target_pos, swap_sec)
+	tween.tween_property(first_icon, "size", first_target_size, swap_sec)
+	tween.tween_property(second_icon, "position", second_target_pos, swap_sec)
+	tween.tween_property(second_icon, "size", second_target_size, swap_sec)
 
 
 func _stage_icon_position_for_slot(slot_index: int, instrument_id: String, scale: Vector2) -> Vector2:
@@ -1031,11 +1196,9 @@ func _start_piece_swap(first: int, second: int) -> void:
 		return
 	var first_target_basis := _basis_between_dirs(_slot_sign(first_slot), _slot_sign(second_slot)) * first_node.transform.basis
 	var second_target_basis := _basis_between_dirs(_slot_sign(second_slot), _slot_sign(first_slot)) * second_node.transform.basis
-	var stage_moves: Array[Dictionary] = [
-		{"from": first_slot, "to": second_slot, "instrument": String(_pieces[first].get("instrument", ""))},
-		{"from": second_slot, "to": first_slot, "instrument": String(_pieces[second].get("instrument", ""))},
-	]
-	_animate_stage_rotation(stage_moves)
+	var first_instrument_id := String(_pieces[first].get("instrument", ""))
+	var second_instrument_id := String(_pieces[second].get("instrument", ""))
+	_animate_stage_icon_swap(first_slot, second_slot, first_instrument_id, second_instrument_id)
 	var tween := create_tween()
 	tween.set_parallel(true)
 	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
@@ -1308,6 +1471,8 @@ func _start_audition() -> void:
 		return
 	_is_auditioning = true
 	var matched_count := _update_match_feedback(true)
+	if matched_count != TARGET_INSTRUMENTS.size():
+		_play_feedback_audio(AUDITION_ERROR_AUDIO)
 	_play_audition_motion()
 	_flash_stage(Color(1.0, 0.88, 0.55, 0.36), audition_sec * 0.5)
 	var t := get_tree().create_timer(audition_sec)
@@ -1339,6 +1504,7 @@ func _play_audition_motion() -> void:
 
 func _update_match_feedback(_from_audition: bool) -> int:
 	var matched_count := 0
+	var previous_matched := _matched.duplicate()
 	var slot_correct: Array[bool] = []
 	for slot in range(TARGET_INSTRUMENTS.size()):
 		slot_correct.append(false)
@@ -1364,6 +1530,18 @@ func _update_match_feedback(_from_audition: bool) -> int:
 		_progress_label.text = "完整编排" if matched_count == 8 else "%d / 8" % matched_count
 
 
+	var new_match_audio_ids: Array[String] = []
+	for slot in range(TARGET_INSTRUMENTS.size()):
+		var is_now_matched := slot < _matched.size() and bool(_matched[slot])
+		var was_matched := slot < previous_matched.size() and bool(previous_matched[slot])
+		if is_now_matched and not was_matched and slot < _matched_once_played.size() and not _matched_once_played[slot]:
+			_matched_once_played[slot] = true
+			new_match_audio_ids.append(TARGET_INSTRUMENTS[slot])
+	if new_match_audio_ids.size() > 1:
+		new_match_audio_ids.shuffle()
+	for instrument_id in new_match_audio_ids:
+		_play_instrument_match_audio(instrument_id)
+
 	return matched_count
 
 
@@ -1383,9 +1561,15 @@ func _are_all_matched() -> bool:
 
 
 func _start_final_performance() -> void:
-	if _completed_once:
+	if _completed_once or _completion_sequence_started:
 		return
+	_completion_sequence_started = true
 	_completed_once = true
+	_finish_final_performance()
+
+
+func _finish_final_performance() -> void:
+	await _wait_for_match_audio_queue()
 	for i in range(_matched.size()):
 		_matched[i] = true
 	_update_match_feedback(true)
@@ -1401,8 +1585,7 @@ func _start_final_performance() -> void:
 		tween.tween_property(node, "scale", Vector3.ONE * 0.94, 1.2)
 	tween.finished.connect(
 		func() -> void:
-			var hold := get_tree().create_timer(0.35)
-			hold.timeout.connect(func() -> void: chapter_completed.emit(chapter_index))
+			_begin_closing_sequence()
 	)
 
 
@@ -1506,6 +1689,67 @@ func _update_rotation_input(delta: float) -> void:
 	if direction == 0.0:
 		return
 	chunk_root.rotate_y(deg_to_rad(manual_rotate_speed_deg) * direction * delta)
+
+
+func _begin_closing_sequence() -> void:
+	await _wait_for_match_audio_queue()
+	_play_entry_audio()
+	_run_closing_sequence()
+
+
+func _run_closing_sequence() -> void:
+	var audio_length := 0.0
+	if _entry_player != null and _entry_player.stream != null:
+		audio_length = maxf(_entry_player.stream.get_length(), 0.0)
+	var start_delay := maxf(audio_length - CLOSING_TRIGGER_REMAINING_SEC, 0.0)
+	if start_delay > 0.0:
+		await get_tree().create_timer(start_delay).timeout
+	await _show_closing_frame(TRANSITION_TEX_1, CLOSING_STEP_SEC)
+	await _show_closing_frame(TRANSITION_TEX_2, CLOSING_STEP_SEC)
+	await _show_closing_frame(TRANSITION_TEX_3, CLOSING_STEP_SEC)
+	await _show_closing_frame(TRANSITION_TEX_4, CLOSING_STEP_SEC)
+	if plat_background != null:
+		plat_background.texture = STAGE_BACKGROUND_C3_L1
+	_clear_stage_for_gallery()
+	if _entry_player != null and _entry_player.playing:
+		_entry_player.stop()
+	await get_tree().create_timer(CLOSING_REVEAL_WAIT_SEC).timeout
+	await _show_closing_frame(TRANSITION_TEX_3, CLOSING_REVERSE_STEP_SEC)
+	await _show_closing_frame(TRANSITION_TEX_2, CLOSING_REVERSE_STEP_SEC)
+	await _show_closing_frame(TRANSITION_TEX_1, CLOSING_REVERSE_STEP_SEC)
+	if _closing_overlay != null:
+		_closing_overlay.visible = false
+		_closing_overlay.texture = null
+	await get_tree().create_timer(CLOSING_POST_HOLD_SEC).timeout
+	chapter_completed.emit(chapter_index)
+
+
+func _show_closing_frame(texture: Texture2D, hold_sec: float) -> void:
+	if _closing_overlay == null:
+		return
+	_closing_overlay.texture = texture
+	_closing_overlay.visible = texture != null
+	_closing_overlay.move_to_front()
+	if hold_sec > 0.0:
+		await get_tree().create_timer(hold_sec).timeout
+
+
+func _clear_stage_for_gallery() -> void:
+	for node_name in DOLL_NODE_NAMES:
+		var doll := stage_root.get_node_or_null(node_name)
+		if doll != null:
+			doll.queue_free()
+	for icon in _stage_icons:
+		if icon != null and is_instance_valid(icon):
+			icon.visible = false
+	for foot in _foot_lights:
+		if foot != null and is_instance_valid(foot):
+			foot.visible = false
+	for top in _top_lights:
+		if top != null and is_instance_valid(top):
+			top.visible = false
+	if _stage_flash != null and is_instance_valid(_stage_flash):
+		_stage_flash.visible = false
 
 
 func _start_entry_sequence() -> void:
