@@ -1,13 +1,13 @@
 63f7b34db8d8cdea90c76aacccf841ec
-::res://::1778394852
+::res://::1778403107
 change1.md::TextFile::-1::1778394836::0::1::::<><><>0<>0<><>::
-export_presets.cfg::TextFile::-1::1778335487::0::1::::<><><>0<>0<><>::
+export_presets.cfg::TextFile::-1::1778402144::0::1::::<><><>0<>0<><>::
 icon.svg::CompressedTexture2D::3214789299660626481::1776264585::1776685005::1::::<><><>0<>0<>0e18217a1b12bd39cad6ff478ec9cd87<>res://.godot/imported/icon.svg-218a8f2b3041327d8a5756f3a245f83b.ctex::
 README.md::TextFile::-1::1777854972::0::1::::<><><>0<>0<><>::
 SKILL.md::TextFile::-1::1777854972::0::1::::<><><>0<>0<><>::
 work.md::TextFile::-1::1776684075::0::1::::<><><>0<>0<><>::
-::res://assets/::1778292689
-::res://assets/audio/::1778394836
+::res://assets/::1778402019
+::res://assets/audio/::1778402019
 1.2屏幕震动.mp3::AudioStreamMP3::4695522851582847402::1777967626::1777967732::1::::<><><>0<>0<>0c65ae0c5eafcb893e10a9cc9e28c16d<>res://.godot/imported/1.2屏幕震动.mp3-e0e4eb154a8f619c2d56d080d81a2b6d.mp3str::
 1.3.2打铁.mp3::AudioStreamMP3::7383320747584929300::1777967626::1777967732::1::::<><><>0<>0<>ddce0d5478ccaa4df2dbd87968dcd4ad<>res://.godot/imported/1.3.2打铁.mp3-94d6d464cebada97feadbea6b38fec84.mp3str::
 1.4.2轮轴转动.mp3::AudioStreamMP3::8629252437441854146::1777967626::1777967732::1::::<><><>0<>0<>becb0819bb5503f1ee73197e40592f69<>res://.godot/imported/1.4.2轮轴转动.mp3-b5f4d0ca2fee30febf132dc5cacc42c8.mp3str::
@@ -23,6 +23,9 @@ work.md::TextFile::-1::1776684075::0::1::::<><><>0<>0<><>::
 初始界面 .mp3::AudioStreamMP3::4430748439476591731::1778268124::1778268515::1::::<><><>0<>0<>0fc4911268e8748ea72841de20a1b775<>res://.godot/imported/初始界面 .mp3-80d71cd24de3dc346857599ccbd554b8.mp3str::
 单击球面音效.mp3::AudioStreamMP3::5445470388981104876::1777967626::1777967732::1::::<><><>0<>0<>5c1adcd308823328bc64c54e0102c943<>res://.godot/imported/单击球面音效.mp3-50b41bd9e2c8bc522900fed3db7bf566.mp3str::
 底噪.mp3::AudioStreamMP3::8458970190404452428::1777967626::1777967732::1::::<><><>0<>0<>27a4313e9c97bb5d69e42568e029b633<>res://.godot/imported/底噪.mp3-a798e74018eea8e27c33877c8212dc38.mp3str::
+键盘打字.mp3::AudioStreamMP3::896527275508961208::1778400141::1778401245::1::::<><><>0<>0<>b32f20e5ff813b61556ddda3fd057569<>res://.godot/imported/键盘打字.mp3-fb42d6119ce80f1e19b9044ae0a4410f.mp3str::
+::res://assets/audio/chapter_3/::1778402062
+finale_door_audio.mp3::AudioStreamMP3::325136089376309636::1778398564::1778402062::1::::<><><>0<>0<>e323f6494083d54351ac4717edf94e7c<>res://.godot/imported/finale_door_audio.mp3-060183a69e9f7c77c3b14a6c991c0c1c.mp3str::
 ::res://assets/audio/第三幕/::1778355139
 收集色彩提示音.mp3::AudioStreamMP3::1864647384966581685::1778341322::1778355139::1::::<><><>0<>0<>9bf129a89b9ec50835dfa2592cec0b84<>res://.godot/imported/收集色彩提示音.mp3-a4b7b89af2d0da303717d6ee636ec683.mp3str::
 球滚动.mp3::AudioStreamMP3::7371638912164449688::1778341316::1778355139::1::::<><><>0<>0<>2bd1dd569f93fddce14cbe063675c91c<>res://.godot/imported/球滚动.mp3-dcf0abe8748cd79ae05dd542c2bb3bf6.mp3str::
@@ -141,6 +144,9 @@ left_3.png::CompressedTexture2D::4703068846644067625::1777969244::1777972374::1:
 right_4_bw.png::CompressedTexture2D::2391869679049526705::1778149778::1778150981::1::::<><><>0<>0<>3716786d9c22d260156fd620f8ea94ce<>res://.godot/imported/right_4_bw.png-e6d4c0ff0c43ae13c29251f70555ae68.ctex::
 right_4_color.png::CompressedTexture2D::110020098025253454::1777969470::1778150981::1::::<><><>0<>0<>e67d253c01739c33ef73a0087c907d77<>res://.godot/imported/right_4_color.png-0c25bad3a7a63bcebae92c853764c4c4.ctex::
 right_5_color.jpg::CompressedTexture2D::6068824242658544669::1778171364::1778219161::1::::<><><>0<>0<>006e9f84745249c6037bce7c286f8c87<>res://.godot/imported/right_5_color.jpg-2051d21f1dab66efb466a5f628ef7bb9.ctex::
+::res://assets/video/::1778402019
+::res://assets/video/chapter_3/::1778402341
+finale_door_mask.ogv::VideoStreamTheora::4155094042638086916::1778402263::0::1::::<><><>0<>0<><>::
 ::res://dev/::1778291410
 ::res://dev/font_candidates/::1778292068
 Aldrich.ttf::FontFile::3775903620640205840::1778291390::1778291438::1::::<><><>0<>0<>773f19d41400c62314ff81d0a222be65<>res://.godot/imported/Aldrich.ttf-5d314bf5730617f2ac39ad5822140a9a.fontdata::
@@ -156,12 +162,12 @@ ShareTechMono.ttf::FontFile::236032552156311643::1778291387::1778291438::1::::<>
 SpaceGrotesk.ttf::FontFile::2142920634171617852::1778291388::1778291438::1::::<><><>0<>0<>d3c2689687f4dfad73d83ba5e065db79<>res://.godot/imported/SpaceGrotesk.ttf-04c13e301feaaf17cbbbd829139b8cd1.fontdata::
 Syncopate.ttf::FontFile::4859885539423103709::1778291555::1778291602::1::::<><><>0<>0<>ce509a7d86c32be9893ebb28ce5279eb<>res://.godot/imported/Syncopate.ttf-11ede1fb9027c83ae67331cea17f2014.fontdata::
 Teko.ttf::FontFile::2697863230939788786::1778291392::1778291438::1::::<><><>0<>0<>d3acdd4dd9618194d236a2bf3360a5e0<>res://.godot/imported/Teko.ttf-861f786afbddaec7f5f2e7af0858ea22.fontdata::
-::res://scenes/::1778297374
+::res://scenes/::1778395273
 chapter_3.tscn::PackedScene::1860886321712457765::1777386046::0::1::::<><><>0<>0<><>::uid://dgpdnfijmh76q::::res://scripts/line_canvas_2d.gd
 font_preview.tscn::PackedScene::-1::1778279590::0::1::::<><><>0<>0<><>::res://scripts/font_preview.gd
 intro_corridor_v2.tscn::PackedScene::-1::1778297374::0::1::::<><><>0<>0<><>::res://scripts/intro_corridor_v2.gd
 intro_interactive.tscn::PackedScene::4681738858864248137::1777967626::0::1::::<><><>0<>0<><>::uid://b1c2x0s645ymu::::res://scripts/intro_interactive.gd<>uid://yyl2v0733gpa::::res://assets/ui/start_1.png<>uid://g1ggpfh7agbq::::res://assets/ui/start_2.png
-main_entry.tscn::PackedScene::7929867992972785267::1778297374::0::1::::<><><>0<>0<><>::uid://dqd6a5ernj7er::::res://scripts/main_entry.gd<>res://assets/ui/scene1.png
+main_entry.tscn::PackedScene::7929867992972785267::1778395273::0::1::::<><><>0<>0<><>::uid://dqd6a5ernj7er::::res://scripts/main_entry.gd<>res://assets/ui/scene1.png
 ::res://scenes/levels/::1776946405
 ::res://scenes/levels/chapter_1/::1776947045
 level_1.tscn::PackedScene::-1::1776946871::0::1::::<><><>0<>0<><>::res://scripts/levels/level_bridge.gd<>res://scenes/levels/chapter_1/source_level_1.tscn
@@ -185,7 +191,7 @@ input_mapping_state.gd::GDScript::2970864116506609328::1778269649::0::1::::Input
 intro_corridor_v2.gd::GDScript::7976548355191374871::1778350026::0::1::::IntroCorridorV2<>Control<><>0<>0<><>::
 intro_interactive.gd::GDScript::4217141148193261996::1778354695::0::1::::IntroInteractive<>Control<><>0<>0<><>::
 line_canvas_2d.gd::GDScript::7611566420917911238::1777858637::0::1::::LineCanvas2D<>Control<><>0<>1<><>::
-main_entry.gd::GDScript::8290360491995648465::1778379590::0::1::::<>Control<><>0<>0<><>::
+main_entry.gd::GDScript::8290360491995648465::1778401491::0::1::::<>Control<><>0<>0<><>::
 route_burn_mask_canvas_2d.gd::GDScript::8309573946629127274::1777858014::0::1::::RouteBurnMaskCanvas2D<>Control<><>0<>1<><>::
 ::res://scripts/levels/::1778335487
 left_help_prompt_overlay.gd::GDScript::9100228453906453897::1778360506::0::1::::LeftHelpPromptOverlay<>CanvasLayer<><>0<>0<><>::
@@ -197,10 +203,10 @@ level_2.gd::GDScript::7073454198673714847::1778335487::0::1::::LevelC1L2<>Contro
 ::res://scripts/levels/chapter_2/::1778394836
 level_1.gd::GDScript::1782513284385078474::1778394836::0::1::::LevelC2L1<>Control<><>0<>1<><>::
 level_2.gd::GDScript::7468757368321466161::1778394836::0::1::::LevelC2L2<>Control<><>0<>0<><>::
-::res://scripts/levels/chapter_3/::1778379614
+::res://scripts/levels/chapter_3/::1778402988
 color_reticle.gd::GDScript::3932972878555233693::1777972322::0::1::::<>Control<><>0<>0<><>::
 level_1.gd::GDScript::4134058100086338719::1778355109::0::1::::LevelC3L1<>Control<><>0<>0<><>::
-level_2.gd::GDScript::4385488411031411886::1778387102::0::1::::LevelC3L2<>Control<><>0<>0<><>::
+level_2.gd::GDScript::4385488411031411886::1778403342::0::1::::LevelC3L2<>Control<><>0<>0<><>::
 ::res://scripts/structure/::1778240613
 structure_cell_data.gd::GDScript::2282641638337752863::1776689976::0::1::::StructureCellData<>RefCounted<><>0<>0<><>::
 structure_mesh_builder.gd::GDScript::3739780370044439493::1776715477::0::1::::StructureMeshBuilder<>RefCounted<><>0<>0<><>::
@@ -209,4 +215,9 @@ structure_shape_data.gd::GDScript::2592772817645509235::1776710940::0::1::::Stru
 structure_shape_provider.gd::GDScript::2776673580220946481::1776694722::0::1::::StructureShapeProvider<>RefCounted<><>0<>0<><>::
 ::res://shaders/::1778292871
 input_hint_glitch.gdshader::Shader::7401776630791842356::1778294184::0::1::::<><><>0<>0<><>::
+::res://tmp/::1778403107
+::res://tmp/finale_video_frames/::1778403108
+frame_08.png::CompressedTexture2D::5725999380290555570::1778403108::1778403359::1::::<><><>0<>0<>a4fb5d255d7d751f9f442668f481dfa1<>res://.godot/imported/frame_08.png-a96b3719525995e0dc1bd33744dafc31.ctex::
+frame_16.png::CompressedTexture2D::1641353740378990765::1778403108::1778403359::1::::<><><>0<>0<>c6961812e632218cd9531f0660517f3a<>res://.godot/imported/frame_16.png-dadf776dcf55de32252933f3227968df.ctex::
+frame_24.png::CompressedTexture2D::3088984867528563998::1778403108::1778403359::1::::<><><>0<>0<>286040b72db6f12071cbbfbd5bb8e510<>res://.godot/imported/frame_24.png-07870aaedd27de2ddedd54ed41067a6b.ctex::
 ::res://tools/::1776694722

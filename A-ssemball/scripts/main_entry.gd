@@ -1,5 +1,48 @@
 extends Control
 
+class OpeningTitleParticleCanvas:
+	extends Control
+
+	var particle_data: Array[Dictionary] = []
+	var timer: float = 0.0
+	var particle_size: float = 3.0
+
+	func _draw() -> void:
+		for data in particle_data:
+			var delay := float(data["delay"])
+			var local_t := maxf(0.0, timer - delay)
+			var start: Vector2 = data["start"]
+			var burst: Vector2 = data["burst"]
+			var ring: Vector2 = data["ring"]
+			var escape: Vector2 = data["escape"]
+			var pos := start
+			var alpha := 1.0
+			if local_t < 0.35:
+				pos = start
+			elif local_t < 1.35:
+				var burst_t := smoothstep(0.0, 1.0, (local_t - 0.35) / 1.0)
+				pos = start.lerp(burst, burst_t)
+			elif local_t < 1.85:
+				pos = burst
+			elif local_t < 3.55:
+				var ring_t := smoothstep(0.0, 1.0, (local_t - 1.85) / 1.7)
+				pos = burst.lerp(ring, ring_t)
+			elif local_t < 4.15:
+				pos = ring
+			elif local_t < 5.05:
+				var unstable_t := smoothstep(0.0, 1.0, (local_t - 4.15) / 0.9)
+				var wobble := Vector2(sin(unstable_t * 24.0 + delay * 91.0), cos(unstable_t * 19.0 + delay * 73.0)) * 18.0 * unstable_t
+				pos = ring + wobble
+			elif local_t < 5.45:
+				var hold_t := (local_t - 5.05) / 0.4
+				var hold_wobble := Vector2(sin(hold_t * 18.0 + delay * 91.0), cos(hold_t * 15.0 + delay * 73.0)) * 18.0
+				pos = ring + hold_wobble
+			else:
+				var fade := clampf((local_t - 5.45) / 1.45, 0.0, 1.0)
+				pos = ring.lerp(escape, smoothstep(0.0, 1.0, fade))
+				alpha = 1.0 - fade
+			draw_rect(Rect2(pos - Vector2.ONE * particle_size * 0.5, Vector2.ONE * particle_size), Color(0.94, 0.93, 0.9, alpha), true)
+
 const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
 const INTRO_SCENE: PackedScene = preload("res://scenes/intro_interactive.tscn")
 const INTRO_V2_SCENE: PackedScene = preload("res://scenes/intro_corridor_v2.tscn")
@@ -16,8 +59,23 @@ const TRAN_1_TEX: Texture2D = preload("res://assets/materials/tran1.png")
 const TRAN_2_TEX: Texture2D = preload("res://assets/materials/tran2.png")
 const TRAN_3_TEX: Texture2D = preload("res://assets/materials/tran3.png")
 const TRAN_4_TEX: Texture2D = preload("res://assets/materials/tran4.png")
+const OPENING_TITLE_FONT: FontFile = preload("res://assets/fonts/IMFellGreatPrimerSC-Regular.ttf")
+const OPENING_TYPE_AUDIO: AudioStream = preload("res://assets/audio/键盘打字.mp3")
 const CHAPTER_2_LEVEL_1_SCENE_INDEX: int = 2
 const CHAPTER_2_LEVEL_2_SCENE_INDEX: int = 3
+const OPENING_TITLE_TEXT: String = "A-ssemball"
+const OPENING_TITLE_ERRORS: PackedStringArray = [
+	"A-zsemball",
+	"A-szemball",
+	"A-ssembsll",
+	"A-ssemnall",
+	"A-ssrmball",
+	"A-ssembzll",
+	"A-ssembakk",
+	"A-ssembalo",
+	"A-xsemball",
+	"A-ssembsll",
+]
 
 @export var fade_to_black_sec: float = 0.45
 @export var reveal_game_sec: float = 0.45
@@ -39,16 +97,39 @@ var _chapter_transition_canvas: CanvasLayer
 var _chapter_transition_overlay: TextureRect
 var _chapter_1_noise_player: AudioStreamPlayer
 var _menu_opening_player: AudioStreamPlayer
+var _opening_type_player: AudioStreamPlayer
 var _debug_mapping_label: Label
 var _font_preview_hold_time: float = 0.0
 var _font_preview_active: bool = false
 var _font_preview_node: Control
 var _use_intro_v2_next: bool = false
 var _start_ch3_paint_roll_direct: bool = false
+var _opening_title_root: Control
+var _opening_title_bg: ColorRect
+var _opening_title_label: Label
+var _opening_title_caret: ColorRect
+var _opening_title_prompt: Label
+var _opening_particle_canvas: OpeningTitleParticleCanvas
+var _opening_title_particle_data: Array[Dictionary] = []
+var _opening_title_waiting: bool = false
+var _opening_title_accept_requested: bool = false
+var _opening_title_fast_accept: bool = false
+var _opening_title_final_sequence: bool = false
+var _opening_title_transition_finished: bool = false
+var _opening_title_text: String = ""
+var _opening_title_target: String = ""
+var _opening_title_phase: String = "typing"
+var _opening_title_attempt_index: int = 0
+var _opening_title_char_index: int = 0
+var _opening_title_timer: float = 0.0
+var _opening_title_pause: float = 0.0
+var _opening_title_elapsed: float = 0.0
+var _opening_particle_timer: float = 0.0
 
 
 func _process(delta: float) -> void:
 	_update_font_preview_hold(delta)
+	_update_opening_title(delta)
 
 
 func _ready() -> void:
@@ -57,6 +138,7 @@ func _ready() -> void:
 	_ensure_chapter_transition_overlay()
 	_ensure_audio_players()
 	_ensure_debug_mapping_label()
+	_setup_opening_title()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -79,7 +161,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_is_starting = true
 			get_viewport().set_input_as_handled()
 			_use_intro_v2_next = true
-			_start_sequence(false, 0)
+			_start_space_sequence()
 			return
 		if event.keycode == KEY_1 or event.keycode == KEY_KP_1:
 			_is_starting = true
@@ -167,6 +249,20 @@ func _close_font_preview() -> void:
 	_clear_game_root()
 	menu_layer.visible = true
 	_font_preview_active = false
+
+
+func _start_space_sequence() -> void:
+	await _request_opening_title_accept()
+	_start_sequence(false, 0)
+
+
+func _request_opening_title_accept() -> void:
+	_opening_title_accept_requested = true
+	_opening_title_fast_accept = true
+	_opening_title_phase = "deleting"
+	_opening_title_timer = 0.0
+	while not _opening_title_transition_finished:
+		await get_tree().process_frame
 
 
 func _start_sequence(skip_intro_to_post_click_effect: bool, start_chapter_scene_index: int = 0) -> void:
@@ -394,17 +490,307 @@ func _tween_transition_overlay_alpha(target_alpha: float, duration: float) -> vo
 	await tween.finished
 
 
-func _ensure_audio_players() -> void:
-	if _chapter_1_noise_player != null and is_instance_valid(_chapter_1_noise_player):
+func _setup_opening_title() -> void:
+	if _opening_title_root != null and is_instance_valid(_opening_title_root):
 		return
-	_chapter_1_noise_player = AudioStreamPlayer.new()
-	_chapter_1_noise_player.name = "Chapter1NoisePlayer"
-	_chapter_1_noise_player.stream = CHAPTER_1_NOISE_LOOP_AUDIO
-	if _chapter_1_noise_player.stream is AudioStreamMP3:
-		(_chapter_1_noise_player.stream as AudioStreamMP3).loop = true
-	_chapter_1_noise_player.volume_db = linear_to_db(0.4)
-	_chapter_1_noise_player.autoplay = false
-	add_child(_chapter_1_noise_player)
+
+	var old_title := menu_layer.get_node_or_null("Title")
+	if old_title is CanvasItem:
+		(old_title as CanvasItem).visible = false
+	var old_hint := menu_layer.get_node_or_null("Title2")
+	if old_hint is CanvasItem:
+		(old_hint as CanvasItem).visible = false
+	var old_bg := menu_layer.get_node_or_null("MenuBg")
+	if old_bg is CanvasItem:
+		(old_bg as CanvasItem).visible = false
+
+	_opening_title_root = Control.new()
+	_opening_title_root.name = "OpeningTypewriterTitle"
+	_opening_title_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_opening_title_root.z_index = 50
+	_opening_title_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	menu_layer.add_child(_opening_title_root)
+
+	_opening_title_bg = ColorRect.new()
+	_opening_title_bg.name = "BlackBackground"
+	_opening_title_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_opening_title_bg.color = Color.BLACK
+	_opening_title_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_opening_title_root.add_child(_opening_title_bg)
+
+	_opening_title_label = _make_opening_title_label(104, Color(0.94, 0.93, 0.9, 1.0))
+	_opening_title_root.add_child(_opening_title_label)
+
+	_opening_title_caret = ColorRect.new()
+	_opening_title_caret.name = "Caret"
+	_opening_title_caret.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_opening_title_caret.color = Color(0.94, 0.93, 0.9, 0.9)
+	_opening_title_caret.visible = false
+	_opening_title_root.add_child(_opening_title_caret)
+
+	_opening_title_prompt = _make_opening_title_label(34, Color(0.94, 0.93, 0.9, 1.0))
+	_opening_title_prompt.text = "[space]"
+	_opening_title_prompt.z_index = 80
+	_opening_title_prompt.modulate.a = 0.0
+	_opening_title_root.add_child(_opening_title_prompt)
+
+	_start_opening_title_attempt(false)
+
+
+func _make_opening_title_label(font_size: int, font_color: Color) -> Label:
+	var label := Label.new()
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_override("font", OPENING_TITLE_FONT)
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", font_color)
+	return label
+
+
+func _update_opening_title(delta: float) -> void:
+	if _opening_title_root == null or not is_instance_valid(_opening_title_root):
+		return
+
+	_opening_title_root.visible = menu_layer.visible and not _font_preview_active
+	if not _opening_title_root.visible:
+		return
+
+	var viewport_size := get_viewport_rect().size
+	_opening_title_root.size = viewport_size
+	_opening_title_label.size = Vector2(viewport_size.x, 150.0)
+	_opening_title_label.position = Vector2(0.0, viewport_size.y * 0.43 - 75.0)
+	_opening_title_prompt.size = Vector2(360.0, 52.0)
+	_opening_title_prompt.position = Vector2(viewport_size.x * 0.5 - 180.0, viewport_size.y * 0.43 + 132.0)
+
+	if _opening_title_final_sequence:
+		_update_opening_title_particles(delta, viewport_size)
+		return
+
+	_opening_title_elapsed += delta
+	_update_typewriter(delta)
+	_opening_title_label.text = _opening_title_text + "|"
+
+	var prompt_flash := 0.68 + 0.18 * sin(Time.get_ticks_msec() * 0.004)
+	var prompt_target := prompt_flash if _opening_title_elapsed >= 3.0 and not _opening_title_accept_requested else 0.0
+	_opening_title_prompt.modulate.a = lerpf(_opening_title_prompt.modulate.a, prompt_target, minf(1.0, delta * 8.0))
+
+
+func _update_typewriter(delta: float) -> void:
+	_opening_title_timer += delta
+	match _opening_title_phase:
+		"typing":
+			if _opening_title_timer >= _typing_step_duration():
+				_opening_title_timer = 0.0
+				if _opening_title_char_index < _opening_title_target.length():
+					_opening_title_char_index += 1
+					_opening_title_text = _opening_title_target.substr(0, _opening_title_char_index)
+					_play_opening_type_sound(1.0)
+				else:
+					if _opening_title_accept_requested and _opening_title_target == OPENING_TITLE_TEXT:
+						_opening_title_phase = "final_hold"
+						_opening_title_pause = 0.9
+					else:
+						_opening_title_phase = "pause"
+						_opening_title_pause = 2.0
+		"pause":
+			if _opening_title_timer >= _opening_title_pause:
+				_opening_title_timer = 0.0
+				_opening_title_phase = "deleting"
+		"deleting":
+			if _opening_title_timer >= _delete_step_duration():
+				_opening_title_timer = 0.0
+				var delete_target := 0 if _opening_title_fast_accept else _delete_target_length(_opening_title_target)
+				if _opening_title_text.length() > delete_target:
+					_opening_title_text = _opening_title_text.substr(0, _opening_title_text.length() - 1)
+					_play_opening_type_sound(0.72)
+				else:
+					if _opening_title_accept_requested:
+						_start_opening_title_attempt(true)
+					else:
+						_opening_title_attempt_index = (_opening_title_attempt_index + 1) % OPENING_TITLE_ERRORS.size()
+						_start_opening_title_attempt(false)
+		"final_hold":
+			if _opening_title_timer >= _opening_title_pause:
+				_begin_opening_title_particle_sequence()
+
+
+func _start_opening_title_attempt(correct: bool) -> void:
+	_opening_title_target = OPENING_TITLE_TEXT if correct else OPENING_TITLE_ERRORS[_opening_title_attempt_index]
+	_opening_title_text = ""
+	_opening_title_char_index = 0
+	_opening_title_timer = 0.0
+	_opening_title_phase = "typing"
+	_opening_title_waiting = not correct
+
+
+func _typing_step_duration() -> float:
+	var index: int = maxi(0, _opening_title_char_index - 1)
+	var pattern := [0.42, 0.36, 0.5, 0.32, 0.46, 0.34, 0.48, 0.38, 0.5, 0.3]
+	var speed_scale := 0.5 if _opening_title_fast_accept else 1.0
+	return pattern[index % pattern.size()] * speed_scale
+
+
+func _delete_step_duration() -> float:
+	return 0.15 if _opening_title_fast_accept else 0.3
+
+
+func _delete_target_length(text_value: String) -> int:
+	if _opening_title_attempt_index % 3 == 0:
+		return 0
+	for i in range(min(text_value.length(), OPENING_TITLE_TEXT.length())):
+		if text_value[i] != OPENING_TITLE_TEXT[i]:
+			return maxi(0, i - 1)
+	return maxi(0, text_value.length() - 3)
+
+
+func _play_opening_type_sound(volume_scale: float) -> void:
+	if _opening_type_player == null or not is_instance_valid(_opening_type_player):
+		return
+	_opening_type_player.stop()
+	_opening_type_player.pitch_scale = 0.94 + randf() * 0.12
+	_opening_type_player.volume_db = linear_to_db(clampf(0.62 * volume_scale, 0.01, 1.0))
+	_opening_type_player.play()
+
+
+func _begin_opening_title_particle_sequence() -> void:
+	_opening_title_final_sequence = true
+	_opening_particle_timer = 0.0
+	_opening_title_label.visible = false
+	_opening_title_caret.visible = false
+	_opening_title_prompt.visible = false
+	await _build_opening_title_particles()
+
+
+func _build_opening_title_particles() -> void:
+	_opening_title_particle_data.clear()
+	if _opening_particle_canvas != null and is_instance_valid(_opening_particle_canvas):
+		_opening_particle_canvas.queue_free()
+
+	var viewport_size := get_viewport_rect().size
+	var center := Vector2(viewport_size.x * 0.5, viewport_size.y * 0.43)
+
+	var starts := await _build_title_pixel_points(center)
+	var burst_points := _build_burst_points(center, starts)
+	var ring_points := _build_circle_points(center, starts.size())
+	var escape_points := _build_escape_points(center, starts.size())
+	for i in range(starts.size()):
+		_opening_title_particle_data.append({
+			"start": starts[i],
+			"burst": burst_points[i],
+			"ring": ring_points[i],
+			"escape": escape_points[i],
+			"delay": float(i % 29) * 0.008,
+		})
+
+	_opening_particle_canvas = OpeningTitleParticleCanvas.new()
+	_opening_particle_canvas.name = "OpeningTitleParticleCanvas"
+	_opening_particle_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_opening_particle_canvas.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_opening_particle_canvas.particle_data = _opening_title_particle_data
+	_opening_title_root.add_child(_opening_particle_canvas)
+
+
+func _update_opening_title_particles(delta: float, _viewport_size: Vector2) -> void:
+	_opening_particle_timer += delta
+	if _opening_particle_canvas != null and is_instance_valid(_opening_particle_canvas):
+		_opening_particle_canvas.timer = _opening_particle_timer
+		_opening_particle_canvas.queue_redraw()
+
+	if _opening_particle_timer >= 7.2:
+		_opening_title_transition_finished = true
+
+
+func _build_title_pixel_points(center: Vector2) -> Array[Vector2]:
+	var viewport_size := Vector2i(980, 220)
+	var sample_step := 2
+	var viewport := SubViewport.new()
+	viewport.name = "OpeningTitleSampler"
+	viewport.size = viewport_size
+	viewport.transparent_bg = true
+	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+	add_child(viewport)
+
+	var sample_label := _make_opening_title_label(104, Color(1.0, 1.0, 1.0, 1.0))
+	sample_label.text = OPENING_TITLE_TEXT
+	sample_label.size = Vector2(viewport_size)
+	sample_label.position = Vector2.ZERO
+	viewport.add_child(sample_label)
+
+	await RenderingServer.frame_post_draw
+
+	var image := viewport.get_texture().get_image()
+	var points: Array[Vector2] = []
+	var origin := center - Vector2(viewport_size) * 0.5
+	for y in range(0, viewport_size.y, sample_step):
+		for x in range(0, viewport_size.x, sample_step):
+			var alpha := image.get_pixel(x, y).a
+			if alpha > 0.18:
+				points.append(origin + Vector2(float(x), float(y)))
+
+	viewport.queue_free()
+
+	if points.size() > 8500:
+		var reduced: Array[Vector2] = []
+		var stride := ceili(float(points.size()) / 8500.0)
+		for i in range(0, points.size(), stride):
+			reduced.append(points[i])
+		points = reduced
+	return points
+
+
+func _build_circle_points(center: Vector2, count: int) -> Array[Vector2]:
+	var points: Array[Vector2] = []
+	var radius := 138.0
+	var ring_thickness := 8.0
+	for i in range(count):
+		var theta := TAU * float(i) / float(count)
+		var r := radius + sin(float(i) * 2.399963) * ring_thickness
+		points.append(center + Vector2(cos(theta), sin(theta)) * r)
+	return points
+
+
+func _build_burst_points(center: Vector2, starts: Array[Vector2]) -> Array[Vector2]:
+	var points: Array[Vector2] = []
+	for i in range(starts.size()):
+		var start := starts[i]
+		var dir := (start - center).normalized()
+		if dir.length_squared() < 0.001:
+			var angle := TAU * float(i) / float(maxi(1, starts.size()))
+			dir = Vector2(cos(angle), sin(angle))
+		var distance := 86.0 + 54.0 * absf(sin(float(i) * 12.9898))
+		var tangent := Vector2(-dir.y, dir.x) * sin(float(i) * 4.17) * 28.0
+		points.append(start + dir * distance + tangent)
+	return points
+
+
+func _build_escape_points(center: Vector2, count: int) -> Array[Vector2]:
+	var points: Array[Vector2] = []
+	for i in range(count):
+		var angle := TAU * float(i) / float(maxi(1, count)) + sin(float(i) * 0.37) * 0.7
+		var distance := 380.0 + 340.0 * absf(sin(float(i) * 5.398))
+		points.append(center + Vector2(cos(angle), sin(angle)) * distance)
+	return points
+
+
+func _ensure_audio_players() -> void:
+	if _chapter_1_noise_player == null or not is_instance_valid(_chapter_1_noise_player):
+		_chapter_1_noise_player = AudioStreamPlayer.new()
+		_chapter_1_noise_player.name = "Chapter1NoisePlayer"
+		_chapter_1_noise_player.stream = CHAPTER_1_NOISE_LOOP_AUDIO
+		if _chapter_1_noise_player.stream is AudioStreamMP3:
+			(_chapter_1_noise_player.stream as AudioStreamMP3).loop = true
+		_chapter_1_noise_player.volume_db = linear_to_db(0.4)
+		_chapter_1_noise_player.autoplay = false
+		add_child(_chapter_1_noise_player)
+
+	if _opening_type_player == null or not is_instance_valid(_opening_type_player):
+		_opening_type_player = AudioStreamPlayer.new()
+		_opening_type_player.name = "OpeningTypePlayer"
+		_opening_type_player.stream = OPENING_TYPE_AUDIO
+		_opening_type_player.volume_db = linear_to_db(0.62)
+		_opening_type_player.autoplay = false
+		add_child(_opening_type_player)
 
 
 func _is_chapter_1_scene_index(scene_index: int) -> bool:

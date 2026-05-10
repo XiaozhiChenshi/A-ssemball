@@ -5,6 +5,8 @@ signal chapter_completed(chapter_index: int)
 
 const QUANTICO_FONT: FontFile = preload("res://assets/fonts/Quantico.ttf")
 const IM_FELL_FONT: FontFile = preload("res://assets/fonts/IMFellGreatPrimerSC-Regular.ttf")
+const FINALE_DOOR_VIDEO_PATH := "res://assets/video/chapter_3/finale_door_mask.ogv"
+const FINALE_DOOR_AUDIO_PATH := "res://assets/audio/chapter_3/finale_door_audio.mp3"
 
 const STAIR_COUNT := 34
 const FLAT_COUNT := 7
@@ -29,21 +31,39 @@ const FINALE_CLOSE_SEC := 2.2
 const FINALE_LEAK_SEC := 2.8
 const FINALE_FADE_SEC := 3.2
 const FINALE_TITLE_HOLD_SEC := 2.4
+const FINALE_VIDEO_FAILSAFE_SEC := 36.0
+const FINALE_VIDEO_TARGET_SEC := 23.0
+const FINALE_VIDEO_MASK_CENTER_RATIO := Vector2(984.5 / 1920.0, 576.5 / 1076.0)
 
 @export var chapter_index: int = 3
 @export_range(0.4, 4.0, 0.05) var reveal_sec: float = 2.2
 @export_range(0.5, 4.0, 0.05) var aurora_intensity: float = 1.18
 @export_range(0.2, 3.0, 0.05) var aurora_motion_speed: float = 1.28
+@export_range(0.32, 1.00, 0.01) var finale_video_sphere_size_ratio: float = 0.92
+@export var finale_video_sphere_offset: Vector2 = Vector2.ZERO
 @export var move_speed: float = 8.6
 @export var path_length: float = 108.0
 
 var _viewport_container: SubViewportContainer
 var _sub_viewport: SubViewport
 var _background_rect: ColorRect
+var _finale_video_overlay: Control
+var _finale_video_player: VideoStreamPlayer
+var _finale_video_sphere_viewport_container: SubViewportContainer
+var _finale_video_sphere_viewport: SubViewport
+var _finale_video_sphere_root: Node3D
+var _finale_video_sphere_aurora_root: Node3D
+var _finale_video_sphere_aurora_sheets: Array[MeshInstance3D] = []
+var _finale_video_sphere_aurora_materials: Array[ShaderMaterial] = []
+var _finale_video_reflection_probe: ReflectionProbe
+var _finale_video_reflection_backdrop_material: StandardMaterial3D
+var _finale_video_sphere_mirror_material: ShaderMaterial
+var _finale_video_audio_player: AudioStreamPlayer
 var _world_root: Node3D
 var _environment: Environment
 var _camera: Camera3D
 var _title_label: Label
+var _thanks_label: Label
 var _sphere_root: Node3D
 var _sphere_material: StandardMaterial3D
 var _reflection_probe: ReflectionProbe
@@ -84,6 +104,10 @@ var _finale_orbit_start_position: Vector3 = Vector3.ZERO
 var _finale_orbit_start_set: bool = false
 var _finale_enter_start_position: Vector3 = Vector3.ZERO
 var _finale_enter_start_set: bool = false
+var _finale_video_started: bool = false
+var _finale_video_finished: bool = false
+var _finale_video_holding: bool = false
+var _finale_video_elapsed: float = 0.0
 
 
 func _ready() -> void:
@@ -103,6 +127,7 @@ func _process(delta: float) -> void:
 	_update_door()
 	_update_sphere()
 	_update_aurora()
+	_update_finale_video_overlay()
 	_update_camera(delta)
 	_update_path_reveal(delta)
 	_update_completion()
@@ -135,6 +160,7 @@ func _build_scene() -> void:
 	_build_mirror_sphere()
 	_build_aurora()
 	_build_reflection_probe()
+	_build_finale_video_overlay()
 	_build_title_overlay()
 
 
@@ -184,6 +210,229 @@ func _build_title_overlay() -> void:
 	_title_label.modulate = Color(1.0, 1.0, 1.0, 0.0)
 	_title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_title_label)
+
+	_thanks_label = Label.new()
+	_thanks_label.name = "FinalThanks"
+	_thanks_label.text = "Thank you for playing"
+	_thanks_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_thanks_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	_thanks_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_thanks_label.offset_left = 48.0
+	_thanks_label.offset_top = 36.0
+	_thanks_label.offset_right = -48.0
+	_thanks_label.offset_bottom = -36.0
+	_thanks_label.add_theme_font_override("font", IM_FELL_FONT)
+	_thanks_label.add_theme_font_size_override("font_size", 30)
+	_thanks_label.add_theme_color_override("font_color", Color(0.08, 0.075, 0.068, 1.0))
+	_thanks_label.modulate = Color(1.0, 1.0, 1.0, 0.0)
+	_thanks_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_thanks_label)
+
+
+func _build_finale_video_overlay() -> void:
+	_finale_video_overlay = Control.new()
+	_finale_video_overlay.name = "FinaleDoorVideoOverlay"
+	_finale_video_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_finale_video_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_finale_video_overlay.visible = false
+	add_child(_finale_video_overlay)
+
+	_finale_video_player = VideoStreamPlayer.new()
+	_finale_video_player.name = "DoorMaskVideoPlayer"
+	_finale_video_player.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_finale_video_player.expand = true
+	_finale_video_player.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_finale_video_player.volume_db = -80.0
+	var video_stream := load(FINALE_DOOR_VIDEO_PATH) as VideoStream
+	if video_stream != null:
+		_finale_video_player.stream = video_stream
+	if not _finale_video_player.finished.is_connected(_on_finale_video_finished):
+		_finale_video_player.finished.connect(_on_finale_video_finished)
+	_finale_video_overlay.add_child(_finale_video_player)
+
+	_finale_video_sphere_viewport_container = SubViewportContainer.new()
+	_finale_video_sphere_viewport_container.name = "CenteredAuroraSphereViewport"
+	_finale_video_sphere_viewport_container.stretch = true
+	_finale_video_sphere_viewport_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_finale_video_overlay.add_child(_finale_video_sphere_viewport_container)
+
+	_finale_video_sphere_viewport = SubViewport.new()
+	_finale_video_sphere_viewport.name = "CenteredAuroraSphereSubViewport"
+	_finale_video_sphere_viewport.transparent_bg = true
+	_finale_video_sphere_viewport.own_world_3d = true
+	_finale_video_sphere_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_finale_video_sphere_viewport.render_target_clear_mode = SubViewport.CLEAR_MODE_ALWAYS
+	_finale_video_sphere_viewport.msaa_3d = Viewport.MSAA_4X
+	_finale_video_sphere_viewport_container.add_child(_finale_video_sphere_viewport)
+
+	_build_finale_video_sphere_world()
+
+	_finale_video_audio_player = AudioStreamPlayer.new()
+	_finale_video_audio_player.name = "FinaleDoorIndependentAudioPlayer"
+	var audio_stream := load(FINALE_DOOR_AUDIO_PATH) as AudioStream
+	if audio_stream != null:
+		_finale_video_audio_player.stream = audio_stream
+	_finale_video_audio_player.volume_db = 0.0
+	add_child(_finale_video_audio_player)
+
+
+func _build_finale_video_sphere_world() -> void:
+	var world := Node3D.new()
+	world.name = "CenteredAuroraSphereWorld"
+	_finale_video_sphere_viewport.add_child(world)
+
+	var environment := WorldEnvironment.new()
+	var env := Environment.new()
+	env.background_mode = Environment.BG_CLEAR_COLOR
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.015, 0.018, 0.026, 1.0)
+	env.ambient_light_energy = 0.72
+	env.glow_enabled = true
+	env.glow_intensity = 1.45
+	env.glow_bloom = 0.34
+	env.glow_hdr_threshold = 0.58
+	environment.environment = env
+	world.add_child(environment)
+
+	var key := OmniLight3D.new()
+	key.name = "CenteredSphereMirrorSpecularKey"
+	key.position = Vector3(-4.5, 3.2, 4.5)
+	key.light_color = Color(0.82, 0.92, 1.0, 1.0)
+	key.light_energy = 2.0
+	key.omni_range = 14.0
+	world.add_child(key)
+
+	var rim := OmniLight3D.new()
+	rim.name = "CenteredSphereAuroraRimLight"
+	rim.position = Vector3(3.4, 2.6, -2.8)
+	rim.light_color = Color(0.30, 0.86, 1.0, 1.0)
+	rim.light_energy = 2.8
+	rim.omni_range = 16.0
+	world.add_child(rim)
+
+	var camera := Camera3D.new()
+	camera.name = "CenteredAuroraSphereCamera"
+	camera.current = true
+	camera.cull_mask = 1
+	camera.fov = 42.0
+	camera.position = Vector3(0.0, 0.0, 4.85)
+	world.add_child(camera)
+	camera.look_at(Vector3.ZERO, Vector3.UP)
+
+	_build_finale_video_reflection_environment(world)
+
+	_finale_video_sphere_root = Node3D.new()
+	_finale_video_sphere_root.name = "CenteredAuroraSphereRoot"
+	_finale_video_sphere_root.scale = Vector3.ONE * 1.0
+	world.add_child(_finale_video_sphere_root)
+
+	var mesh := SphereMesh.new()
+	mesh.radius = 1.0
+	mesh.height = 2.0
+	mesh.radial_segments = 96
+	mesh.rings = 48
+
+	_finale_video_sphere_mirror_material = _make_finale_video_sphere_mirror_material()
+
+	var sphere := MeshInstance3D.new()
+	sphere.name = "CenteredCompleteMirrorSphere"
+	sphere.mesh = mesh
+	sphere.material_override = _finale_video_sphere_mirror_material
+	_finale_video_sphere_root.add_child(sphere)
+
+	_finale_video_sphere_aurora_root = Node3D.new()
+	_finale_video_sphere_aurora_root.name = "CenteredAuroraRoot"
+	_finale_video_sphere_root.add_child(_finale_video_sphere_aurora_root)
+
+	var palette_sets := [
+		[Color(0.06, 0.95, 0.72, 1.0), Color(0.16, 0.48, 1.0, 1.0), Color(0.90, 0.22, 1.0, 1.0)],
+		[Color(0.30, 1.0, 0.46, 1.0), Color(0.06, 0.78, 0.96, 1.0), Color(0.70, 0.32, 1.0, 1.0)],
+		[Color(0.92, 0.96, 0.28, 1.0), Color(0.10, 0.90, 0.78, 1.0), Color(0.24, 0.36, 1.0, 1.0)]
+	]
+	for i in range(9):
+		var mat := _make_aurora_material(palette_sets[i % palette_sets.size()], 71.0 + float(i) * 9.6)
+		mat.set_shader_parameter("fade", 1.0)
+		mat.set_shader_parameter("intensity", aurora_intensity)
+		var sheet := MeshInstance3D.new()
+		sheet.name = "CenteredAuroraSheet_%02d" % i
+		sheet.mesh = _make_aurora_mesh(
+			1.75 + float(i % 3) * 0.10,
+			2.35,
+			0.94,
+			40 + i,
+			float(i) / 9.0 * TAU,
+			0.0,
+			0.46,
+			0.14
+		)
+		sheet.material_override = mat
+		sheet.rotation_degrees.y = float(i) / 9.0 * 360.0
+		sheet.set_meta("phase", float(i) * 1.41)
+		sheet.set_meta("sway", 0.18 + float(i % 3) * 0.025)
+		_finale_video_sphere_aurora_root.add_child(sheet)
+		_finale_video_sphere_aurora_sheets.append(sheet)
+		_finale_video_sphere_aurora_materials.append(mat)
+
+
+func _build_finale_video_reflection_environment(world: Node3D) -> void:
+	var backdrop_mesh := SphereMesh.new()
+	backdrop_mesh.radius = 8.0
+	backdrop_mesh.height = 16.0
+	backdrop_mesh.radial_segments = 96
+	backdrop_mesh.rings = 48
+
+	_finale_video_reflection_backdrop_material = StandardMaterial3D.new()
+	_finale_video_reflection_backdrop_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_finale_video_reflection_backdrop_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_finale_video_reflection_backdrop_material.albedo_color = Color.WHITE
+
+	var backdrop := MeshInstance3D.new()
+	backdrop.name = "VideoReflectionBackdrop"
+	backdrop.layers = 2
+	backdrop.mesh = backdrop_mesh
+	backdrop.material_override = _finale_video_reflection_backdrop_material
+	world.add_child(backdrop)
+
+	_finale_video_reflection_probe = ReflectionProbe.new()
+	_finale_video_reflection_probe.name = "CenteredVideoReflectionProbe"
+	_finale_video_reflection_probe.position = Vector3.ZERO
+	_finale_video_reflection_probe.size = Vector3(18.0, 18.0, 18.0)
+	_finale_video_reflection_probe.intensity = 4.2
+	_finale_video_reflection_probe.update_mode = ReflectionProbe.UPDATE_ALWAYS
+	_finale_video_reflection_probe.cull_mask = 3
+	world.add_child(_finale_video_reflection_probe)
+
+
+func _make_finale_video_sphere_mirror_material() -> ShaderMaterial:
+	var shader := Shader.new()
+	shader.code = """
+shader_type spatial;
+render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_schlick_ggx;
+
+uniform sampler2D video_texture : source_color, filter_linear_mipmap;
+uniform float mirror_zoom = 0.58;
+uniform float video_mix = 0.96;
+uniform vec3 base_tint = vec3(0.72, 0.74, 0.77);
+
+void fragment() {
+	vec3 n = normalize(NORMAL);
+	vec2 uv = vec2(0.5 - n.x * mirror_zoom, 0.5 - n.y * mirror_zoom);
+	uv = clamp(uv, vec2(0.001), vec2(0.999));
+	vec3 reflected_video = texture(video_texture, uv).rgb;
+	float rim = pow(clamp(1.0 - abs(n.z), 0.0, 1.0), 2.2);
+	float highlight = pow(max(dot(n, normalize(vec3(-0.45, -0.50, 0.74))), 0.0), 18.0);
+	ALBEDO = mix(base_tint, reflected_video, video_mix);
+	METALLIC = 1.0;
+	ROUGHNESS = 0.0;
+	SPECULAR = 1.0;
+	CLEARCOAT = 1.0;
+	CLEARCOAT_ROUGHNESS = 0.0;
+	EMISSION = reflected_video * 0.18 + vec3(0.12, 0.55, 0.68) * rim * 0.55 + vec3(1.0) * highlight * 0.50;
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	return material
 
 
 func _build_camera() -> void:
@@ -906,7 +1155,17 @@ func _guide_progress() -> float:
 
 func _update_forward_progress(delta: float) -> void:
 	if _finale_active:
+		if _finale_video_holding:
+			_finale_video_elapsed += delta
+			if _finale_video_elapsed >= FINALE_VIDEO_TARGET_SEC:
+				_finish_finale_video_playback()
+			_moving_weight = lerpf(_moving_weight, 0.0, clampf(delta * 1.9, 0.0, 1.0))
+			return
 		_finale_time += delta
+		if not _finale_video_started and _finale_time >= _finale_video_start_time():
+			_finale_time = _finale_video_start_time()
+			_start_finale_video_playback()
+			return
 		var approach_t := smoothstep(0.0, 1.0, clampf(_finale_time / FINALE_APPROACH_SEC, 0.0, 1.0))
 		_move_progress = lerpf(_finale_start_progress, FINALE_APPROACH_END, approach_t)
 		_moving_weight = lerpf(_moving_weight, 0.0, clampf(delta * 1.9, 0.0, 1.0))
@@ -930,6 +1189,10 @@ func _start_finale() -> void:
 	_finale_start_progress = _move_progress
 	_finale_orbit_start_set = false
 	_finale_enter_start_set = false
+	_finale_video_started = false
+	_finale_video_finished = false
+	_finale_video_holding = false
+	_finale_video_elapsed = 0.0
 	_path_started = true
 
 
@@ -947,6 +1210,10 @@ func _finale_close_start_time() -> float:
 
 func _finale_leak_start_time() -> float:
 	return _finale_close_start_time() + FINALE_CLOSE_SEC
+
+
+func _finale_video_start_time() -> float:
+	return _finale_leak_start_time()
 
 
 func _finale_fade_start_time() -> float:
@@ -971,6 +1238,99 @@ func _finale_fade_amount() -> float:
 	return smoothstep(0.0, 1.0, _finale_segment_t(_finale_fade_start_time(), FINALE_FADE_SEC))
 
 
+func _start_finale_video_playback() -> void:
+	if _finale_video_started:
+		return
+	_finale_video_started = true
+	_finale_video_finished = false
+	_finale_video_elapsed = 0.0
+	if _finale_video_audio_player != null and is_instance_valid(_finale_video_audio_player) and _finale_video_audio_player.stream != null:
+		_finale_video_audio_player.stop()
+		_finale_video_audio_player.play()
+	if _finale_video_player == null or not is_instance_valid(_finale_video_player) or _finale_video_player.stream == null:
+		_finish_finale_video_playback()
+		return
+	if _finale_video_overlay != null:
+		_finale_video_overlay.visible = true
+		_finale_video_overlay.modulate = Color.WHITE
+	_finale_video_holding = true
+	_finale_video_player.stop()
+	_finale_video_player.play()
+	_sync_finale_video_reflection_texture()
+
+
+func _on_finale_video_finished() -> void:
+	_finish_finale_video_playback()
+
+
+func _finish_finale_video_playback() -> void:
+	if _finale_video_finished:
+		return
+	_finale_video_finished = true
+	_finale_video_holding = false
+	if _finale_video_player != null and is_instance_valid(_finale_video_player):
+		_finale_video_player.stop()
+	if _finale_video_overlay != null:
+		_finale_video_overlay.visible = false
+
+
+func _update_finale_video_overlay() -> void:
+	_sync_finale_video_reflection_texture()
+	if _finale_video_sphere_root != null and is_instance_valid(_finale_video_sphere_root):
+		var yaw := _time * 0.34 + sin(_time * 0.47) * 0.18
+		var pitch := _time * 0.21 + sin(_time * 0.63 + 1.1) * 0.22
+		var roll := _time * 0.27 + sin(_time * 0.39 + 2.3) * 0.26
+		var basis := Basis(Vector3.UP, yaw)
+		basis = Basis(Vector3.RIGHT, pitch) * basis
+		basis = Basis(Vector3.FORWARD, roll) * basis
+		var current_scale := _finale_video_sphere_root.scale
+		_finale_video_sphere_root.basis = basis.orthonormalized()
+		_finale_video_sphere_root.scale = current_scale
+	if _finale_video_sphere_aurora_root != null and is_instance_valid(_finale_video_sphere_aurora_root):
+		var drift_basis := Basis(Vector3.UP, sin(_time * 0.28) * deg_to_rad(8.0))
+		_finale_video_sphere_aurora_root.basis = drift_basis
+	for i in range(_finale_video_sphere_aurora_sheets.size()):
+		var sheet := _finale_video_sphere_aurora_sheets[i]
+		if sheet == null or not is_instance_valid(sheet):
+			continue
+		var phase := float(sheet.get_meta("phase", 0.0))
+		var sway := float(sheet.get_meta("sway", 0.2))
+		var t := _time * aurora_motion_speed
+		sheet.rotation_degrees.y = sin(t * 0.46 + phase) * rad_to_deg(sway)
+		sheet.rotation_degrees.z = sin(t * 0.58 + phase * 1.7) * 4.5
+		sheet.position.y = sin(t * 0.72 + phase) * 0.16
+		var pulse := 1.0 + sin(t * 0.82 + phase * 1.3) * 0.075
+		var stretch := 1.0 + sin(t * 0.55 + phase) * 0.12
+		sheet.scale = Vector3(pulse, pulse, stretch)
+	for material in _finale_video_sphere_aurora_materials:
+		if material == null:
+			continue
+		material.set_shader_parameter("time", _time * aurora_motion_speed)
+		material.set_shader_parameter("fade", 1.0)
+		material.set_shader_parameter("intensity", aurora_intensity)
+	if _finale_video_overlay != null and _finale_video_overlay.visible:
+		var fade_in := smoothstep(0.0, 0.35, _finale_video_elapsed)
+		var fade_out := 1.0
+		if _finale_video_elapsed > FINALE_VIDEO_FAILSAFE_SEC - 0.45:
+			fade_out = 1.0 - smoothstep(FINALE_VIDEO_FAILSAFE_SEC - 0.45, FINALE_VIDEO_FAILSAFE_SEC, _finale_video_elapsed)
+		_finale_video_overlay.modulate = Color(1.0, 1.0, 1.0, fade_in * fade_out)
+
+
+func _sync_finale_video_reflection_texture() -> void:
+	if _finale_video_reflection_backdrop_material == null or _finale_video_player == null:
+		return
+	if not is_instance_valid(_finale_video_player) or not _finale_video_player.has_method("get_video_texture"):
+		return
+	var texture_value: Variant = _finale_video_player.call("get_video_texture")
+	var texture := texture_value as Texture2D
+	if texture == null:
+		return
+	if _finale_video_reflection_backdrop_material.albedo_texture != texture:
+		_finale_video_reflection_backdrop_material.albedo_texture = texture
+	if _finale_video_sphere_mirror_material != null:
+		_finale_video_sphere_mirror_material.set_shader_parameter("video_texture", texture)
+
+
 func _update_background_and_fade() -> void:
 	var pearl_t := smoothstep(0.18, FINALE_APPROACH_END, _move_progress)
 	var gray_t := smoothstep(0.0, 0.56, pearl_t)
@@ -990,6 +1350,8 @@ func _update_background_and_fade() -> void:
 	if _title_label != null:
 		var title_t := smoothstep(0.12, 0.82, fade)
 		_title_label.modulate = Color(1.0, 1.0, 1.0, title_t)
+		if _thanks_label != null:
+			_thanks_label.modulate = Color(1.0, 1.0, 1.0, title_t)
 
 
 func _update_camera(delta: float) -> void:
@@ -1714,6 +2076,21 @@ func _refresh_aurora_inertia_meshes(inertia_strength: float) -> void:
 func _on_resized() -> void:
 	if _sub_viewport != null and _viewport_container != null and not _viewport_container.stretch:
 		_sub_viewport.size = Vector2i(maxi(1, int(size.x)), maxi(1, int(size.y)))
+	if _finale_video_sphere_viewport_container != null and _finale_video_sphere_viewport != null:
+		var side := maxi(1, int(minf(size.x, size.y) * finale_video_sphere_size_ratio))
+		var mask_center := Vector2(size.x * FINALE_VIDEO_MASK_CENTER_RATIO.x, size.y * FINALE_VIDEO_MASK_CENTER_RATIO.y)
+		_finale_video_sphere_viewport_container.size = Vector2(side, side)
+		_finale_video_sphere_viewport_container.position = mask_center - Vector2(side, side) * 0.5 + finale_video_sphere_offset
+		_finale_video_sphere_viewport.size = Vector2i(side, side)
 	if _title_label != null:
 		var font_size := clampi(int(size.x * 0.115), 64, 142)
 		_title_label.add_theme_font_size_override("font_size", font_size)
+	if _thanks_label != null:
+		var thanks_size := clampi(int(size.x * 0.028), 22, 40)
+		_thanks_label.add_theme_font_size_override("font_size", thanks_size)
+		var margin_x := clampf(size.x * 0.045, 28.0, 64.0)
+		var margin_y := clampf(size.y * 0.050, 24.0, 54.0)
+		_thanks_label.offset_left = margin_x
+		_thanks_label.offset_top = margin_y
+		_thanks_label.offset_right = -margin_x
+		_thanks_label.offset_bottom = -margin_y
