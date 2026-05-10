@@ -60,6 +60,7 @@ const C2_BLOCK_PREVIEW_AUDIO_PATHS: Array[String] = [
 	"res://assets/audio/第二幕/方块提示音/大提琴方块音效.mp3",
 	"res://assets/audio/第二幕/方块提示音/架子鼓方块音效.mp3",
 ]
+const C2_TURNED_AUDIO: AudioStream = preload("res://assets/audio/2-1turned.mp3")
 const InputMappingStateRef = preload("res://scripts/input_mapping_state.gd")
 const InputHintOverlayRef = preload("res://scripts/input_hint_overlay.gd")
 const LeftHelpPromptOverlayRef = preload("res://scripts/levels/left_help_prompt_overlay.gd")
@@ -257,6 +258,8 @@ var _left_help_prompt_overlay: LeftHelpPromptOverlay
 var _c2_sfx_player: AudioStreamPlayer
 var _c2_match_players: Array[AudioStreamPlayer] = []
 var _c2_disc_music_player: AudioStreamPlayer
+var _c2_completion_music_player: AudioStreamPlayer
+var _c2_completion_sequence_started: bool = false
 
 
 func _ready() -> void:
@@ -1338,6 +1341,11 @@ func _ensure_c2_audio_player() -> void:
 		_c2_disc_music_player = AudioStreamPlayer.new()
 		_c2_disc_music_player.name = "C2DiscMusicPlayer"
 		add_child(_c2_disc_music_player)
+	if _c2_completion_music_player == null or not is_instance_valid(_c2_completion_music_player):
+		_c2_completion_music_player = AudioStreamPlayer.new()
+		_c2_completion_music_player.name = "C2CompletionMusicPlayer"
+		_c2_completion_music_player.stream = C2_TURNED_AUDIO
+		add_child(_c2_completion_music_player)
 
 
 func _play_c2_error_audio() -> void:
@@ -1447,6 +1455,18 @@ func _is_any_c2_match_player_playing() -> bool:
 	for p in _c2_match_players:
 		if p != null and is_instance_valid(p) and p.playing:
 			return true
+	return false
+
+
+func _is_any_c2_stage_audio_playing(include_completion_music: bool = false) -> bool:
+	if _c2_sfx_player != null and is_instance_valid(_c2_sfx_player) and _c2_sfx_player.playing:
+		return true
+	if _is_any_c2_match_player_playing():
+		return true
+	if _c2_disc_music_player != null and is_instance_valid(_c2_disc_music_player) and _c2_disc_music_player.playing:
+		return true
+	if include_completion_music and _c2_completion_music_player != null and is_instance_valid(_c2_completion_music_player) and _c2_completion_music_player.playing:
+		return true
 	return false
 
 
@@ -3347,7 +3367,7 @@ func _mark_scene_completed(scene_index: int) -> void:
 		if _right_scene_disc_visible and idx == _right_scene_current_index:
 			_play_disc_intro_animation(idx)
 	if _are_all_right_scenes_completed():
-		call_deferred("_show_continue_button")
+		call_deferred("_begin_c2_completion_sequence")
 
 
 func _are_all_right_scenes_completed() -> bool:
@@ -3359,6 +3379,45 @@ func _are_all_right_scenes_completed() -> bool:
 	return true
 
 
+func _begin_c2_completion_sequence() -> void:
+	if _c2_completion_sequence_started or _final_transition_running or _chapter_completed_once:
+		return
+	_c2_completion_sequence_started = true
+	if _continue_button != null and is_instance_valid(_continue_button):
+		_continue_button.visible = false
+		_continue_button.disabled = true
+	call_deferred("_run_c2_completion_sequence")
+
+
+func _run_c2_completion_sequence() -> void:
+	_ensure_c2_audio_player()
+	while not _final_transition_running and _are_all_right_scenes_completed() and _is_any_c2_stage_audio_playing(false):
+		await get_tree().process_frame
+	if _final_transition_running or not _are_all_right_scenes_completed():
+		_c2_completion_sequence_started = false
+		return
+	await get_tree().create_timer(2.0).timeout
+	if _final_transition_running or not _are_all_right_scenes_completed() or _is_any_c2_stage_audio_playing(false):
+		_c2_completion_sequence_started = false
+		call_deferred("_begin_c2_completion_sequence")
+		return
+	if _c2_completion_music_player == null or not is_instance_valid(_c2_completion_music_player) or C2_TURNED_AUDIO == null:
+		_start_final_close_transition()
+		return
+	_c2_completion_music_player.stream = C2_TURNED_AUDIO
+	_c2_completion_music_player.pitch_scale = 1.0
+	_c2_completion_music_player.stop()
+	_c2_completion_music_player.play()
+	var transition_delay_sec := maxf(0.0, C2_TURNED_AUDIO.get_length() - 2.0)
+	if transition_delay_sec <= 0.0:
+		_start_final_close_transition()
+		return
+	await get_tree().create_timer(transition_delay_sec).timeout
+	if _final_transition_running or not _are_all_right_scenes_completed():
+		return
+	_start_final_close_transition()
+
+
 func _start_final_close_transition() -> void:
 	if _final_transition_running or _chapter_completed_once:
 		return
@@ -3367,6 +3426,9 @@ func _start_final_close_transition() -> void:
 
 	if _dragging_orbit_cube_index >= 0:
 		_dragging_orbit_cube_index = -1
+	if _continue_button != null and is_instance_valid(_continue_button):
+		_continue_button.visible = false
+		_continue_button.disabled = true
 
 	# Removed curtain close-to-black transition: hand off immediately to main flow.
 	chapter_completed.emit(chapter_index)

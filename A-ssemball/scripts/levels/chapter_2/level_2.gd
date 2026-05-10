@@ -243,7 +243,7 @@ func _ensure_left_help_prompt_overlay() -> void:
 	_left_help_prompt_overlay.setup(left_3d, camera_3d, chunk_root, 1.0)
 	_left_help_prompt_overlay.inactivity_delay_sec = 15.0
 	_left_help_prompt_overlay.hint_fade_in_sec = 0.001
-	_left_help_prompt_overlay.set_popup_size(Vector2(480.0, 252.0))
+	_left_help_prompt_overlay.set_popup_size(Vector2(480.0, 332.0))
 	_left_help_prompt_overlay.set_hint_text_style(24, Color(0.97, 0.97, 0.97, 1.0))
 	_left_help_prompt_overlay.set_hint_text("在你玩卡手的魔方到气恼时\n有没有试过直接把块掰正\n或者交换两个块的位置？\n\n拖动正面的块可以转动一层\n单击两个块可以交换位置\n右侧舞台能试听现在的排列")
 
