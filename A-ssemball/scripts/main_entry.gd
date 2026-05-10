@@ -78,6 +78,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.keycode == KEY_SPACE:
 			_is_starting = true
 			get_viewport().set_input_as_handled()
+			_use_intro_v2_next = true
 			_start_sequence(false, 0)
 			return
 		if event.keycode == KEY_1 or event.keycode == KEY_KP_1:
