@@ -108,9 +108,29 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.keycode == KEY_6 or event.keycode == KEY_KP_6:
 			_is_starting = true
 			get_viewport().set_input_as_handled()
-			_start_ch3_paint_roll_direct = true
-			_start_sequence(true, 4)
+			_start_direct_chapter_sequence(5)
 			return
+
+
+func _start_direct_chapter_sequence(start_chapter_scene_index: int) -> void:
+	_start_ch3_paint_roll_direct = false
+	_requested_start_chapter_scene_index = clampi(
+		start_chapter_scene_index,
+		0,
+		maxi(0, _chapter_scenes.size() - 1)
+	)
+	var fade_out := create_tween()
+	fade_out.tween_property(fade_layer, "color:a", 1.0, fade_to_black_sec)
+	await fade_out.finished
+
+	menu_layer.visible = false
+	fade_layer.color = Color(0.0, 0.0, 0.0, 1.0)
+	await _start_chapter_flow()
+
+	var show_game := create_tween()
+	show_game.tween_property(fade_layer, "color:a", 0.0, reveal_game_sec)
+	await show_game.finished
+	_notify_active_chapter_transition_finished()
 
 
 func _update_font_preview_hold(delta: float) -> void:
